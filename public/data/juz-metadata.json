@@ -1,0 +1,182 @@
+[
+  {
+    "index": 1,
+    "sura": 1,
+    "aya": 1,
+    "startPage": 1
+  },
+  {
+    "index": 2,
+    "sura": 2,
+    "aya": 142,
+    "startPage": 22
+  },
+  {
+    "index": 3,
+    "sura": 2,
+    "aya": 253,
+    "startPage": 42
+  },
+  {
+    "index": 4,
+    "sura": 3,
+    "aya": 93,
+    "startPage": 62
+  },
+  {
+    "index": 5,
+    "sura": 4,
+    "aya": 24,
+    "startPage": 82
+  },
+  {
+    "index": 6,
+    "sura": 4,
+    "aya": 148,
+    "startPage": 102
+  },
+  {
+    "index": 7,
+    "sura": 5,
+    "aya": 82,
+    "startPage": 121
+  },
+  {
+    "index": 8,
+    "sura": 6,
+    "aya": 111,
+    "startPage": 142
+  },
+  {
+    "index": 9,
+    "sura": 7,
+    "aya": 88,
+    "startPage": 162
+  },
+  {
+    "index": 10,
+    "sura": 8,
+    "aya": 41,
+    "startPage": 182
+  },
+  {
+    "index": 11,
+    "sura": 9,
+    "aya": 93,
+    "startPage": 201
+  },
+  {
+    "index": 12,
+    "sura": 11,
+    "aya": 6,
+    "startPage": 222
+  },
+  {
+    "index": 13,
+    "sura": 12,
+    "aya": 53,
+    "startPage": 242
+  },
+  {
+    "index": 14,
+    "sura": 15,
+    "aya": 1,
+    "startPage": 262
+  },
+  {
+    "index": 15,
+    "sura": 17,
+    "aya": 1,
+    "startPage": 282
+  },
+  {
+    "index": 16,
+    "sura": 18,
+    "aya": 75,
+    "startPage": 302
+  },
+  {
+    "index": 17,
+    "sura": 21,
+    "aya": 1,
+    "startPage": 322
+  },
+  {
+    "index": 18,
+    "sura": 23,
+    "aya": 1,
+    "startPage": 342
+  },
+  {
+    "index": 19,
+    "sura": 25,
+    "aya": 21,
+    "startPage": 362
+  },
+  {
+    "index": 20,
+    "sura": 27,
+    "aya": 56,
+    "startPage": 382
+  },
+  {
+    "index": 21,
+    "sura": 29,
+    "aya": 46,
+    "startPage": 402
+  },
+  {
+    "index": 22,
+    "sura": 33,
+    "aya": 31,
+    "startPage": 422
+  },
+  {
+    "index": 23,
+    "sura": 36,
+    "aya": 28,
+    "startPage": 442
+  },
+  {
+    "index": 24,
+    "sura": 39,
+    "aya": 32,
+    "startPage": 462
+  },
+  {
+    "index": 25,
+    "sura": 41,
+    "aya": 47,
+    "startPage": 482
+  },
+  {
+    "index": 26,
+    "sura": 46,
+    "aya": 1,
+    "startPage": 502
+  },
+  {
+    "index": 27,
+    "sura": 51,
+    "aya": 31,
+    "startPage": 522
+  },
+  {
+    "index": 28,
+    "sura": 58,
+    "aya": 1,
+    "startPage": 542
+  },
+  {
+    "index": 29,
+    "sura": 67,
+    "aya": 1,
+    "startPage": 562
+  },
+  {
+    "index": 30,
+    "sura": 78,
+    "aya": 1,
+    "startPage": 582
+  }
+]
