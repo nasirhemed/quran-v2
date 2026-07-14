@@ -15,7 +15,7 @@ export type AyahIndex = Map<string, AyahInfo>;
 export interface PracticeConfig {
   juzFrom: number;
   juzTo: number;
-  mode: "similar" | "random";
+  mode: "drill" | "similar" | "random";
   count: number;
   skipSameSurah: boolean;
 }
@@ -35,10 +35,14 @@ export interface PracticeQuestion {
   fullText: string;
   /** Other occurrences of the same phrase group (similar mode only). */
   twins: PracticeTwin[];
-  /** The shared phrase being tested (similar mode only). */
+  /** The shared phrase being tested (similar modes only). */
   phraseText?: string;
-  /** The ayah after the prompt, for recall context (random mode only). */
+  /** The ayah after the prompt, for recall context (drill and random modes). */
   nextAyahText?: string;
+  /** Group walk position (drill mode only). */
+  groupNumber?: number;
+  groupPosition?: number;
+  groupSize?: number;
 }
 
 const HINT_WORDS = 5;
@@ -126,6 +130,60 @@ export function generateSimilarQuestions(
   }
 
   return shuffle(candidates).slice(0, config.count);
+}
+
+/**
+ * The original memorization app's "Similar Verses" mode: pick confusable
+ * groups, then quiz EVERY in-range occurrence of each group back to back.
+ * Whole groups are kept together, so the total may exceed config.count.
+ */
+export function generateGroupDrillQuestions(
+  details: Record<string, MutashabihatPhrase>,
+  index: AyahIndex,
+  config: PracticeConfig
+): PracticeQuestion[] {
+  const eligible: { phrase: MutashabihatPhrase; occs: string[] }[] = [];
+
+  for (const phrase of Object.values(details)) {
+    if (config.skipSameSurah && phrase.surahCount < 2) continue;
+
+    // Occurrences can repeat an ayah (multiple word ranges); dedupe by key.
+    const keys = [...new Set(phrase.occurrences.map((o) => o.ayahKey))];
+    const occs = keys.filter((k) => inRange(index.get(k), config));
+    if (occs.length < 2) continue; // a drill needs at least two in range
+
+    eligible.push({ phrase, occs });
+  }
+
+  const questions: PracticeQuestion[] = [];
+  let groupNumber = 0;
+
+  for (const { phrase, occs } of shuffle(eligible)) {
+    if (questions.length >= config.count) break;
+    groupNumber++;
+    const members = shuffle(occs);
+
+    members.forEach((key, i) => {
+      const info = index.get(key)!;
+      const next = index.get(`${info.surah}:${info.ayah + 1}`);
+      questions.push({
+        key,
+        surah: info.surah,
+        ayah: info.ayah,
+        tname: info.tname,
+        hint: makeHint(info.text),
+        fullText: info.text,
+        twins: [],
+        phraseText: phrase.phraseText,
+        nextAyahText: next?.text,
+        groupNumber,
+        groupPosition: i + 1,
+        groupSize: members.length,
+      });
+    });
+  }
+
+  return questions;
 }
 
 export function generateRandomQuestions(

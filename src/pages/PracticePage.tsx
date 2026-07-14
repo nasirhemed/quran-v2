@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { fetchMutashabihatDetails, fetchQuranPages } from "@/lib/data";
 import {
   buildAyahIndex,
+  generateGroupDrillQuestions,
   generateRandomQuestions,
   generateSimilarQuestions,
   type PracticeConfig,
@@ -35,7 +36,7 @@ export default function PracticePage() {
   const [config, setConfig] = useState<PracticeConfig>({
     juzFrom: 1,
     juzTo: 30,
-    mode: "similar",
+    mode: "drill",
     count: 10,
     skipSameSurah: true,
   });
@@ -69,9 +70,11 @@ export default function PracticePage() {
       juzTo: Math.max(config.juzFrom, config.juzTo),
     };
     startWith(
-      normalized.mode === "similar"
-        ? generateSimilarQuestions(details, ayahIndex, normalized)
-        : generateRandomQuestions(ayahIndex, normalized)
+      normalized.mode === "drill"
+        ? generateGroupDrillQuestions(details, ayahIndex, normalized)
+        : normalized.mode === "similar"
+          ? generateSimilarQuestions(details, ayahIndex, normalized)
+          : generateRandomQuestions(ayahIndex, normalized)
     );
   };
 
@@ -91,9 +94,7 @@ export default function PracticePage() {
     startWith(missed);
   };
 
-  if (!pages || !details) {
-    return <div className="text-center py-20 text-muted">Loading…</div>;
-  }
+  const dataReady = !!pages && !!details;
 
   // ── Setup ──────────────────────────────────────────────────────
   if (phase === "setup") {
@@ -148,6 +149,30 @@ export default function PracticePage() {
             <div className="space-y-2">
               <label
                 className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-colors ${
+                  config.mode === "drill"
+                    ? "border-primary bg-primary-soft"
+                    : "border-edge hover:border-edge-strong"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={config.mode === "drill"}
+                  onChange={() => setConfig({ ...config, mode: "drill" })}
+                  className="mt-1 accent-[var(--primary)]"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-ink">
+                    Similar verses — full group
+                  </span>
+                  <span className="block text-xs text-muted mt-0.5">
+                    Every occurrence of a confusable group, back to back —
+                    recite what follows each one.
+                  </span>
+                </span>
+              </label>
+              <label
+                className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-colors ${
                   config.mode === "similar"
                     ? "border-primary bg-primary-soft"
                     : "border-edge hover:border-edge-strong"
@@ -162,11 +187,11 @@ export default function PracticePage() {
                 />
                 <span>
                   <span className="block text-sm font-semibold text-ink">
-                    Similar verses
+                    Similar verses — spot the twins
                   </span>
                   <span className="block text-xs text-muted mt-0.5">
-                    Confusable groups from the curated Mutashabihat data —
-                    recite the verse, then check its twins.
+                    One verse per group — recite it, then reveal all its
+                    look-alikes at once.
                   </span>
                 </span>
               </label>
@@ -197,7 +222,7 @@ export default function PracticePage() {
             </div>
           </div>
 
-          {config.mode === "similar" && (
+          {config.mode !== "random" && (
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
                 Quality gates
@@ -232,9 +257,10 @@ export default function PracticePage() {
             </select>
             <button
               onClick={start}
-              className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+              disabled={!dataReady}
+              className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-wait"
             >
-              Start practice
+              {dataReady ? "Start practice" : "Loading data…"}
             </button>
           </div>
 
@@ -330,17 +356,26 @@ export default function PracticePage() {
             style={{ width: `${(current / questions.length) * 100}%` }}
           />
         </div>
-        {q.twins.length > 0 && (
+        {q.groupSize ? (
+          <span className="whitespace-nowrap">
+            Group {q.groupNumber} · verse {q.groupPosition} of {q.groupSize}
+          </span>
+        ) : q.twins.length > 0 ? (
           <span className="whitespace-nowrap">
             {q.twins.length + 1} occurrences
           </span>
-        )}
+        ) : null}
       </div>
 
       <div className="bg-surface border border-edge rounded-xl overflow-hidden">
         <div className="p-5 bg-card2 border-b border-edge">
           <div className="text-xs text-muted mb-2">
-            {q.twins.length > 0 ? (
+            {q.groupSize ? (
+              <>
+                One of <b className="text-ink">{q.groupSize} confusable verses</b> in
+                this group — recite what follows:
+              </>
+            ) : q.twins.length > 0 ? (
               <>
                 This opening appears in <b className="text-ink">{q.twins.length + 1} places</b>.
                 Recite what follows — then check the twins.
@@ -376,6 +411,19 @@ export default function PracticePage() {
                 {q.fullText}
               </p>
             </div>
+
+            {q.phraseText && (
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-xs text-faint">Shared phrase</span>
+                <span
+                  dir="rtl"
+                  lang="ar"
+                  className="font-arabic text-base px-2 py-0.5 rounded bg-primary-soft text-primary"
+                >
+                  {q.phraseText}
+                </span>
+              </div>
+            )}
 
             {q.twins.map((t) => (
               <div key={t.key} className="border-t border-edge pt-3">

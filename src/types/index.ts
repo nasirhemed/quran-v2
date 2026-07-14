@@ -4,7 +4,7 @@ export interface QuranWord {
   text: string;
   lineNumber: number;
   position: number; // 1-indexed position in ayah
-  charType: "word" | "end";
+  charType?: "word" | "end"; // stripped from shipped data; only "word" entries survive the pipeline
 }
 
 export interface PageAyah {

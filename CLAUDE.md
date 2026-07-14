@@ -31,11 +31,14 @@ No test framework is configured yet.
 - **Stack**: React 18 + TypeScript + Vite, Tailwind 3, wouter (routing),
   TanStack Query (staleTime Infinity — static data never refetches).
 - **Data** (`public/data/`): static JSON, currently copied from the source
-  repos' generated outputs. `quran-pages.json` (604 pages, word-level, from
-  the quran.com API), `surahs.json`, `juz-metadata.json`,
-  `ayah-highlights.json`, `mutashabihat-{list,details}.json`,
-  `similar-ayah-{list,details}.json`, `phrase-verses.json`. Original source:
-  QUL morphology phrases (https://qul.tarteel.ai/morphology_phrases).
+  repos' generated outputs and then MINIFIED (no whitespace; the unused
+  `charType` word field is stripped — quran-pages.json went 14.6MB → 4.8MB).
+  The future pipeline must emit minified JSON too. Files: `quran-pages.json`
+  (604 pages, word-level, from the quran.com API), `surahs.json`,
+  `juz-metadata.json`, `ayah-highlights.json`,
+  `mutashabihat-{list,details}.json`, `similar-ayah-{list,details}.json`,
+  `phrase-verses.json`. Original source: QUL morphology phrases
+  (https://qul.tarteel.ai/morphology_phrases).
 - **Theme**: token CSS variables in `src/index.css` (light "paper mushaf" /
   dark slate), applied via `tailwind.config.ts`. The `slate`/`amber`/`surface`
   Tailwind scales are remapped onto tokens so code ported from quran-reader is
@@ -49,7 +52,12 @@ No test framework is configured yet.
   `hooks/useLocalPhrases` + `components/edit/`.
 - **Practice engine**: `src/lib/practice.ts` — builds an ayah index from
   quran-pages.json, generates questions from `mutashabihat-details.json` with
-  quality gates (`skipSameSurah` drops groups with `surahCount < 2`).
+  quality gates (`skipSameSurah` drops groups with `surahCount < 2`). Three
+  modes: `drill` (default; walks every in-range occurrence of a group back to
+  back, group badges, no twin spoilers — the original memorization app's
+  "Similar Verses" mode), `similar` (one verse per group, twins revealed at
+  once), `random`. The Practice setup screen must never block on data
+  loading — the Start button disables instead.
 
 ## Pending work (agreed roadmap)
 
