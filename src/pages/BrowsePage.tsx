@@ -4,9 +4,11 @@ import { Link } from "wouter";
 import {
   fetchJuzMetadata,
   fetchMutashabihatList,
+  fetchSimilarAyahDetails,
   fetchSimilarAyahList,
   fetchSurahs,
 } from "@/lib/data";
+import HighlightedAyah from "@/components/HighlightedAyah";
 import { getJuzForVerse, parseVerseKey, surahTname } from "@/lib/quranMeta";
 import type { JuzMeta, PhraseListItem, SimilarAyahListItem, SurahMeta } from "@/types";
 
@@ -132,7 +134,17 @@ function SimilarCard({
   item: SimilarAyahListItem;
   surahs: SurahMeta[];
 }) {
+  const [expanded, setExpanded] = useState(false);
   const { surah } = parseVerseKey(item.primaryVerseKey);
+
+  // One shared file for all cards; fetched on first expand, cached forever.
+  const { data: details } = useQuery({
+    queryKey: ["similar-ayah-details"],
+    queryFn: fetchSimilarAyahDetails,
+    enabled: expanded,
+  });
+  const entry = expanded ? details?.[item.id] : undefined;
+
   return (
     <div className="bg-surface border border-edge rounded-lg p-4">
       <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink mb-3">
@@ -145,7 +157,46 @@ function SimilarCard({
         <span className="text-xs text-faint">
           {item.primaryVerseKey} · {surahTname(surahs, surah)}
         </span>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="ml-auto text-xs font-medium text-muted hover:text-primary transition-colors"
+        >
+          {expanded ? "Hide similar verses ▴" : "Show similar verses ▾"}
+        </button>
       </div>
+
+      {expanded && !entry && (
+        <div className="text-xs text-faint py-2">Loading…</div>
+      )}
+
+      {entry && (
+        <div className="space-y-3 border-t border-edge pt-3 mb-3">
+          {entry.similarAyahs.map((m) => {
+            const { surah: mSurah, ayah: mAyah } = parseVerseKey(m.ayahKey);
+            return (
+              <div key={m.ayahKey}>
+                <div className="flex items-center gap-2 text-xs mb-1">
+                  <Link
+                    href={`/read?surah=${mSurah}&ayah=${mAyah}`}
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    {m.ayahKey} · {surahTname(surahs, mSurah)}
+                  </Link>
+                  <span className="text-faint">
+                    {m.score}% match · {m.matchedWordsCount} words
+                  </span>
+                </div>
+                <HighlightedAyah
+                  text={m.ayahText}
+                  ranges={[m.matchWordsRange]}
+                  className="font-arabic text-lg leading-loose text-ink-soft"
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <OccurrenceChips occurrences={item.occurrences} surahs={surahs} />
     </div>
   );
@@ -172,7 +223,18 @@ export default function BrowsePage() {
 
   const filteredPhrases = useMemo(() => {
     if (!phrases) return { items: [] as PhraseListItem[], hidden: 0 };
-    let items = phrases;
+    // The QUL data has near-duplicate entries (orthographic variants,
+    // overlapping phrases) covering the same verse set — show each set once,
+    // represented by its longest phrase text.
+    const bySig = new Map<string, PhraseListItem>();
+    for (const p of phrases) {
+      const sig = [...p.occurrences].sort().join("|");
+      const existing = bySig.get(sig);
+      if (!existing || p.phraseText.length > existing.phraseText.length) {
+        bySig.set(sig, p);
+      }
+    }
+    let items = [...bySig.values()];
     let hidden = 0;
     if (hideSameSurah) {
       const before = items.length;

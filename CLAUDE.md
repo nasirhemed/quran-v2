@@ -51,13 +51,23 @@ No test framework is configured yet.
   `var(--hl-N-bg/bd)` references), localStorage phrase editing in
   `hooks/useLocalPhrases` + `components/edit/`.
 - **Practice engine**: `src/lib/practice.ts` — builds an ayah index from
-  quran-pages.json, generates questions from `mutashabihat-details.json` with
-  quality gates (`skipSameSurah` drops groups with `surahCount < 2`). Three
-  modes: `drill` (default; walks every in-range occurrence of a group back to
-  back, group badges, no twin spoilers — the original memorization app's
-  "Similar Verses" mode), `similar` (one verse per group, twins revealed at
-  once), `random`. The Practice setup screen must never block on data
-  loading — the Start button disables instead.
+  quran-pages.json and unifies both similarity datasets into `PracticeGroup`s
+  (sources are user-selectable: Mutashabihat phrases and/or similar ayahs).
+  Groups with identical occurrence sets are merged (`dedupeGroups`) — the QUL
+  data has orthographic-variant duplicates. Range is by Juz or by Surah.
+  Quality gates: `skipSameSurah` (surahCount < 2) and `skipHugeGroups`
+  (drills skip groups with > HUGE_GROUP_LIMIT in-range verses). Three modes:
+  `drill` (default; walks every in-range occurrence of a group back to back,
+  group badges, no twin spoilers — the original memorization app's "Similar
+  Verses" mode), `similar` (one verse per group, twins revealed at once),
+  `random`. Prompts show the shared phrase as a "Watch for" chip; reveals
+  highlight the shared/matched words inline via
+  `components/HighlightedAyah.tsx` (word ranges are 1-indexed and align with
+  the page data's word segmentation). The setup screen must never block on
+  data loading — the Start button disables instead.
+- **Browse**: phrase items are deduplicated by occurrence-set signature
+  (same QUL duplicate issue); Similar Ayah cards expand in place to list all
+  similar verses with score/word-count and matched-segment highlighting.
 
 ## Pending work (agreed roadmap)
 

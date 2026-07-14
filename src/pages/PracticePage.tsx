@@ -1,15 +1,23 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { fetchMutashabihatDetails, fetchQuranPages } from "@/lib/data";
+import {
+  fetchMutashabihatDetails,
+  fetchQuranPages,
+  fetchSimilarAyahDetails,
+  fetchSurahs,
+} from "@/lib/data";
 import {
   buildAyahIndex,
+  buildPracticeGroups,
   generateGroupDrillQuestions,
   generateRandomQuestions,
-  generateSimilarQuestions,
+  generateTwinsQuestions,
+  HUGE_GROUP_LIMIT,
   type PracticeConfig,
   type PracticeQuestion,
 } from "@/lib/practice";
+import HighlightedAyah from "@/components/HighlightedAyah";
 
 type Phase = "setup" | "play" | "done";
 
@@ -26,19 +34,26 @@ export default function PracticePage() {
     queryKey: ["quran-pages"],
     queryFn: fetchQuranPages,
   });
-  const { data: details } = useQuery({
+  const { data: phraseDetails } = useQuery({
     queryKey: ["mutashabihat-details"],
     queryFn: fetchMutashabihatDetails,
   });
+  const { data: similarDetails } = useQuery({
+    queryKey: ["similar-ayah-details"],
+    queryFn: fetchSimilarAyahDetails,
+  });
+  const { data: surahs } = useQuery({ queryKey: ["surahs"], queryFn: fetchSurahs });
 
   const ayahIndex = useMemo(() => (pages ? buildAyahIndex(pages) : null), [pages]);
 
   const [config, setConfig] = useState<PracticeConfig>({
-    juzFrom: 1,
-    juzTo: 30,
+    range: { type: "juz", from: 1, to: 30 },
     mode: "drill",
     count: 10,
     skipSameSurah: true,
+    skipHugeGroups: true,
+    usePhrases: true,
+    useSimilarAyahs: true,
   });
   const [phase, setPhase] = useState<Phase>("setup");
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
@@ -47,10 +62,13 @@ export default function PracticePage() {
   const [results, setResults] = useState<Result[]>([]);
   const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
 
+  const setRange = (patch: Partial<PracticeConfig["range"]>) =>
+    setConfig((c) => ({ ...c, range: { ...c.range, ...patch } }));
+
   const startWith = (qs: PracticeQuestion[]) => {
     if (qs.length === 0) {
       setEmptyMessage(
-        "No questions match this range and these gates. Widen the Juz range or relax the quality gates."
+        "No questions match this range and these gates. Widen the range or relax the gates."
       );
       return;
     }
@@ -63,18 +81,28 @@ export default function PracticePage() {
   };
 
   const start = () => {
-    if (!ayahIndex || !details) return;
+    if (!ayahIndex || !phraseDetails || !similarDetails) return;
+    if (config.mode !== "random" && !config.usePhrases && !config.useSimilarAyahs) {
+      setEmptyMessage("Pick at least one source: Mutashabihat phrases or similar ayahs.");
+      return;
+    }
     const normalized: PracticeConfig = {
       ...config,
-      juzFrom: Math.min(config.juzFrom, config.juzTo),
-      juzTo: Math.max(config.juzFrom, config.juzTo),
+      range: {
+        ...config.range,
+        from: Math.min(config.range.from, config.range.to),
+        to: Math.max(config.range.from, config.range.to),
+      },
     };
+    if (normalized.mode === "random") {
+      startWith(generateRandomQuestions(ayahIndex, normalized));
+      return;
+    }
+    const groups = buildPracticeGroups(phraseDetails, similarDetails, normalized);
     startWith(
       normalized.mode === "drill"
-        ? generateGroupDrillQuestions(details, ayahIndex, normalized)
-        : normalized.mode === "similar"
-          ? generateSimilarQuestions(details, ayahIndex, normalized)
-          : generateRandomQuestions(ayahIndex, normalized)
+        ? generateGroupDrillQuestions(groups, ayahIndex, normalized)
+        : generateTwinsQuestions(groups, ayahIndex, normalized)
     );
   };
 
@@ -94,10 +122,15 @@ export default function PracticePage() {
     startWith(missed);
   };
 
-  const dataReady = !!pages && !!details;
+  const dataReady = !!pages && !!phraseDetails && !!similarDetails && !!surahs;
 
   // ── Setup ──────────────────────────────────────────────────────
   if (phase === "setup") {
+    const rangeOptions =
+      config.range.type === "juz"
+        ? JUZ_OPTIONS.map((j) => ({ value: j, label: `Juz ${j}` }))
+        : (surahs ?? []).map((s) => ({ value: s.index, label: `${s.index}. ${s.tname}` }));
+
     return (
       <div className="max-w-xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
@@ -106,7 +139,7 @@ export default function PracticePage() {
           </h1>
           <p className="text-slate-400 text-sm">
             Test your recall. Similar-verse questions come from the curated
-            Mutashabihat groups.
+            Mutashabihat and similar-ayah data.
           </p>
         </div>
 
@@ -115,27 +148,41 @@ export default function PracticePage() {
             <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
               Range
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <select
-                value={config.juzFrom}
-                onChange={(e) => setConfig({ ...config, juzFrom: Number(e.target.value) })}
-                className="flex-1 bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary"
+                value={config.range.type}
+                onChange={(e) => {
+                  const type = e.target.value as "juz" | "surah";
+                  setConfig((c) => ({
+                    ...c,
+                    range: { type, from: 1, to: type === "juz" ? 30 : 114 },
+                  }));
+                }}
+                className="bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary"
               >
-                {JUZ_OPTIONS.map((j) => (
-                  <option key={j} value={j}>
-                    Juz {j}
+                <option value="juz">By Juz</option>
+                <option value="surah">By Surah</option>
+              </select>
+              <select
+                value={config.range.from}
+                onChange={(e) => setRange({ from: Number(e.target.value) })}
+                className="flex-1 min-w-32 bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary"
+              >
+                {rangeOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
               <span className="text-faint text-sm">to</span>
               <select
-                value={config.juzTo}
-                onChange={(e) => setConfig({ ...config, juzTo: Number(e.target.value) })}
-                className="flex-1 bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary"
+                value={config.range.to}
+                onChange={(e) => setRange({ to: Number(e.target.value) })}
+                className="flex-1 min-w-32 bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary"
               >
-                {JUZ_OPTIONS.map((j) => (
-                  <option key={j} value={j}>
-                    Juz {j}
+                {rangeOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -225,21 +272,80 @@ export default function PracticePage() {
           {config.mode !== "random" && (
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
+                Sources
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={config.usePhrases}
+                    onChange={(e) =>
+                      setConfig({ ...config, usePhrases: e.target.checked })
+                    }
+                    className="accent-[var(--primary)]"
+                  />
+                  <span className={config.usePhrases ? "text-ink" : "text-muted"}>
+                    Mutashabihat phrases
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={config.useSimilarAyahs}
+                    onChange={(e) =>
+                      setConfig({ ...config, useSimilarAyahs: e.target.checked })
+                    }
+                    className="accent-[var(--primary)]"
+                  />
+                  <span className={config.useSimilarAyahs ? "text-ink" : "text-muted"}>
+                    Similar ayahs
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {config.mode !== "random" && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
                 Quality gates
               </div>
-              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={config.skipSameSurah}
-                  onChange={(e) =>
-                    setConfig({ ...config, skipSameSurah: e.target.checked })
-                  }
-                  className="accent-[var(--primary)]"
-                />
-                <span className={config.skipSameSurah ? "text-primary font-medium" : "text-muted"}>
-                  Skip same-surah refrains
-                </span>
-              </label>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={config.skipSameSurah}
+                    onChange={(e) =>
+                      setConfig({ ...config, skipSameSurah: e.target.checked })
+                    }
+                    className="accent-[var(--primary)]"
+                  />
+                  <span
+                    className={config.skipSameSurah ? "text-primary font-medium" : "text-muted"}
+                  >
+                    Skip same-surah refrains
+                  </span>
+                </label>
+                {config.mode === "drill" && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={config.skipHugeGroups}
+                      onChange={(e) =>
+                        setConfig({ ...config, skipHugeGroups: e.target.checked })
+                      }
+                      className="accent-[var(--primary)]"
+                    />
+                    <span
+                      className={
+                        config.skipHugeGroups ? "text-primary font-medium" : "text-muted"
+                      }
+                    >
+                      Skip huge groups ({HUGE_GROUP_LIMIT}+ verses)
+                    </span>
+                  </label>
+                )}
+              </div>
             </div>
           )}
 
@@ -264,9 +370,7 @@ export default function PracticePage() {
             </button>
           </div>
 
-          {emptyMessage && (
-            <p className="text-sm text-red-400">{emptyMessage}</p>
-          )}
+          {emptyMessage && <p className="text-sm text-red-400">{emptyMessage}</p>}
         </div>
       </div>
     );
@@ -377,7 +481,7 @@ export default function PracticePage() {
               </>
             ) : q.twins.length > 0 ? (
               <>
-                This opening appears in <b className="text-ink">{q.twins.length + 1} places</b>.
+                This verse has <b className="text-ink">{q.twins.length} look-alikes</b>.
                 Recite what follows — then check the twins.
               </>
             ) : (
@@ -387,6 +491,18 @@ export default function PracticePage() {
           <p dir="rtl" lang="ar" className="font-arabic text-2xl leading-loose text-ink">
             {q.hint} <span className="text-faint">…</span>
           </p>
+          {q.phraseText && (
+            <div className="flex items-baseline gap-2 flex-wrap mt-2">
+              <span className="text-xs text-faint">Watch for</span>
+              <span
+                dir="rtl"
+                lang="ar"
+                className="font-arabic text-base px-2 py-0.5 rounded bg-primary-soft text-primary"
+              >
+                {q.phraseText}
+              </span>
+            </div>
+          )}
           <div className="text-xs text-faint mt-2">
             {q.key} · {q.tname}
           </div>
@@ -407,23 +523,8 @@ export default function PracticePage() {
               <div className="text-xs font-semibold text-primary mb-1">
                 {q.key} · {q.tname}
               </div>
-              <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink">
-                {q.fullText}
-              </p>
+              <HighlightedAyah text={q.fullText} ranges={q.promptRanges} />
             </div>
-
-            {q.phraseText && (
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-xs text-faint">Shared phrase</span>
-                <span
-                  dir="rtl"
-                  lang="ar"
-                  className="font-arabic text-base px-2 py-0.5 rounded bg-primary-soft text-primary"
-                >
-                  {q.phraseText}
-                </span>
-              </div>
-            )}
 
             {q.twins.map((t) => (
               <div key={t.key} className="border-t border-edge pt-3">
@@ -438,9 +539,11 @@ export default function PracticePage() {
                     Reader
                   </Link>
                 </div>
-                <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink-soft">
-                  {t.text}
-                </p>
+                <HighlightedAyah
+                  text={t.text}
+                  ranges={t.ranges}
+                  className="font-arabic text-xl leading-loose text-ink-soft"
+                />
               </div>
             ))}
 
