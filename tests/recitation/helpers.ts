@@ -66,3 +66,29 @@ export function replayFollow(fx: Fixture) {
 }
 
 export const heardUnits = (fx: Fixture) => fx.units.map(([unit, frame]) => ({ unit, time: (frame * fx.frameMs) / 1000 }));
+
+/** ASR golden files (spec §5.4), exported by quran-audio-c spike/recitation/export_golden.py. */
+export const GOLDEN = path.join(root, "tests/golden/zipformer-p-arabic-v3");
+
+export interface Golden {
+  name: string;
+  sampleRate: number;
+  samples: number;
+  samples16?: number;
+  frames: number;
+  units: [number, number][];
+  outputFramesPerStep: number[];
+}
+
+export function golden(name: string) {
+  const meta: Golden = JSON.parse(fs.readFileSync(path.join(GOLDEN, `${name}.json`), "utf8"));
+  const raw = fs.readFileSync(path.join(GOLDEN, `${name}.s16`));
+  const s16 = new Int16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2);
+  const audio = Float32Array.from(s16, (v) => v / 32768);
+  const f32 = (ext: string) => {
+    const b = fs.readFileSync(path.join(GOLDEN, `${name}.${ext}`));
+    return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  };
+  return { meta, audio, f32 };
+}
+
