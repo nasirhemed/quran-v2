@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { selectedPack } from "@/recitation/asr/modelPack";
 import { ModelStore, OpfsFileStore } from "@/recitation/asr/modelStore";
@@ -18,7 +18,17 @@ const NO_SPEECH_MS = 3000;
 
 interface Line {
   units: { id: number; frame: number }[];
+  text: string;
 }
+
+/** Finished lines never change, so they never re-render: a long session costs the same per step as a short one. */
+const LineView = memo(function LineView({ text, live }: { text: string; live: boolean }) {
+  return (
+    <p dir="rtl" lang="ar" className={`font-arabic text-2xl leading-loose ${live ? "text-ink-soft" : "text-ink"}`}>
+      {text}
+    </p>
+  );
+});
 
 const pct = (xs: number[], p: number) => {
   if (!xs.length) return NaN;
@@ -37,7 +47,8 @@ export default function TranscribePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [level, setLevel] = useState(0);
-  const [speechAt, setSpeechAt] = useState(0);
+  const [speaking, setSpeaking] = useState(false);
+  const [quietSince, setQuietSince] = useState(0);
   const [behind, setBehind] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [showDetails, setShowDetails] = useState(debug);
@@ -89,13 +100,15 @@ export default function TranscribePage() {
         s.steps++;
         if (c.captureAtMs < c.emittedAtMs) s.latency.push(arrival - c.captureAtMs);
         if (c.units.length) {
+          const sym = loaded.symbols;
           setLines((prev) => {
-            const next = prev.map((l) => ({ units: l.units }));
+            // copy only the line that changes; the others keep their identity (and skip re-rendering)
+            const next = prev.slice();
             for (const u of c.units) {
               const last = next[next.length - 1];
               const lastFrame = last?.units[last.units.length - 1]?.frame;
-              if (!last || lastFrame === undefined || u.frame - lastFrame > LINE_GAP_FRAMES) next.push({ units: [u] });
-              else last.units.push(u);
+              if (!last || lastFrame === undefined || u.frame - lastFrame > LINE_GAP_FRAMES) next.push({ units: [u], text: sym[u.id] ?? "" });
+              else next[next.length - 1] = { units: [...last.units, u], text: last.text + (sym[u.id] ?? "") };
             }
             return next;
           });
@@ -111,7 +124,10 @@ export default function TranscribePage() {
         for (const t of st.unitCaptureAtMs) s.unitLatency.push(arrival - t);
       }),
       src.on("level", (e) => setLevel(e.rms)),
-      src.on("vad", (e: SourceEvents["vad"]) => e.speech && setSpeechAt(Date.now())),
+      src.on("vad", (e: SourceEvents["vad"]) => {
+        setSpeaking(e.speech);
+        if (!e.speech) setQuietSince(Date.now());
+      }),
       src.on("state", (e) => setBehind(e.state === "behind")),
       src.on("error", (e) => {
         if (e.code === "model_missing") return;
@@ -159,7 +175,8 @@ export default function TranscribePage() {
     if (!src) return;
     setMessage(null);
     resetStats();
-    setSpeechAt(Date.now());
+    setSpeaking(false);
+    setQuietSince(Date.now());
     try {
       const pending = src.start(); // creates the AudioContext inside this tap
       setPhase("listening");
@@ -193,20 +210,25 @@ export default function TranscribePage() {
     setPhase("ready");
   };
 
+  // Tests read the unit ids through this (debug only), instead of serialising them into the DOM every step.
+  useEffect(() => {
+    if (!debug) return;
+    (window as unknown as { __itqanUnitIds?: () => number[] }).__itqanUnitIds = () => lines.flatMap((l) => l.units.map((u) => u.id));
+  }, [debug, lines]);
+
   // Auto-scroll unless the reader scrolled up.
   useEffect(() => {
     const el = scroller.current;
     if (el && pinned) el.scrollTop = el.scrollHeight;
   }, [lines, pinned]);
 
-  const symbols = loaded?.symbols ?? [];
-  const text = (l: Line) => l.units.map((u) => symbols[u.id] ?? "").join("");
-  const copy = () => navigator.clipboard?.writeText(lines.map(text).join("\n"));
+  const copy = () => navigator.clipboard?.writeText(lines.map((l) => l.text).join("\n"));
 
   const s = stats.current;
   void statsTick;
-  const inferP50 = pct(s.infer, 50);
-  const inferP95 = pct(s.infer, 95);
+  // percentiles sort the whole session's samples: only when the panel is open
+  const inferP50 = showDetails ? pct(s.infer, 50) : NaN;
+  const inferP95 = showDetails ? pct(s.infer, 95) : NaN;
 
   const status = (() => {
     if (message) return message;
@@ -225,7 +247,7 @@ export default function TranscribePage() {
         return "Something went wrong";
       case "listening":
         if (behind) return "Can't keep up on this device";
-        return now - speechAt > NO_SPEECH_MS ? "No speech" : "Listening";
+        return !speaking && now - quietSince > NO_SPEECH_MS ? "No speech" : "Listening";
     }
   })();
 
@@ -293,16 +315,11 @@ export default function TranscribePage() {
               }}
               className="bg-card border border-edge rounded-lg p-4 h-[45vh] overflow-y-auto"
               aria-live="off"
-              data-unit-ids={debug ? JSON.stringify(lines.flatMap((l) => l.units.map((u) => u.id))) : undefined}
             >
               {lines.length === 0 ? (
                 <p className="text-sm text-faint">What the model hears appears here, as sounds (phonemes). Matching it to the Qur'an text comes next.</p>
               ) : (
-                lines.map((l, i) => (
-                  <p key={i} dir="rtl" lang="ar" className={`font-arabic text-2xl leading-loose ${i === lines.length - 1 && listening ? "text-ink-soft" : "text-ink"}`}>
-                    {text(l)}
-                  </p>
-                ))
+                lines.map((l, i) => <LineView key={i} text={l.text} live={i === lines.length - 1 && listening} />)
               )}
             </div>
             {!pinned && (
