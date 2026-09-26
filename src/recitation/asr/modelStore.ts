@@ -125,12 +125,23 @@ export class ModelStore {
       // The app's own page instead of a model file: nothing is hosted at this address.
       if (res.headers.get("Content-Type")?.startsWith("text/html")) throw new Error("Model downloads are not set up on this site yet.");
       let hashFrom = hash;
-      if (have > 0 && !(res.status === 206 && res.headers.get("Content-Range")?.startsWith(`bytes ${have}-`))) {
-        // the server sent the whole file: start over
+      if (have > 0 && res.status !== 206) {
+        // the server ignored Range and sent the whole file: start over with it
         await this.store.remove(path);
         have = 0;
         hashFrom = sha256.create();
         onBytes(0);
+      } else if (have > 0) {
+        // Cross-origin, browsers hide Content-Range unless the host exposes it (Vercel Blob doesn't); Content-Length
+        // is always visible. The SHA-256 check at the end catches anything these miss.
+        const range = res.headers.get("Content-Range");
+        const length = res.headers.get("Content-Length");
+        const rightPart = range ? range.startsWith(`bytes ${have}-`) : !length || Number(length) === f.bytes - have;
+        if (!rightPart) {
+          await res.body.cancel();
+          await this.store.remove(path);
+          throw new Error(`The server sent the wrong part of ${f.name}. Try again.`);
+        }
       }
       const reader = res.body.getReader();
       const pending: Uint8Array[] = [];

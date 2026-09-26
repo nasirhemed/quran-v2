@@ -20,7 +20,10 @@ const pack: ModelPack = {
 };
 
 /** A static file server with Range support; `cutAfter` drops the connection after that many bytes. */
-function server(content: Record<string, Uint8Array>, opts: { cutAfter?: number; ignoreRange?: boolean; corrupt?: boolean } = {}) {
+function server(
+  content: Record<string, Uint8Array>,
+  opts: { cutAfter?: number; ignoreRange?: boolean; corrupt?: boolean; hideContentRange?: boolean } = {},
+) {
   const log: { url: string; range: string | null; status: number }[] = [];
   const fetchFn = (async (url: string, init?: RequestInit) => {
     const name = url.split("/").pop()!;
@@ -30,7 +33,8 @@ function server(content: Record<string, Uint8Array>, opts: { cutAfter?: number; 
     const headers = new Headers();
     if (range && !opts.ignoreRange) {
       const from = Number(/bytes=(\d+)-/.exec(range)![1]);
-      headers.set("Content-Range", `bytes ${from}-${body.length - 1}/${body.length}`);
+      // cross-origin without Access-Control-Expose-Headers, the page cannot read Content-Range
+      if (!opts.hideContentRange) headers.set("Content-Range", `bytes ${from}-${body.length - 1}/${body.length}`);
       body = body.subarray(from);
       status = 206;
     }
@@ -38,6 +42,7 @@ function server(content: Record<string, Uint8Array>, opts: { cutAfter?: number; 
       body = body.slice();
       body[body.length - 1] ^= 1;
     }
+    headers.set("Content-Length", String(body.length));
     log.push({ url, range, status });
     const cut = opts.cutAfter;
     const end = cut === undefined ? body.length : Math.min(cut, body.length);
@@ -92,6 +97,17 @@ describe("ModelStore", () => {
     const ok = server(files);
     await new ModelStore(store, "", ok.fetchFn).download(pack);
     expect(ok.log[0]).toMatchObject({ range: `bytes=${kept}-`, status: 206 });
+    expect((await ms.status(pack)).state).toBe("ready");
+  });
+
+  it("resumes from a cross-origin host that hides Content-Range (Vercel Blob)", async () => {
+    const store = new MemoryFileStore();
+    await expect(new ModelStore(store, "", server(files, { cutAfter: 4_000_000 }).fetchFn).download(pack)).rejects.toThrow();
+    const blob = server(files, { hideContentRange: true });
+    const ms = new ModelStore(store, "", blob.fetchFn);
+    await ms.download(pack);
+    expect(blob.log[0]).toMatchObject({ range: "bytes=4000000-", status: 206 });
+    expect(blob.log).toHaveLength(2); // no second full download
     expect((await ms.status(pack)).state).toBe("ready");
   });
 
