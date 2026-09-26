@@ -16,6 +16,6 @@ export type FromWorker =
   | { type: "loaded"; symbols: string[]; loadMs: number; threads: number; packId: string }
   | { type: "event"; name: keyof SourceEvents; payload: SourceEvents[keyof SourceEvents] }
   /** per-step timing; `unitCaptureAtMs` is empty for fed audio (no capture clock) */
-  | { type: "step"; inferMs: number; stepAudioMs: number; backlogMs: number; unitCaptureAtMs: number[] }
+  | { type: "step"; inferMs: number; stepAudioMs: number; backlogMs: number; unitCaptureAtMs: number[]; clockDriftMs: number }
   | { type: "stopped" }
   | { type: "logProbs"; data: Float32Array; vocab: number; blank: number };

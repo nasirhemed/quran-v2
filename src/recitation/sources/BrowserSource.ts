@@ -15,6 +15,8 @@ export interface StepStats {
   backlogMs: number;
   /** when each new unit's audio was captured (epoch ms); empty for files */
   unitCaptureAtMs: number[];
+  /** how far the audio clock has drifted from ours since the start (ms) */
+  clockDriftMs: number;
 }
 
 export interface Loaded {

@@ -52,7 +52,7 @@ export default function TranscribePage() {
   const [behind, setBehind] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [showDetails, setShowDetails] = useState(debug);
-  const stats = useRef({ infer: [] as number[], latency: [] as number[], unitLatency: [] as number[], backlogMax: 0, steps: 0, gaps: 0, lastChunk: -1, stepAudioMs: 480 });
+  const stats = useRef({ infer: [] as number[], latency: [] as number[], unitLatency: [] as number[], drift: 0, backlogMax: 0, steps: 0, gaps: 0, lastChunk: -1, stepAudioMs: 480 });
   const [statsTick, setStatsTick] = useState(0);
   const [memory, setMemory] = useState<string | null>(null);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
@@ -120,6 +120,7 @@ export default function TranscribePage() {
         s.infer.push(st.inferMs);
         s.stepAudioMs = st.stepAudioMs;
         s.backlogMax = Math.max(s.backlogMax, st.backlogMs);
+        s.drift = st.clockDriftMs;
         const arrival = performance.timeOrigin + performance.now();
         for (const t of st.unitCaptureAtMs) s.unitLatency.push(arrival - t);
       }),
@@ -166,7 +167,7 @@ export default function TranscribePage() {
   }, [phase, stop]);
 
   const resetStats = () => {
-    stats.current = { infer: [], latency: [], unitLatency: [], backlogMax: 0, steps: 0, gaps: 0, lastChunk: -1, stepAudioMs: 480 };
+    stats.current = { infer: [], latency: [], unitLatency: [], drift: 0, backlogMax: 0, steps: 0, gaps: 0, lastChunk: -1, stepAudioMs: 480 };
     setStatsTick((t) => t + 1);
   };
 
@@ -381,6 +382,8 @@ export default function TranscribePage() {
               <span>
                 {fmt(pct(s.latency, 50))} / {fmt(pct(s.latency, 95))} ms
               </span>
+              <span title="audio clock vs system clock, corrected for">audio clock drift</span>
+              <span>{fmt(s.drift)} ms</span>
               <span>max backlog</span>
               <span>{fmt(s.backlogMax)} ms</span>
               <span>memory</span>

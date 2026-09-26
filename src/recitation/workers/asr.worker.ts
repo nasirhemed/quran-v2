@@ -43,6 +43,11 @@ interface Run {
   lastLevel: number;
   behind: boolean;
   lostReported: number;
+  /** input samples taken from the ring so far (including any lost) */
+  taken: number;
+  /** recent (time, offset) observations tying the audio clock to this clock; see anchor() */
+  offsets: { t: number; offset: number }[];
+  firstOffset: number | null;
   timer: ReturnType<typeof setTimeout> | null;
   stopped: boolean;
 }
@@ -96,16 +101,43 @@ function begin(id: string, rate: number): Run {
     lastLevel: 0,
     behind: false,
     lostReported: 0,
+    taken: 0,
+    offsets: [],
+    firstOffset: null,
     timer: null,
     stopped: false,
   };
 }
 
-/** When the audio up to 16 kHz sample `s` reached the worklet; null for fed audio (no capture clock). */
+/** Input sample `i` by the audio clock (epoch ms). The audio clock drifts against ours (~0.01–0.1%). */
+function audioClock(r: Run, i: number, first: number): number {
+  return r.epochAtContextZero + ((first + i) / r.rate) * 1000;
+}
+
+const ANCHOR_WINDOW_MS = 3000;
+
+/**
+ * Re-anchors the audio clock to ours on every poll: when we take samples up to index n at time T, the newest one
+ * was captured no later than T. The smallest (T − audioClock(n)) over the last few seconds is the capture-to-
+ * worker delay without polling jitter, and it absorbs clock drift, which would otherwise grow without bound.
+ */
+function anchor(r: Run) {
+  const first = r.reader?.firstFrame;
+  if (first == null || r.taken === 0) return;
+  const t = now();
+  const offset = t - audioClock(r, r.taken, first);
+  r.firstOffset ??= offset;
+  r.offsets.push({ t, offset });
+  while (r.offsets.length && r.offsets[0].t < t - ANCHOR_WINDOW_MS) r.offsets.shift();
+}
+
+const currentOffset = (r: Run) => r.offsets.reduce((m, o) => Math.min(m, o.offset), Infinity);
+
+/** When the audio up to 16 kHz sample `s` was captured, on our clock; null for fed audio (no capture clock). */
 function captureTime(r: Run, s: number): number | null {
   const first = r.reader?.firstFrame;
-  if (first == null) return null;
-  return r.epochAtContextZero + ((first + (s * r.rate) / FEATURE_RATE) / r.rate) * 1000;
+  if (first == null || !r.offsets.length) return null;
+  return audioClock(r, (s * r.rate) / FEATURE_RATE, first) + currentOffset(r);
 }
 
 async function process(r: Run, x: Float32Array) {
@@ -125,8 +157,9 @@ async function steps(r: Run) {
     emit("chunk", { session: r.id, chunk: r.chunk++, units: res.units, audioEndFrame: res.audioEndFrame, emittedAtMs, captureAtMs: captureTime(r, res.audioEndSample) ?? emittedAtMs });
     const backlogMs = r.reader ? (r.reader.available / r.rate) * 1000 : 0;
     const stepAudioMs = pack!.streaming.chunkHopFrames * 10;
-    const unitCaptureAtMs = r.reader ? res.unitEndSamples.map((s) => captureTime(r, s)!) : [];
-    post({ type: "step", inferMs: res.inferMs, stepAudioMs, backlogMs, unitCaptureAtMs });
+    const unitCaptureAtMs = r.reader && r.offsets.length ? res.unitEndSamples.map((s) => captureTime(r, s)!) : [];
+    const clockDriftMs = r.firstOffset != null && r.offsets.length ? currentOffset(r) - r.firstOffset : 0;
+    post({ type: "step", inferMs: res.inferMs, stepAudioMs, backlogMs, unitCaptureAtMs, clockDriftMs });
   }
 }
 
@@ -134,10 +167,12 @@ function tick(r: Run) {
   enqueue(async () => {
     if (r.stopped || !r.reader) return;
     const x = r.reader.take();
+    r.taken += x.length + (r.reader.lost - r.lostReported);
     if (r.reader.lost > r.lostReported) {
       r.lostReported = r.reader.lost;
       fail("audio_lost", new Error(`Fell behind and lost ${(r.reader.lost / r.rate).toFixed(1)} s of audio`));
     }
+    anchor(r);
     if (x.length) await process(r, x);
     const backlogMs = (r.reader.available / r.rate) * 1000;
     if (!r.behind && backlogMs > BEHIND_MS) {
@@ -161,6 +196,8 @@ async function stop() {
   await enqueue(async () => {
     if (r.reader) {
       const rest = r.reader.take();
+      r.taken += rest.length;
+      anchor(r);
       if (rest.length) await process(r, rest);
     }
     r.pipe.finish(); // flush: resampler tail, last fbank frames, padding for the final lookahead
