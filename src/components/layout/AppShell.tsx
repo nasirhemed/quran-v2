@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useTheme } from "@/hooks/useTheme";
+import { getVoiceSupport } from "@/recitation/support";
+import UpdatePrompt from "@/components/layout/UpdatePrompt";
+
+const voiceSupported = getVoiceSupport().supported;
 
 const TABS = [
   { href: "/", label: "Read", match: (path: string) => path === "/" || path.startsWith("/read") },
@@ -42,6 +46,27 @@ export default function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
+          {voiceSupported && (
+            <Link
+              href="/voice"
+              title="Voice"
+              className={`shrink-0 w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+                location.startsWith("/voice")
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-edge bg-card2 text-muted hover:text-ink"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm6-3a6 6 0 01-12 0m6 6v3m-3 0h6"
+                />
+              </svg>
+            </Link>
+          )}
+
           <button
             onClick={toggle}
             title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
@@ -71,6 +96,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex-1">{children}</div>
+      <UpdatePrompt />
     </div>
   );
 }
