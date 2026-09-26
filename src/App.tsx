@@ -1,10 +1,13 @@
-import { useCallback } from "react";
+import { lazy, Suspense, useCallback } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import AppShell from "@/components/layout/AppShell";
 import HomePage from "@/pages/HomePage";
 import ReaderPage from "@/pages/ReaderPage";
 import BrowsePage from "@/pages/BrowsePage";
 import PracticePage from "@/pages/PracticePage";
+
+// Voice settings load on demand, so the reader stays as small as before.
+const VoicePage = lazy(() => import("@/pages/VoicePage"));
 
 export default function App() {
   const [, setLocation] = useLocation();
@@ -30,6 +33,11 @@ export default function App() {
         </Route>
         <Route path="/practice">
           <PracticePage />
+        </Route>
+        <Route path="/voice">
+          <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>
+            <VoicePage />
+          </Suspense>
         </Route>
         <Route>
           <div className="py-24 text-center text-muted">Page not found.</div>
