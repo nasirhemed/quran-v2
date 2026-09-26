@@ -2,7 +2,10 @@
  * Upload a model pack to Vercel Blob, laid out the way the app downloads it:
  *   <base url>/<pack id>/<version>/<file>          (src/recitation/asr/modelStore.ts)
  *
- *   BLOB_READ_WRITE_TOKEN=… npx tsx scripts/upload-models.ts <folder with the pack's files> [pack id]
+ *   npm run upload-models -- <folder with the pack's files> [pack id]
+ *
+ * The token comes from BLOB_READ_WRITE_TOKEN, or from `.env.local` (gitignored) in this folder: paste the line
+ * from Vercel → Storage → your Blob store → .env.local, or run `vercel env pull .env.local`.
  *
  * Every file is checked against the pack's size and SHA-256 before upload, so a wrong model (e.g. v3.1 instead
  * of v3) never reaches users. Files already uploaded with the right size are skipped. Afterwards the script
@@ -21,8 +24,13 @@ if (!dir || !pack) {
   console.error(`usage: npx tsx scripts/upload-models.ts <dir> [${MODEL_PACKS.map((p) => p.id).join(" | ")}]`);
   process.exit(1);
 }
+if (!process.env.BLOB_READ_WRITE_TOKEN && fs.existsSync(".env.local")) process.loadEnvFile(".env.local");
 if (!process.env.BLOB_READ_WRITE_TOKEN) {
-  console.error("Set BLOB_READ_WRITE_TOKEN (Vercel → Storage → your Blob store → .env.local).");
+  console.error(
+    "No BLOB_READ_WRITE_TOKEN. Put this line in quran-v2/.env.local (it is gitignored):\n" +
+      '  BLOB_READ_WRITE_TOKEN="vercel_blob_rw_…"\n' +
+      "Copy it from Vercel → Storage → your Blob store → .env.local tab.",
+  );
   process.exit(1);
 }
 
