@@ -8,6 +8,7 @@ import PracticePage from "@/pages/PracticePage";
 
 // Voice settings load on demand, so the reader stays as small as before.
 const VoicePage = lazy(() => import("@/pages/VoicePage"));
+const TranscribePage = lazy(() => import("@/pages/TranscribePage"));
 
 export default function App() {
   const [, setLocation] = useLocation();
@@ -33,6 +34,11 @@ export default function App() {
         </Route>
         <Route path="/practice">
           <PracticePage />
+        </Route>
+        <Route path="/transcribe">
+          <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>
+            <TranscribePage />
+          </Suspense>
         </Route>
         <Route path="/voice">
           <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>

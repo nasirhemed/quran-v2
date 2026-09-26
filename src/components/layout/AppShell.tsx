@@ -48,10 +48,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
           {voiceSupported && (
             <Link
-              href="/voice"
+              href="/transcribe"
               title="Voice"
               className={`shrink-0 w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
-                location.startsWith("/voice")
+                (location.startsWith("/voice") || location.startsWith("/transcribe"))
                   ? "border-primary bg-primary-soft text-primary"
                   : "border-edge bg-card2 text-muted hover:text-ink"
               }`}

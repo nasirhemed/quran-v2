@@ -84,6 +84,14 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   (or `preview`) serves `<dir>/<pack id>/<version>/<file>` at `/models`, with Range support. Packs are hosted on
   Vercel Blob for now (R2 later): `BLOB_READ_WRITE_TOKEN=… npm run upload-models -- <dir> [pack id]` checks
   each file's SHA-256, uploads it to that layout, verifies CORS + Range, and prints the base URL.
+- **Live ASR (M3)**: `src/recitation/asr/` is plain TS tested in Node — `resample.ts` (= scipy
+  `resample_poly`), `features/kaldiFbank.ts` (= kaldi-native-fbank), `pipeline.ts` (61-frame windows every 48,
+  greedy CTC), `vad.ts`, `ring.ts`. `workers/asr.worker.ts` and `workers/capture.worklet.ts` are thin hosts;
+  `sources/BrowserSource.ts` owns the mic and worker; `/transcribe` (`pages/TranscribePage.tsx`) shows the raw
+  phonemes plus a Details panel (step time, real-time factor, sound→screen latency). ONNX Runtime Web's `.wasm`
+  is served from `/ort/` (copied at build, never a CDN) and cached on first voice use. Golden parity files are in
+  `tests/golden/`; `asr-parity.test.ts` needs model B's ONNX (`RECITATION_MODELS_DIR`, default `../../models`)
+  and is skipped without it. Parity rule: identical unit sequence; start frames may differ by one (WASM int8).
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
   shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). Updates
   wait for the user (`components/layout/UpdatePrompt.tsx`) and never reload by themselves. Any new data file
