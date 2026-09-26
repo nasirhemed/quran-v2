@@ -81,7 +81,9 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   `getVoiceSupport()` (`src/recitation/support.ts`) says yes. Model packs (`src/recitation/asr/modelPack.ts`)
   are downloaded to OPFS by `asr/modelStore.ts` (resumable, SHA-256 checked) from
   `$VITE_MODEL_BASE_URL/<pack id>/<version>/<file>`. For local testing, `MODELS_DIR=<dir> npm run dev`
-  (or `preview`) serves `<dir>/<pack id>/<version>/<file>` at `/models`, with Range support.
+  (or `preview`) serves `<dir>/<pack id>/<version>/<file>` at `/models`, with Range support. Packs are hosted on
+  Vercel Blob for now (R2 later): `BLOB_READ_WRITE_TOKEN=… npm run upload-models -- <dir> [pack id]` checks
+  each file's SHA-256, uploads it to that layout, verifies CORS + Range, and prints the base URL.
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
   shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). Updates
   wait for the user (`components/layout/UpdatePrompt.tsx`) and never reload by themselves. Any new data file

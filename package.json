@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "check": "tsc -b && tsc -p tsconfig.test.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "upload-models": "tsx scripts/upload-models.ts"
   },
   "dependencies": {
     "@fontsource/amiri": "^5.3.0",
@@ -25,6 +26,7 @@
     "@types/node": "^25.2.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@vercel/blob": "^2.8.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "fast-xml-parser": "^4.5.1",
