@@ -11,6 +11,7 @@ import SidePanel from "@/components/sidepanel/SidePanel";
 import SelectionActionBar from "@/components/edit/SelectionActionBar";
 import AddOccurrenceDialog from "@/components/edit/AddOccurrenceDialog";
 import ExportImportPanel from "@/components/edit/ExportImportPanel";
+import FollowControl from "@/components/recitation/FollowControl";
 import type { WordHighlight, LocalPhrase } from "@/types";
 
 export default function ReaderPage() {
@@ -184,6 +185,10 @@ export default function ReaderPage() {
           )}
         </main>
       </div>
+
+      {!localPhrases.editMode && (
+        <FollowControl pages={pages} surahs={surahsMeta} currentPage={currentPage} onNavigateToPage={navigateToPage} />
+      )}
 
       {localPhrases.editMode && localPhrases.selection && (
         <SelectionActionBar

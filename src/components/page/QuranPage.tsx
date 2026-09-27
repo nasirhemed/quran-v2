@@ -182,6 +182,7 @@ export default function QuranPage({
                     className="inline-flex items-baseline"
                   >
                     <span
+                      data-w={`${word.ayahKey}:${word.position}`}
                       className={`${
                         clickable ? "cursor-pointer" : ""
                       } ${

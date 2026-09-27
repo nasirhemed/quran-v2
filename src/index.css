@@ -171,3 +171,16 @@
     border-radius: 9999px;
   }
 }
+
+/* Follow mode (voice): the word just recited. Set on [data-w] spans directly, so following never re-renders
+   the page. */
+.voice-current {
+  background: var(--primary-soft);
+  /* a ring rather than only a background: mutashabihat highlights set their own background inline */
+  box-shadow: 0 0 0 2px var(--primary);
+  border-radius: 0.25rem;
+  transition: background-color 150ms, box-shadow 150ms;
+  /* keep it clear of the sticky header and the follow strip when scrolled into view */
+  scroll-margin-top: 8rem;
+  scroll-margin-bottom: 8rem;
+}
