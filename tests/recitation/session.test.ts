@@ -70,4 +70,41 @@ describe("follow session", () => {
     const back = keys.length - 1 - [...keys].reverse().findIndex((k) => k.startsWith("3:"));
     expect(keys.slice(back + 1).filter((k) => k.startsWith("2:255:")).length).toBeGreaterThan(20);
   });
+
+  it("repeat (waqf and ibtida'): the cursor goes back over the repeated words, then carries on", () => {
+    // Nas's case: recite 33:49 up to عِدَّةٍ (word 17), repeat فَمَا لَكُمْ عَلَيْهِنَّ مِنْ عِدَّةٍ (13-17), then continue
+    const { words, ref, table } = quran();
+    const key = wordIndex(words).key;
+    const idx = new Map(key.map((k, i) => [k, i]));
+    const unitOf = new Map(table.symbols.map((sym, i) => [sym, i]));
+    const toUnits = (ph: string) => {
+      const out: number[] = [];
+      for (let i = 0; i < ph.length; ) {
+        let n = Math.min(4, ph.length - i);
+        while (n > 0 && !unitOf.has(ph.slice(i, i + n))) n--;
+        if (n === 0) i++;
+        else {
+          out.push(unitOf.get(ph.slice(i, i + n))!);
+          i += n;
+        }
+      }
+      return out;
+    };
+    const range = (a: string, b: string) => Array.from({ length: idx.get(b)! - idx.get(a)! + 1 }, (_, i) => idx.get(a)! + i);
+    const said = [...range("33:49:1", "33:49:17"), ...range("33:49:13", "33:49:17"), ...range("33:49:18", "33:49:22"), ...range("33:50:1", "33:50:6")];
+    const units = said.flatMap((w) => toUnits(words.ph[w])); // the reference phonemes, about 7 units per 0.48 s step
+    const s = new FollowSession(ref, words, table.symbols);
+    const heard: string[] = [];
+    let lost = 0;
+    for (let step = 0; step * 7 < units.length; step++)
+      for (const e of s.push(units.slice(step * 7, step * 7 + 7), step, step * 0.48)) {
+        if (e.type === "heard") heard.push(...e.words.map((w) => key[w.idx] + (w.status === "repeat" ? "(r)" : "")));
+        if (e.type === "lost") lost++;
+      }
+    expect(lost).toBe(0);
+    const repeats = heard.filter((h) => h.endsWith("(r)"));
+    expect(repeats).toEqual(["33:49:13(r)", "33:49:14(r)", "33:49:15(r)", "33:49:16(r)", "33:49:17(r)"]);
+    expect(heard.slice(heard.indexOf("33:49:17(r)") + 1, heard.indexOf("33:49:17(r)") + 6)).toEqual(["33:49:18", "33:49:19", "33:49:20", "33:49:21", "33:49:22"]);
+    expect(heard).toContain("33:50:6");
+  });
 });

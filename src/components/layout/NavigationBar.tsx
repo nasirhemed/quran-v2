@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 import type { SurahMeta, JuzMeta } from "@/types";
 
 interface NavigationBarProps {
@@ -13,6 +13,10 @@ interface NavigationBarProps {
   editMode?: boolean;
   onToggleEditMode?: () => void;
   onExportImport?: () => void;
+  /** voice Follow button (shown in the bar, never over the text) */
+  voiceControl?: ReactNode;
+  /** while following: on phones, fold away the Surah/Juz row to give the page more room */
+  compact?: boolean;
 }
 
 export default function NavigationBar({
@@ -27,6 +31,8 @@ export default function NavigationBar({
   editMode,
   onToggleEditMode,
   onExportImport,
+  voiceControl,
+  compact,
 }: NavigationBarProps) {
   const [pageInput, setPageInput] = useState("");
 
@@ -43,7 +49,7 @@ export default function NavigationBar({
   );
 
   return (
-    <nav className="sticky top-14 z-20 bg-surface-light/95 backdrop-blur border-b border-slate-700">
+    <nav data-sticky-top className="sticky top-14 z-20 bg-surface-light/95 backdrop-blur border-b border-slate-700">
       {/* Desktop navigation */}
       <div className="hidden md:flex max-w-7xl mx-auto px-4 py-3 items-center justify-between gap-4">
         {/* Left side - Surah and Juz selectors */}
@@ -128,6 +134,7 @@ export default function NavigationBar({
 
         {/* Right side - Jump to + edit controls */}
         <div className="flex items-center gap-3">
+          {voiceControl}
           <form onSubmit={handlePageSubmit} className="flex items-center gap-2">
             <span className="text-sm text-slate-400 font-sans">Jump to</span>
             <input
@@ -172,8 +179,8 @@ export default function NavigationBar({
 
       {/* Mobile navigation */}
       <div className="md:hidden px-4 py-3 space-y-3">
-        {/* Top row - Surah and Juz selectors */}
-        <div className="flex items-center gap-2">
+        {/* Top row - Surah and Juz selectors (and Follow); folded away while following */}
+        <div className={`flex items-center gap-2 ${compact ? "hidden" : ""}`}>
           <select
             className="flex-1 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
             value=""
@@ -203,6 +210,8 @@ export default function NavigationBar({
               </option>
             ))}
           </select>
+
+          {voiceControl}
         </div>
 
         {/* Bottom row - Page navigation and jump */}

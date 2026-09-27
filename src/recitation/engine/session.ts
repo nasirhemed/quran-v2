@@ -83,7 +83,10 @@ export class FollowSession {
           const start = Math.max(from, e.word - MAX_WORDS_PER_MOVE);
           for (let w = start; w < e.word; w++) passed.push(w);
         } else {
-          passed.push(e.word - 1); // went back: the word just recited again
+          // went back (a repeat): the words recited again, from where the repeat was matched, not past an ayah start
+          let start = Math.max(e.from ?? e.word - 1, e.word - MAX_WORDS_PER_MOVE);
+          for (let w = e.word - 1; w > start; w--) if (this.ayahStarts.has(w)) start = w;
+          for (let w = start; w < e.word; w++) passed.push(w);
         }
         out.push(this.heard(passed, step));
         out.push({ type: "cursor", word: e.word, step });

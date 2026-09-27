@@ -180,7 +180,4 @@
   box-shadow: 0 0 0 2px var(--primary);
   border-radius: 0.25rem;
   transition: background-color 150ms, box-shadow 150ms;
-  /* keep it clear of the sticky header and the follow strip when scrolled into view */
-  scroll-margin-top: 8rem;
-  scroll-margin-bottom: 8rem;
 }

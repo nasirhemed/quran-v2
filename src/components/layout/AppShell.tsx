@@ -18,7 +18,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-40 h-14 bg-surface-light/95 backdrop-blur border-b border-edge">
+      <header data-sticky-top className="sticky top-0 z-40 h-14 bg-surface-light/95 backdrop-blur border-b border-edge">
         <div className="max-w-7xl mx-auto h-full px-4 flex items-center gap-4">
           <Link href="/" className="flex items-baseline gap-2 shrink-0">
             <span className="font-arabic text-2xl text-primary leading-none">إتقان</span>
