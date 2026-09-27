@@ -99,6 +99,12 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   so importing that hook costs almost nothing. The reader's `components/recitation/FollowControl.tsx` adds
   the Follow button, turns pages, and marks the word just recited by toggling `.voice-current` on the
   `[data-w="s:a:w"]` span directly (QuranPage never re-renders per step). Follow mode never marks mistakes.
+- **Verify mode (M5)**: `VoiceSession.start("verify")` runs the same live follow-along; on stop it flushes,
+  takes the whole recording's log-probs from the ASR worker and sends them to the engine worker, which runs
+  `engine/verify.ts` over `FollowSession.passage()` (the longest run of nearby ayat actually followed). Results
+  (`VerifyResult` in `workers/engineProtocol.ts`) show in `components/recitation/VerifyResults.tsx` (lazy in
+  the reader) and are marked on the mushaf with `.voice-skipped / -wrong / -slip / -slip-from` on `[data-w]`.
+  Verify recordings stop at `VERIFY_MAX_MINUTES` (15). Only log-prob-confirmed findings are ever shown.
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
   shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). Updates
   wait for the user (`components/layout/UpdatePrompt.tsx`) and never reload by themselves. Any new data file

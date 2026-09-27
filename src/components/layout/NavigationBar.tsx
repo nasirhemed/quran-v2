@@ -182,7 +182,7 @@ export default function NavigationBar({
         {/* Top row - Surah and Juz selectors (and Follow); folded away while following */}
         <div className={`flex items-center gap-2 ${compact ? "hidden" : ""}`}>
           <select
-            className="flex-1 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
+            className="flex-1 min-w-0 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
             value=""
             onChange={(e) => onNavigateToSurah(Number(e.target.value))}
           >
@@ -197,7 +197,7 @@ export default function NavigationBar({
           </select>
 
           <select
-            className="flex-1 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
+            className="flex-1 min-w-0 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
             value=""
             onChange={(e) => onNavigateToJuz(Number(e.target.value))}
           >

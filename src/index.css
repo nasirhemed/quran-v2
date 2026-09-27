@@ -181,3 +181,32 @@
   border-radius: 0.25rem;
   transition: background-color 150ms, box-shadow 150ms;
 }
+
+/* Verify mode results, marked on the mushaf. Underlines (not backgrounds), so they sit over mutashabihat colours. */
+.voice-skipped {
+  text-decoration: underline dashed rgb(var(--danger-rgb));
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.35em;
+  opacity: 0.75;
+}
+.voice-wrong {
+  text-decoration: underline wavy rgb(var(--danger-rgb));
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.35em;
+}
+.voice-slip {
+  box-shadow: 0 0 0 2px rgb(168 85 247);
+  border-radius: 0.25rem;
+}
+.voice-slip-from {
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.45);
+  border-radius: 0.25rem;
+}
+.voice-flash {
+  animation: voice-flash 0.4s ease-in-out 3;
+}
+@keyframes voice-flash {
+  50% {
+    background: var(--primary-soft);
+  }
+}

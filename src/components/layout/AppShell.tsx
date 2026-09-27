@@ -19,7 +19,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header data-sticky-top className="sticky top-0 z-40 h-14 bg-surface-light/95 backdrop-blur border-b border-edge">
-        <div className="max-w-7xl mx-auto h-full px-4 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto h-full px-3 sm:px-4 flex items-center gap-2 sm:gap-4">
           <Link href="/" className="flex items-baseline gap-2 shrink-0">
             <span className="font-arabic text-2xl text-primary leading-none">إتقان</span>
             <span className="hidden sm:inline text-xs font-semibold tracking-[0.08em] text-muted">
@@ -27,14 +27,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          <nav className="flex gap-1 mx-auto">
+          <nav className="flex gap-0.5 sm:gap-1 mx-auto">
             {TABS.map((tab) => {
               const active = tab.match(location);
               return (
                 <Link
                   key={tab.href}
                   href={tab.href}
-                  className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
+                  className={`px-3 sm:px-4 py-1.5 rounded-full text-sm transition-colors ${
                     active
                       ? "bg-primary text-on-primary font-semibold"
                       : "text-muted hover:text-ink hover:bg-card2 font-medium"

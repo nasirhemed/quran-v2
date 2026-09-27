@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import VerifyResults from "@/components/recitation/VerifyResults";
 import VerseMarker from "@/components/page/VerseMarker";
 import { fetchQuranPages, fetchSurahs } from "@/lib/data";
 import { useVoice } from "@/recitation/session/lazy";
@@ -58,6 +59,7 @@ export default function TranscribePage() {
   const support = getVoiceSupport();
   const debug = typeof location !== "undefined" && new URLSearchParams(location.search).has("debug");
   const { session, state } = useVoice(support.supported);
+  const [, navigate] = useLocation();
   const { data: pages } = useQuery({ queryKey: ["quran-pages"], queryFn: fetchQuranPages });
   const { data: surahs } = useQuery({ queryKey: ["surahs"], queryFn: fetchSurahs });
   const words = useMemo(() => (pages ? wordLookup(pages) : null), [pages]);
@@ -115,6 +117,8 @@ export default function TranscribePage() {
         return "Tap the microphone and recite";
       case "stopping":
         return "Finishing…";
+      case "verifying":
+        return "Checking the recitation…";
       case "error":
         return "Something went wrong";
       case "listening":
@@ -262,6 +266,20 @@ export default function TranscribePage() {
                 }}
               />
             </label>
+            <label className={`font-medium text-muted hover:text-ink cursor-pointer ${phase !== "ready" ? "opacity-40 pointer-events-none" : ""}`}>
+              Check a recording…
+              <input
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                data-testid="verify-file"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void session?.transcribeFile(f, "verify");
+                }}
+              />
+            </label>
             <button onClick={() => setShowSounds((v) => !v)} className="font-medium text-muted hover:text-ink">
               {showSounds ? "Show words" : "Show sounds"}
             </button>
@@ -269,6 +287,30 @@ export default function TranscribePage() {
               {showDetails ? "Hide details" : "Details"}
             </button>
           </div>
+
+          {(st?.verify.status === "done" || st?.verify.status === "error") && (
+            <div className="bg-card border border-edge rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-sm font-semibold text-ink">Verify results</h2>
+                <button onClick={() => session?.dismissResults()} className="ml-auto text-xs font-medium text-muted hover:text-ink">
+                  Close
+                </button>
+              </div>
+              {st.verify.result ? (
+                <VerifyResults
+                  result={st.verify.result}
+                  words={words}
+                  surahs={surahs}
+                  onOpen={(key) => {
+                    const [su, ay] = key.split(":");
+                    navigate(`/read?surah=${su}&ayah=${ay}`);
+                  }}
+                />
+              ) : (
+                <p className="text-sm text-red-500">The check failed: {st.verify.error}</p>
+              )}
+            </div>
+          )}
 
           {showDetails && s && (
             <div className="bg-card2 rounded-lg p-3 text-xs text-ink-soft font-mono grid grid-cols-2 gap-x-4 gap-y-1" data-testid="asr-details">
