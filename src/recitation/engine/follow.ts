@@ -14,7 +14,8 @@ import { skeleton } from "./skeleton";
 
 export type FollowEvent =
   | { type: "located"; word: number; at: number }
-  | { type: "cursor"; word: number; at: number } // `word` = idx of the next expected word
+  /** `word` = idx of the next expected word; `from` = first word of the heard stretch that moved it */
+  | { type: "cursor"; word: number; at: number; from?: number }
   | { type: "lost"; word: number; at: number };
 
 export const FOLLOW = {
@@ -24,6 +25,8 @@ export const FOLLOW = {
   LOST_AFTER: 5, // steps with new letters but no match near the cursor before re-locating
   COMMIT_SCORE: 80,
   COMMIT_MARGIN: 8,
+  RESTART_MIN: 8, // letters heard since the cursor last moved, before a restart behind it is considered
+  RESTART_SCORE: 85, // a restart must match this well: it moves the cursor backwards
 };
 
 export class Follower {
@@ -32,8 +35,12 @@ export class Follower {
   cursor: number | null = null;
   private lastGood: number | null = null;
   private heard = "";
+  /** letters heard since the cursor last moved (or since locating) */
+  private sinceMove = "";
   private misses = 0;
   readonly events: FollowEvent[] = [];
+  /** While locating: the best distinct places found by the last search (voice search, spec §8.1). */
+  candidates: { word: number; score: number }[] = [];
 
   constructor(private readonly ref: Reference) {}
 
@@ -42,6 +49,7 @@ export class Follower {
     const added = skeleton(phonemes);
     if (!added) return [];
     this.heard += added;
+    this.sinceMove += added;
     const before = this.events.length;
     if (this.state === "LOCATING") this.locate(now);
     else this.track(now);
@@ -54,6 +62,8 @@ export class Follower {
     this.lastGood = word;
     this.misses = 0;
     this.heard = this.heard.slice(-FOLLOW.TAIL);
+    this.sinceMove = "";
+    this.candidates = [];
     this.events.push({ type: "located", word, at: now });
   }
 
@@ -77,20 +87,46 @@ export class Follower {
         .sort((a, b) => b.score - a.score);
     }
     const best = scored[0];
+    this.candidates = [];
+    for (const c of scored) {
+      if (this.candidates.length === 3) break;
+      if (this.candidates.every((d) => Math.abs(d.word - c.word) > 3)) this.candidates.push(c);
+    }
     if (!best) return;
     // the runner-up must be a different place, not the same passage found twice
     const runner = scored.slice(1).find((c) => Math.abs(c.word - best.word) > 3)?.score ?? 0;
     if (best.score >= FOLLOW.COMMIT_SCORE && best.score - runner >= FOLLOW.COMMIT_MARGIN) this.commit(best.word, now);
   }
 
+  /**
+   * First word of a heard stretch starting at letter `pos`. A word the stretch only clips (three letters or fewer,
+   * and not all of it) is left out: those letters are usually the tail of the word said just before a restart.
+   */
+  private stretchStart(pos: number, last: number): number {
+    const f = this.ref.owner[pos];
+    const covered = this.ref.wordStart[f] + this.ref.wordText[f].length - pos;
+    return f < last && covered <= 3 && covered < this.ref.wordText[f].length ? f + 1 : f;
+  }
+
   private track(now: number) {
     const cursor = this.cursor!;
     const tail = this.heard.slice(-FOLLOW.TAIL);
     const w = this.ref.window(cursor - 12, cursor + 14);
-    const al = tail.length >= 8 ? partialRatioAlignment(tail.slice(-16), w.text) : null;
+    let al = tail.length >= 8 ? partialRatioAlignment(tail.slice(-16), w.text) : null;
+    // Restart / repeat (waqf and ibtida', spec §7.3): right after going back, the tail mixes the end of the old
+    // position with the start of the repeat and matches nowhere well. The letters heard since the cursor last
+    // moved are the repeat alone; if they match clearly behind the cursor, go back there.
+    if (this.sinceMove.length >= FOLLOW.RESTART_MIN) {
+      const fresh = partialRatioAlignment(this.sinceMove.slice(-16), w.text);
+      const freshWord = this.ref.owner[w.start + fresh.destEnd - 1];
+      if (fresh.score >= FOLLOW.RESTART_SCORE && freshWord + 1 < cursor && (!al || al.score < FOLLOW.TRACK_SCORE || fresh.score > al.score)) al = fresh;
+    }
     if (al && al.score >= FOLLOW.TRACK_SCORE) {
       const word = this.ref.owner[w.start + al.destEnd - 1];
-      if (word + 1 !== cursor) this.events.push({ type: "cursor", word: word + 1, at: now });
+      if (word + 1 !== cursor) {
+        this.events.push({ type: "cursor", word: word + 1, at: now, from: this.stretchStart(w.start + Math.max(al.destStart, al.destEnd - this.sinceMove.length), word) });
+        this.sinceMove = "";
+      }
       this.cursor = word + 1;
       this.lastGood = word;
       this.misses = 0;

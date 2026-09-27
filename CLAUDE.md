@@ -92,6 +92,13 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   is served from `/ort/` (copied at build, never a CDN) and cached on first voice use. Golden parity files are in
   `tests/golden/`; `asr-parity.test.ts` needs model B's ONNX (`RECITATION_MODELS_DIR`, default `../../models`)
   and is skipped without it. Parity rule: identical unit sequence; start frames may differ by one (WASM int8).
+- **Follow mode (M4)**: `engine/session.ts` (FollowSession) turns each step's units into engine events
+  (heard words, cursor, located/lost, ayahComplete, candidates, pending); `workers/engine.worker.ts` hosts it
+  with the whole-Quran index. `session/voice.ts` is the one voice session per tab (ASR worker + engine worker +
+  state), shared by `/transcribe` and the reader; it is loaded lazily through `session/lazy.ts` (`useVoice`),
+  so importing that hook costs almost nothing. The reader's `components/recitation/FollowControl.tsx` adds
+  the Follow button, turns pages, and marks the word just recited by toggling `.voice-current` on the
+  `[data-w="s:a:w"]` span directly (QuranPage never re-renders per step). Follow mode never marks mistakes.
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
   shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). Updates
   wait for the user (`components/layout/UpdatePrompt.tsx`) and never reload by themselves. Any new data file

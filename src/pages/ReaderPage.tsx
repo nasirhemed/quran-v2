@@ -11,6 +11,7 @@ import SidePanel from "@/components/sidepanel/SidePanel";
 import SelectionActionBar from "@/components/edit/SelectionActionBar";
 import AddOccurrenceDialog from "@/components/edit/AddOccurrenceDialog";
 import ExportImportPanel from "@/components/edit/ExportImportPanel";
+import { useFollowMode } from "@/components/recitation/FollowControl";
 import type { WordHighlight, LocalPhrase } from "@/types";
 
 export default function ReaderPage() {
@@ -45,6 +46,7 @@ export default function ReaderPage() {
   );
 
   const sidePanel = useSidePanel(localPhrases.phrases);
+  const follow = useFollowMode({ pages, surahs: surahsMeta, currentPage, onNavigateToPage: navigateToPage });
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dialogPhrase, setDialogPhrase] = useState<LocalPhrase | null>(null);
@@ -142,6 +144,8 @@ export default function ReaderPage() {
         editMode={localPhrases.editMode}
         onToggleEditMode={localPhrases.toggleEditMode}
         onExportImport={() => setShowExportImport(true)}
+        voiceControl={localPhrases.editMode ? null : follow.button}
+        compact={follow.following}
       />
 
       <div className="flex">
@@ -184,6 +188,8 @@ export default function ReaderPage() {
           )}
         </main>
       </div>
+
+      {!localPhrases.editMode && follow.strip}
 
       {localPhrases.editMode && localPhrases.selection && (
         <SelectionActionBar

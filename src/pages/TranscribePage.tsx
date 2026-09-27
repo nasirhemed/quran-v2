@@ -1,34 +1,21 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { selectedPack } from "@/recitation/asr/modelPack";
-import { ModelStore, OpfsFileStore } from "@/recitation/asr/modelStore";
-import type { ChunkEvent, SourceEvents } from "@/recitation/sources/RecognizerSource";
-import { BrowserSource, type Loaded } from "@/recitation/sources/BrowserSource";
+import VerseMarker from "@/components/page/VerseMarker";
+import { fetchQuranPages, fetchSurahs } from "@/lib/data";
+import { useVoice } from "@/recitation/session/lazy";
+import type { Paragraph, RawLine, VoiceStats } from "@/recitation/session/voice";
+import { wordLookup, type WordLookup } from "@/recitation/session/words";
 import { getVoiceSupport } from "@/recitation/support";
+import type { SurahMeta } from "@/types";
 
 /**
- * The raw live transcript (spec §8.1, M3): what model B hears, as phonemes, with no Quran matching yet (M4).
- * A new line starts after a pause. "Details" shows the speed and latency numbers M3 is judged on.
+ * The live transcript (spec §8.1–8.2). With model B, it shows the mushaf words the reciter's voice was matched
+ * to; the raw sounds are one tap away ("Show sounds"). Also: where you are (tap to open the mushaf there),
+ * candidate places while that is still unclear, and a Details panel with the speed and lag numbers.
  */
 
-type Phase = "checking" | "no-model" | "loading" | "ready" | "listening" | "stopping" | "error";
-
-const LINE_GAP_FRAMES = 15; // 0.6 s without a new unit starts a new line
 const NO_SPEECH_MS = 3000;
-
-interface Line {
-  units: { id: number; frame: number }[];
-  text: string;
-}
-
-/** Finished lines never change, so they never re-render: a long session costs the same per step as a short one. */
-const LineView = memo(function LineView({ text, live }: { text: string; live: boolean }) {
-  return (
-    <p dir="rtl" lang="ar" className={`font-arabic text-2xl leading-loose ${live ? "text-ink-soft" : "text-ink"}`}>
-      {text}
-    </p>
-  );
-});
 
 const pct = (xs: number[], p: number) => {
   if (!xs.length) return NaN;
@@ -37,202 +24,86 @@ const pct = (xs: number[], p: number) => {
 };
 const fmt = (x: number, d = 0) => (Number.isFinite(x) ? x.toFixed(d) : "–");
 
+/** Finished paragraphs never change, so they never re-render. */
+const ParagraphView = memo(function ParagraphView({ p, words }: { p: Paragraph; words: WordLookup }) {
+  const ayah = p.ayahEnd ? Number(p.ayahEnd.split(":")[1]) : null;
+  return (
+    <p dir="rtl" lang="ar" className="font-arabic text-2xl leading-loose text-ink">
+      {p.items.map((it, i) => (
+        <span key={i} className={it.status === "repeat" ? "text-muted" : undefined}>
+          {words.text(it.key)}{" "}
+        </span>
+      ))}
+      {ayah !== null && <VerseMarker ayahNumber={ayah} />}
+    </p>
+  );
+});
+
+const RawView = memo(function RawView({ line, live }: { line: RawLine; live: boolean }) {
+  return (
+    <p dir="rtl" lang="ar" className={`font-arabic text-xl leading-loose ${live ? "text-ink-soft" : "text-muted"}`}>
+      {line.text}
+    </p>
+  );
+});
+
+function place(key: string, surahs: SurahMeta[] | undefined, words: WordLookup | null) {
+  const [s, a] = key.split(":").map(Number);
+  const name = surahs?.find((x) => x.index === s)?.tname ?? `Surah ${s}`;
+  const page = words?.page(key);
+  return { s, a, label: `${name} ${s}:${a}${page ? ` · page ${page}` : ""}` };
+}
+
 export default function TranscribePage() {
   const support = getVoiceSupport();
   const debug = typeof location !== "undefined" && new URLSearchParams(location.search).has("debug");
-  const pack = useMemo(() => selectedPack(), []);
-  const source = useRef<BrowserSource | null>(null);
-  const [phase, setPhase] = useState<Phase>("checking");
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [lines, setLines] = useState<Line[]>([]);
-  const [level, setLevel] = useState(0);
-  const [speaking, setSpeaking] = useState(false);
-  const [quietSince, setQuietSince] = useState(0);
-  const [behind, setBehind] = useState(false);
-  const [now, setNow] = useState(Date.now());
+  const { session, state } = useVoice(support.supported);
+  const { data: pages } = useQuery({ queryKey: ["quran-pages"], queryFn: fetchQuranPages });
+  const { data: surahs } = useQuery({ queryKey: ["surahs"], queryFn: fetchSurahs });
+  const words = useMemo(() => (pages ? wordLookup(pages) : null), [pages]);
+  const [showSounds, setShowSounds] = useState(false);
   const [showDetails, setShowDetails] = useState(debug);
-  const stats = useRef({ infer: [] as number[], latency: [] as number[], unitLatency: [] as number[], drift: 0, backlogMax: 0, steps: 0, gaps: 0, lastChunk: -1, stepAudioMs: 480 });
-  const [statsTick, setStatsTick] = useState(0);
   const [memory, setMemory] = useState<string | null>(null);
-  const wakeLock = useRef<WakeLockSentinel | null>(null);
+  const [now, setNow] = useState(Date.now());
   const scroller = useRef<HTMLDivElement | null>(null);
   const [pinned, setPinned] = useState(true);
 
-  // Load the model once.
-  useEffect(() => {
-    if (!support.supported) return;
-    let cancelled = false;
-    (async () => {
-      const ready = (await new ModelStore(new OpfsFileStore()).status(pack)).state === "ready";
-      if (cancelled) return;
-      if (!ready) return setPhase("no-model");
-      setPhase("loading");
-      const src = new BrowserSource();
-      source.current = src;
-      const info = await src.load(pack, 2);
-      if (cancelled) return;
-      if (!info) return setPhase("no-model");
-      setLoaded(info);
-      setPhase("ready");
-    })().catch((e) => {
-      setMessage(String(e instanceof Error ? e.message : e));
-      setPhase("error");
-    });
-    return () => {
-      cancelled = true;
-      source.current?.dispose();
-      source.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const phase = state?.phase ?? "checking";
+  const listening = phase === "listening";
 
-  // Wire events.
   useEffect(() => {
-    const src = source.current;
-    if (!src || !loaded) return;
-    const offs = [
-      src.on("chunk", (c: ChunkEvent) => {
-        const s = stats.current;
-        const arrival = performance.timeOrigin + performance.now();
-        if (s.lastChunk >= 0 && c.chunk !== s.lastChunk + 1) s.gaps++;
-        s.lastChunk = c.chunk;
-        s.steps++;
-        if (c.captureAtMs < c.emittedAtMs) s.latency.push(arrival - c.captureAtMs);
-        if (c.units.length) {
-          const sym = loaded.symbols;
-          setLines((prev) => {
-            // copy only the line that changes; the others keep their identity (and skip re-rendering)
-            const next = prev.slice();
-            for (const u of c.units) {
-              const last = next[next.length - 1];
-              const lastFrame = last?.units[last.units.length - 1]?.frame;
-              if (!last || lastFrame === undefined || u.frame - lastFrame > LINE_GAP_FRAMES) next.push({ units: [u], text: sym[u.id] ?? "" });
-              else next[next.length - 1] = { units: [...last.units, u], text: last.text + (sym[u.id] ?? "") };
-            }
-            return next;
-          });
-        }
-        setStatsTick((t) => t + 1);
-      }),
-      src.onStep((st) => {
-        const s = stats.current;
-        s.infer.push(st.inferMs);
-        s.stepAudioMs = st.stepAudioMs;
-        s.backlogMax = Math.max(s.backlogMax, st.backlogMs);
-        s.drift = st.clockDriftMs;
-        const arrival = performance.timeOrigin + performance.now();
-        for (const t of st.unitCaptureAtMs) s.unitLatency.push(arrival - t);
-      }),
-      src.on("level", (e) => setLevel(e.rms)),
-      src.on("vad", (e: SourceEvents["vad"]) => {
-        setSpeaking(e.speech);
-        if (!e.speech) setQuietSince(Date.now());
-      }),
-      src.on("state", (e) => setBehind(e.state === "behind")),
-      src.on("error", (e) => {
-        if (e.code === "model_missing") return;
-        setMessage(e.message);
-        if (e.code.startsWith("mic")) setPhase("ready");
-      }),
-    ];
-    return () => offs.forEach((off) => off());
-  }, [loaded]);
-
-  // Clock for "No speech".
-  useEffect(() => {
-    if (phase !== "listening") return;
+    if (!listening) return;
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
-  }, [phase]);
+  }, [listening]);
 
-  const stop = useCallback(async () => {
-    const src = source.current;
-    if (!src) return;
-    setPhase("stopping");
-    await src.stop();
-    await wakeLock.current?.release().catch(() => undefined);
-    wakeLock.current = null;
-    setLevel(0);
-    setPhase("ready");
-  }, []);
-
-  // Stop when the page is hidden (spec §10.6).
   useEffect(() => {
-    const onHide = () => {
-      if (document.visibilityState === "hidden" && phase === "listening") void stop();
-    };
-    document.addEventListener("visibilitychange", onHide);
-    return () => document.removeEventListener("visibilitychange", onHide);
-  }, [phase, stop]);
+    if (!debug || !session) return;
+    const w = window as unknown as Record<string, unknown>;
+    w.__itqanVoice = session;
+    w.__itqanUnitIds = () => session.getState().raw.flatMap((l) => l.units.map((u) => u.id));
+  }, [debug, session]);
 
-  const resetStats = () => {
-    stats.current = { infer: [], latency: [], unitLatency: [], drift: 0, backlogMax: 0, steps: 0, gaps: 0, lastChunk: -1, stepAudioMs: 480 };
-    setStatsTick((t) => t + 1);
-  };
-
-  const start = async () => {
-    const src = source.current;
-    if (!src) return;
-    setMessage(null);
-    resetStats();
-    setSpeaking(false);
-    setQuietSince(Date.now());
-    try {
-      const pending = src.start(); // creates the AudioContext inside this tap
-      setPhase("listening");
-      await pending;
-      wakeLock.current = await navigator.wakeLock?.request("screen").catch(() => null);
-    } catch {
-      setPhase("ready");
-    }
-  };
-
-  const transcribeFile = async (file: File) => {
-    const src = source.current;
-    if (!src) return;
-    setMessage(null);
-    resetStats();
-    setPhase("listening");
-    try {
-      // decoded straight to 16 kHz by the browser; the worker's resampler then passes it through unchanged
-      const ctx = new OfflineAudioContext(1, 1, 16000);
-      const audio = await ctx.decodeAudioData(await file.arrayBuffer());
-      const mono = new Float32Array(audio.length);
-      for (let c = 0; c < audio.numberOfChannels; c++) {
-        const ch = audio.getChannelData(c);
-        for (let i = 0; i < ch.length; i++) mono[i] += ch[i] / audio.numberOfChannels;
-      }
-      setPhase("stopping");
-      await src.transcribe(mono, audio.sampleRate);
-    } catch (e) {
-      setMessage(`Couldn't read that file: ${e instanceof Error ? e.message : e}`);
-    }
-    setPhase("ready");
-  };
-
-  // Tests read the unit ids through this (debug only), instead of serialising them into the DOM every step.
-  useEffect(() => {
-    if (!debug) return;
-    (window as unknown as { __itqanUnitIds?: () => number[] }).__itqanUnitIds = () => lines.flatMap((l) => l.units.map((u) => u.id));
-  }, [debug, lines]);
-
-  // Auto-scroll unless the reader scrolled up.
   useEffect(() => {
     const el = scroller.current;
     if (el && pinned) el.scrollTop = el.scrollHeight;
-  }, [lines, pinned]);
+  }, [state?.paragraphs, state?.raw, showSounds, pinned]);
 
-  const copy = () => navigator.clipboard?.writeText(lines.map((l) => l.text).join("\n"));
+  if (!support.supported) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-8">
+        <h1 className="text-xl font-semibold text-ink mb-2">Transcribe</h1>
+        <p className="text-sm text-muted">Voice features need a browser with {support.missing.join(", ")}.</p>
+      </div>
+    );
+  }
 
-  const s = stats.current;
-  void statsTick;
-  // percentiles sort the whole session's samples: only when the panel is open
-  const inferP50 = showDetails ? pct(s.infer, 50) : NaN;
-  const inferP95 = showDetails ? pct(s.infer, 95) : NaN;
+  const st = state;
+  const s: VoiceStats | null = session?.stats ?? null;
+  void st?.statsVersion;
 
   const status = (() => {
-    if (message) return message;
+    if (st?.message) return st.message;
     switch (phase) {
       case "checking":
         return "…";
@@ -247,21 +118,21 @@ export default function TranscribePage() {
       case "error":
         return "Something went wrong";
       case "listening":
-        if (behind) return "Can't keep up on this device";
-        return !speaking && now - quietSince > NO_SPEECH_MS ? "No speech" : "Listening";
+        if (st?.behind) return "Can't keep up on this device";
+        if (!st?.speaking && now - (st?.quietSince ?? now) > NO_SPEECH_MS) return "No speech";
+        return st?.tracking ? "Following" : "Listening… recite a few words so I can find the place";
     }
   })();
 
-  if (!support.supported) {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-8">
-        <h1 className="text-xl font-semibold text-ink mb-2">Transcribe</h1>
-        <p className="text-sm text-muted">Voice features need a browser with {support.missing.join(", ")}.</p>
-      </div>
-    );
-  }
+  const here = st?.last ? place(st.last, surahs, words) : null;
+  const paragraphs = st?.paragraphs ?? [];
+  const raw = st?.raw ?? [];
+  const copy = () => {
+    if (!words) return;
+    const text = paragraphs.map((p) => p.items.map((it) => words.text(it.key)).join(" ") + (p.ayahEnd ? ` (${p.ayahEnd.split(":")[1]})` : "")).join(" ");
+    void navigator.clipboard?.writeText(text);
+  };
 
-  const listening = phase === "listening";
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -282,7 +153,7 @@ export default function TranscribePage() {
         <>
           <div className="flex items-center gap-4">
             <button
-              onClick={() => (listening ? void stop() : void start())}
+              onClick={() => (listening ? void session?.stop() : void session?.start())}
               disabled={phase !== "ready" && phase !== "listening"}
               aria-label={listening ? "Stop" : "Start listening"}
               className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${
@@ -302,9 +173,34 @@ export default function TranscribePage() {
                 {status}
               </p>
               <div className="mt-2 h-1.5 rounded-full bg-card2 overflow-hidden" aria-hidden>
-                <div className="h-full bg-primary transition-[width] duration-100" style={{ width: `${Math.min(100, Math.sqrt(level) * 250)}%` }} />
+                <div className="h-full bg-primary transition-[width] duration-100" style={{ width: `${Math.min(100, Math.sqrt(st?.level ?? 0) * 250)}%` }} />
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 min-h-[1.75rem]" aria-live="polite">
+            {here && (
+              <Link
+                href={`/read?surah=${here.s}&ayah=${here.a}`}
+                className="px-3 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary hover:underline"
+                data-testid="location"
+              >
+                {here.label}
+              </Link>
+            )}
+            {!st?.tracking && (st?.candidates.length ?? 0) > 0 && (
+              <>
+                <span className="text-xs text-faint">Maybe:</span>
+                {st!.candidates.map((c) => {
+                  const pl = place(c.key, surahs, words);
+                  return (
+                    <Link key={c.key} href={`/read?surah=${pl.s}&ayah=${pl.a}`} className="px-2 py-0.5 rounded-full text-xs border border-edge text-muted hover:text-ink">
+                      {pl.label}
+                    </Link>
+                  );
+                })}
+              </>
+            )}
           </div>
 
           <div className="relative">
@@ -317,10 +213,23 @@ export default function TranscribePage() {
               className="bg-card border border-edge rounded-lg p-4 h-[45vh] overflow-y-auto"
               aria-live="off"
             >
-              {lines.length === 0 ? (
-                <p className="text-sm text-faint">What the model hears appears here, as sounds (phonemes). Matching it to the Qur'an text comes next.</p>
+              {showSounds ? (
+                raw.length ? (
+                  raw.map((l, i) => <RawView key={i} line={l} live={i === raw.length - 1 && listening} />)
+                ) : (
+                  <p className="text-sm text-faint">The sounds the model hears appear here.</p>
+                )
+              ) : paragraphs.length === 0 && !(listening && st?.pendingLetters) ? (
+                <p className="text-sm text-faint">Recite, and the words appear here once they're matched to the Qur'an.</p>
               ) : (
-                lines.map((l, i) => <LineView key={i} text={l.text} live={i === lines.length - 1 && listening} />)
+                <>
+                  {words && paragraphs.map((p) => <ParagraphView key={p.id} p={p} words={words} />)}
+                  {listening && !st?.tracking && (st?.pendingLetters ?? 0) > 0 && (
+                    <p className="text-2xl text-faint animate-pulse" aria-hidden>
+                      …
+                    </p>
+                  )}
+                </>
               )}
             </div>
             {!pinned && (
@@ -334,10 +243,10 @@ export default function TranscribePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-xs">
-            <button onClick={copy} disabled={!lines.length} className="font-medium text-muted hover:text-ink disabled:opacity-40">
+            <button onClick={copy} disabled={!paragraphs.length} className="font-medium text-muted hover:text-ink disabled:opacity-40">
               Copy text
             </button>
-            <button onClick={() => setLines([])} disabled={!lines.length || listening} className="font-medium text-muted hover:text-ink disabled:opacity-40">
+            <button onClick={() => session?.clear()} disabled={(!paragraphs.length && !raw.length) || listening} className="font-medium text-muted hover:text-ink disabled:opacity-40">
               Clear
             </button>
             <label className={`font-medium text-muted hover:text-ink cursor-pointer ${phase !== "ready" ? "opacity-40 pointer-events-none" : ""}`}>
@@ -349,40 +258,47 @@ export default function TranscribePage() {
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   e.target.value = "";
-                  if (f) void transcribeFile(f);
+                  if (f) void session?.transcribeFile(f);
                 }}
               />
             </label>
+            <button onClick={() => setShowSounds((v) => !v)} className="font-medium text-muted hover:text-ink">
+              {showSounds ? "Show words" : "Show sounds"}
+            </button>
             <button onClick={() => setShowDetails((v) => !v)} className="ml-auto font-medium text-muted hover:text-ink">
               {showDetails ? "Hide details" : "Details"}
             </button>
           </div>
 
-          {showDetails && (
+          {showDetails && s && (
             <div className="bg-card2 rounded-lg p-3 text-xs text-ink-soft font-mono grid grid-cols-2 gap-x-4 gap-y-1" data-testid="asr-details">
               <span>model</span>
               <span>
-                {pack.id} · {loaded?.threads ?? "?"} threads · loaded in {fmt(loaded?.loadMs ?? NaN)} ms
+                {st?.loaded?.packId ?? "?"} · {st?.loaded?.threads ?? "?"} threads · loaded in {fmt(st?.loaded?.loadMs ?? NaN)} ms
               </span>
+              <span>Quran index</span>
+              <span>{st?.engineReady ? `ready in ${fmt(s.engineLoadMs)} ms` : "loading…"}</span>
               <span>steps</span>
               <span>
                 {s.steps} · dropped {s.gaps}
               </span>
               <span>step time p50 / p95</span>
               <span>
-                {fmt(inferP50)} / {fmt(inferP95)} ms
+                {fmt(pct(s.infer, 50))} / {fmt(pct(s.infer, 95))} ms
               </span>
               <span>real-time factor p95</span>
-              <span data-testid="rtf-p95">{fmt(inferP95 / s.stepAudioMs, 2)}</span>
-              <span title="from the end of a sound to it showing here (spec target 1500 / 2000 ms)">sound → screen p50 / p95</span>
+              <span data-testid="rtf-p95">{fmt(pct(s.infer, 95) / s.stepAudioMs, 2)}</span>
+              <span title="from the end of a sound to it showing (spec target 1500 / 2000 ms)">sound → screen p50 / p95</span>
               <span data-testid="latency">
                 {fmt(pct(s.unitLatency, 50))} / {fmt(pct(s.unitLatency, 95))} ms
               </span>
-              <span title="processing after a step's audio window closes">step processing p50 / p95</span>
-              <span>
-                {fmt(pct(s.latency, 50))} / {fmt(pct(s.latency, 95))} ms
+              <span title="from the end of a sound to the cursor moving (spec: about 2 s or less)">sound → cursor p50 / p95</span>
+              <span data-testid="cursor-lag">
+                {fmt(pct(s.cursorLag, 50))} / {fmt(pct(s.cursorLag, 95))} ms
               </span>
-              <span title="audio clock vs system clock, corrected for">audio clock drift</span>
+              <span>follow engine per step p95</span>
+              <span>{fmt(pct(s.engineMs, 95), 1)} ms</span>
+              <span>audio clock drift</span>
               <span>{fmt(s.drift)} ms</span>
               <span>max backlog</span>
               <span>{fmt(s.backlogMax)} ms</span>
