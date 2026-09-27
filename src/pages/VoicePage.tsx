@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DEFAULT_PACK, MODEL_PACKS, type ModelPack } from "@/recitation/asr/modelPack";
+import { Link } from "wouter";
+import { choosePack, MODEL_PACKS, selectedPack, type ModelPack } from "@/recitation/asr/modelPack";
 import { ModelStore, OpfsFileStore, type PackStatus } from "@/recitation/asr/modelStore";
 import { getVoiceSupport } from "@/recitation/support";
-
-const PACK_KEY = "voice.pack";
-
-export function selectedPackId(): string {
-  try {
-    return localStorage.getItem(PACK_KEY) ?? DEFAULT_PACK.id;
-  } catch {
-    return DEFAULT_PACK.id;
-  }
-}
 
 const mb = (bytes: number) => `${(bytes / 1e6).toFixed(bytes < 1e7 ? 1 : 0)} MB`;
 
@@ -26,7 +17,7 @@ export default function VoicePage() {
   const store = useRef<ModelStore | null>(null);
   const aborts = useRef(new Map<string, AbortController>());
   const [rows, setRows] = useState<Record<string, Row>>({});
-  const [selected, setSelected] = useState(selectedPackId);
+  const [selected, setSelected] = useState(() => selectedPack().id);
   const [storage, setStorage] = useState<{ persisted: boolean; usage?: number; quota?: number } | null>(null);
   const [license, setLicense] = useState<Record<string, string>>({});
 
@@ -86,11 +77,7 @@ export default function VoicePage() {
 
   const choose = (id: string) => {
     setSelected(id);
-    try {
-      localStorage.setItem(PACK_KEY, id);
-    } catch {
-      /* private mode: the choice lasts for this visit */
-    }
+    choosePack(id);
   };
 
   if (!support.supported) {
@@ -155,6 +142,11 @@ export default function VoicePage() {
                     ) : ready ? (
                       <>
                         <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-primary-soft text-primary">Downloaded</span>
+                        {pack.runnable !== false && (
+                          <Link href="/transcribe" className="px-3 py-1 rounded-full text-xs font-semibold bg-primary text-on-primary">
+                            Try it
+                          </Link>
+                        )}
                         <button onClick={() => remove(pack).then(() => download(pack))} className="text-xs font-medium text-muted hover:text-ink">
                           Re-download
                         </button>

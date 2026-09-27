@@ -108,3 +108,24 @@ export const FASTCONFORMER_QURAN_STREAMING: ModelPack = {
 
 export const MODEL_PACKS: ModelPack[] = [ZIPFORMER_P_ARABIC_V3, FASTCONFORMER_QURAN_STREAMING];
 export const DEFAULT_PACK = ZIPFORMER_P_ARABIC_V3;
+
+const PACK_KEY = "voice.pack";
+
+/** The pack chosen in voice settings (a runnable one; falls back to the default). */
+export function selectedPack(): ModelPack {
+  let id: string | null = null;
+  try {
+    id = localStorage.getItem(PACK_KEY);
+  } catch {
+    /* storage blocked */
+  }
+  return MODEL_PACKS.find((p) => p.id === id && p.runnable !== false) ?? DEFAULT_PACK;
+}
+
+export function choosePack(id: string) {
+  try {
+    localStorage.setItem(PACK_KEY, id);
+  } catch {
+    /* private mode: the choice lasts for this visit */
+  }
+}
