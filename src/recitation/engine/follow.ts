@@ -34,6 +34,8 @@ export class Follower {
   private heard = "";
   private misses = 0;
   readonly events: FollowEvent[] = [];
+  /** While locating: the best distinct places found by the last search (voice search, spec §8.1). */
+  candidates: { word: number; score: number }[] = [];
 
   constructor(private readonly ref: Reference) {}
 
@@ -54,6 +56,7 @@ export class Follower {
     this.lastGood = word;
     this.misses = 0;
     this.heard = this.heard.slice(-FOLLOW.TAIL);
+    this.candidates = [];
     this.events.push({ type: "located", word, at: now });
   }
 
@@ -77,6 +80,11 @@ export class Follower {
         .sort((a, b) => b.score - a.score);
     }
     const best = scored[0];
+    this.candidates = [];
+    for (const c of scored) {
+      if (this.candidates.length === 3) break;
+      if (this.candidates.every((d) => Math.abs(d.word - c.word) > 3)) this.candidates.push(c);
+    }
     if (!best) return;
     // the runner-up must be a different place, not the same passage found twice
     const runner = scored.slice(1).find((c) => Math.abs(c.word - best.word) > 3)?.score ?? 0;
