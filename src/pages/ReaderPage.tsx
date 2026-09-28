@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useQuranPage } from "@/hooks/useQuranPage";
 import { useSidePanel } from "@/hooks/useSidePanel";
 import { useLocalPhrases } from "@/hooks/useLocalPhrases";
 import { fetchQuranPages, fetchSurahs } from "@/lib/data";
+import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
 import QuranPage from "@/components/page/QuranPage";
 import SidePanel from "@/components/sidepanel/SidePanel";
@@ -39,6 +40,7 @@ export default function ReaderPage() {
   });
 
   const localPhrases = useLocalPhrases(pages);
+  const bismillah = useMemo(() => (pages ? bismillahGlyphs(pages) : []), [pages]);
 
   const { page, pageHighlights, isLoading } = useQuranPage(
     currentPage,
@@ -175,6 +177,8 @@ export default function ReaderPage() {
             <QuranPage
               page={page}
               highlights={pageHighlights}
+              surahs={surahs}
+              bismillah={bismillah}
               activeAyah={activeAyah}
               onHighlightClick={handleHighlightClick}
               editMode={localPhrases.editMode}
