@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { bismillahGlyphs, pageLayout, type LayoutLine, type LineItem } from "@/lib/mushaf/layout";
+import { ayahNumberText, bismillahGlyphs, pageLayout, type LayoutLine, type LineItem } from "@/lib/mushaf/layout";
 import type { QuranPage } from "@/types";
 
 const pages: QuranPage[] = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../public/data/quran-pages.json"), "utf-8"));
@@ -64,5 +64,10 @@ describe("mushaf layout (QCF V2, the 1421H print)", () => {
 
   it("draws the bismillah from 1:1's four words", () => {
     expect(bismillahGlyphs(pages)).toHaveLength(4);
+  });
+
+  it("copies ayah numbers in Arabic-Indic digits", () => {
+    expect(ayahNumberText(3)).toBe("(٣)");
+    expect(ayahNumberText(286)).toBe("(٢٨٦)");
   });
 });

@@ -1,7 +1,7 @@
-import { useMemo, useCallback, type CSSProperties } from "react";
+import { useMemo, useCallback, type ClipboardEvent, type CSSProperties } from "react";
 import type { QuranPage as QuranPageType, PageHighlightMap, WordHighlight, WordSelection, SurahMeta } from "@/types";
 import { HIGHLIGHT_COLORS, HIGHLIGHT_BORDER_COLORS } from "@/lib/highlights";
-import { pageLayout, type LineItem } from "@/lib/mushaf/layout";
+import { ayahNumberText, pageLayout, type LineItem } from "@/lib/mushaf/layout";
 import { LINE_WIDTH_EM, pageFontFamily } from "@/lib/mushaf/pack";
 import { BISMILLAH_PAGE, useMushafFonts } from "@/hooks/useMushafFonts";
 import SurahHeader from "./SurahHeader";
@@ -32,6 +32,22 @@ const glyphRun = (glyph: string) =>
   glyph.includes(" ")
     ? glyph.split(" ").flatMap((part, i) => (i ? [<span key={i} className="inline-block w-[0.25em]" />, part] : [part]))
     : glyph;
+
+/**
+ * Glyph codes paste as gibberish outside their font: a copy of the page gives the selected words' Unicode text
+ * instead (each word, ornament and bismillah carries it in data-copy), in reading order.
+ */
+function copyText(e: ClipboardEvent<HTMLElement>) {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) return;
+  const parts: string[] = [];
+  e.currentTarget.querySelectorAll<HTMLElement>("[data-copy]").forEach((el) => {
+    if (selection.containsNode(el, true)) parts.push(el.dataset.copy!);
+  });
+  if (!parts.length) return;
+  e.clipboardData.setData("text/plain", parts.join(" "));
+  e.preventDefault();
+}
 
 /**
  * One mushaf page as printed: 15 lines (8 on pages 1-2), each word drawn from its glyph in the page's QCF V2 font,
@@ -97,6 +113,7 @@ export default function QuranPage({
       <span
         key={`${item.ayahKey}:${item.word.position}`}
         data-w={`${item.ayahKey}:${item.word.position}`}
+        data-copy={glyphs ? item.word.text : undefined}
         className={`rounded ${clickable ? "cursor-pointer" : ""} ${
           selected ? "ring-2 ring-amber-400 bg-amber-500/20" : ""
         } ${isActive(item) ? "text-amber-200" : ""}`}
@@ -105,10 +122,8 @@ export default function QuranPage({
       >
         {glyphs ? (
           <>
-            {/* Glyph codes mean nothing outside the page's font: screen readers and copy get the text instead. */}
-            <span aria-hidden="true" className="select-none">
-              {glyphRun(item.word.glyph)}
-            </span>
+            {/* Glyph codes mean nothing outside the page's font: screen readers get the text instead. */}
+            <span aria-hidden="true">{glyphRun(item.word.glyph)}</span>
             <span className="sr-only">{item.word.text} </span>
           </>
         ) : (
@@ -120,10 +135,8 @@ export default function QuranPage({
 
   const renderEnd = (item: Extract<LineItem, { kind: "end" }>) =>
     glyphs ? (
-      <span key={`end-${item.ayahKey}`} className={isActive(item) ? "text-amber-200" : ""}>
-        <span aria-hidden="true" className="select-none">
-          {item.glyph}
-        </span>
+      <span key={`end-${item.ayahKey}`} className={isActive(item) ? "text-amber-200" : ""} data-copy={ayahNumberText(item.ayah)}>
+        <span aria-hidden="true">{item.glyph}</span>
         <span className="sr-only">({item.ayah}) </span>
       </span>
     ) : (
@@ -140,6 +153,7 @@ export default function QuranPage({
         <div
           lang="ar"
           className={`mushaf-glyphs ${fontState === "loading" ? "invisible overflow-hidden" : ""}`}
+          onCopy={copyText}
           style={{ fontFamily: `"${pageFontFamily(page.pageNumber)}"`, "--line-em": LINE_WIDTH_EM } as CSSProperties}
         >
           {lines.map((line) => {

@@ -9,9 +9,9 @@ interface BismillahProps {
 export default function Bismillah({ glyphs, fontFamily }: BismillahProps) {
   if (glyphs && fontFamily) {
     return (
-      <div className="mushaf-line justify-center gap-[0.3em]" style={{ fontFamily: `"${fontFamily}"` }}>
+      <div className="mushaf-line justify-center gap-[0.3em]" style={{ fontFamily: `"${fontFamily}"` }} data-copy={BISMILLAH}>
         {glyphs.map((g, i) => (
-          <span key={i} aria-hidden="true" className="select-none">
+          <span key={i} aria-hidden="true">
             {g}
           </span>
         ))}

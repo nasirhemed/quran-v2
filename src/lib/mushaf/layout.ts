@@ -38,3 +38,8 @@ export function pageLayout(page: QuranPage): LayoutLine[] {
 export function bismillahGlyphs(pages: QuranPage[]): string[] {
   return pages[0].surahGroups[0].ayahs[0].words.map((w) => w.glyph);
 }
+
+/** An ayah number as copied text: "(٨)", in Arabic-Indic digits. */
+export function ayahNumberText(ayah: number): string {
+  return `(${String(ayah).replace(/\d/g, (d) => String.fromCharCode(0x660 + Number(d)))})`;
+}

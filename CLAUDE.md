@@ -62,8 +62,8 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   1-2: `surah` header / `bismillah` / `text`, `centered` for short lines; a header can sit at the foot of the
   previous page). `lib/mushaf/layout.ts` turns that into lines (plain TS, portable). One font size for all pages:
   column width / `LINE_WIDTH_EM`, so lines never wrap; highlights must only colour a word (no padding, margin or
-  border). Glyph codes are meaningless outside their font, so each word carries `sr-only` text for screen readers
-  and copying. Without fonts (not hosted, or offline on a page never opened) the page falls back to Unicode text.
+  border). Glyph codes are meaningless outside their font, so each word carries `sr-only` text for screen readers,
+  and copying swaps in the selected words' Unicode text (`data-copy`, `onCopy`). Without fonts (not hosted, or offline on a page never opened) the page falls back to Unicode text.
   Everything else (Browse, Practice, voice) uses the Unicode `text`.
 - **Mushaf font pack** (`lib/mushaf/pack.ts`, `fontStore.ts`, `hooks/useMushafFonts.ts`): `qcf-v2`, 604 page fonts
   + `surah-names.woff2`, 98 MB, hosted with the model packs at `$VITE_MODEL_BASE_URL/qcf-v2/1/<file>` (never
