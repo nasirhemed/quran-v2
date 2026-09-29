@@ -106,28 +106,6 @@ export interface SimilarAyahEntry {
   similarAyahs: SimilarAyahMatch[];
 }
 
-// ─── Browse list data (from Quran-Practice exports) ─────────────
-
-export interface PhraseListItem {
-  id: string;
-  phraseText: string;
-  surahCount: number;
-  ayahCount: number;
-  totalOccurrences: number;
-  sourceAyah: string;
-  occurrences: string[]; // verse keys "surah:ayah"
-  occurrencePhraseTexts: Record<string, string>;
-  occurrenceAyahPreviews: Record<string, string>;
-}
-
-export interface SimilarAyahListItem {
-  id: string;
-  primaryVerseKey: string;
-  sourceAyahText: string;
-  occurrences: string[];
-  totalSimilarCount: number;
-}
-
 // ─── Computed highlight for rendering ───────────────────────────
 
 export interface WordHighlight {
