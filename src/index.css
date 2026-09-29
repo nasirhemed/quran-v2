@@ -221,3 +221,26 @@
   border-radius: 0.25rem;
   transition: background-color 150ms, box-shadow 150ms;
 }
+
+/* Hidden words (recite from memory): each word keeps its place and width but shows only a faint baseline until
+   revealed, by Follow mode hearing it or a tap. The class is set on [data-w] spans directly, like .voice-current. */
+.words-hidden [data-w]:not(.word-revealed) {
+  color: transparent;
+  background-image: none !important; /* mutashabihat highlights would give the phrase away */
+  box-shadow: inset 0 -2px 0 var(--border);
+  border-radius: 0;
+  cursor: pointer;
+}
+.words-hidden [data-w].word-revealed {
+  animation: word-reveal 300ms ease-out;
+}
+@keyframes word-reveal {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .words-hidden [data-w].word-revealed {
+    animation: none;
+  }
+}

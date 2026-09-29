@@ -4,6 +4,7 @@ import { HIGHLIGHT_COLORS, HIGHLIGHT_BORDER_COLORS } from "@/lib/highlights";
 import { ayahNumberText, pageLayout, type LineItem } from "@/lib/mushaf/layout";
 import { LINE_WIDTH_EM, pageFontFamily } from "@/lib/mushaf/pack";
 import { BISMILLAH_PAGE, useMushafFonts } from "@/hooks/useMushafFonts";
+import { REVEALED_CLASS } from "@/hooks/useHiddenWords";
 import SurahHeader from "./SurahHeader";
 import Bismillah from "./Bismillah";
 import VerseMarker from "./VerseMarker";
@@ -20,6 +21,8 @@ interface QuranPageProps {
   editMode?: boolean;
   wordSelection?: WordSelection | null;
   onWordSelect?: (ayahKey: string, wordIndex1Based: number) => void;
+  /** recite from memory: words are masked until revealed (tapping a masked word reveals it) */
+  hideWords?: { revealed: ReadonlySet<string>; onReveal: (key: string) => void } | null;
 }
 
 type WordItem = Extract<LineItem, { kind: "word" }>;
@@ -66,6 +69,7 @@ export default function QuranPage({
   editMode,
   wordSelection,
   onWordSelect,
+  hideWords,
 }: QuranPageProps) {
   const lines = useMemo(() => pageLayout(page), [page]);
   const fontState = useMushafFonts(page.pageNumber, {
@@ -99,9 +103,12 @@ export default function QuranPage({
   const surahMeta = (n: number) => surahs.find((s) => s.index === n);
 
   const renderWord = (item: WordItem) => {
+    const key = `${item.ayahKey}:${item.word.position}`;
+    const revealed = !!hideWords?.revealed.has(key);
+    const masked = !!hideWords && !revealed;
     const hl = highlights[item.ayahKey]?.get(item.wordIndex0);
     const selected = editMode && isWordSelected(item);
-    const clickable = editMode || !!hl;
+    const clickable = editMode || !!hl || masked;
     // Colour only: a background with the underline painted into it, so the word keeps its exact width.
     const style: CSSProperties | undefined =
       hl && !selected
@@ -111,14 +118,14 @@ export default function QuranPage({
         : undefined;
     return (
       <span
-        key={`${item.ayahKey}:${item.word.position}`}
-        data-w={`${item.ayahKey}:${item.word.position}`}
+        key={key}
+        data-w={key}
         data-copy={glyphs ? item.word.text : undefined}
         className={`rounded ${clickable ? "cursor-pointer" : ""} ${
           selected ? "ring-2 ring-amber-400 bg-amber-500/20" : ""
-        } ${isActive(item) ? "text-amber-200" : ""}`}
+        } ${isActive(item) ? "text-amber-200" : ""} ${revealed ? REVEALED_CLASS : ""}`}
         style={style}
-        onClick={clickable ? () => handleWordClick(item) : undefined}
+        onClick={clickable ? () => (masked ? hideWords?.onReveal(key) : handleWordClick(item)) : undefined}
       >
         {glyphs ? (
           <>
@@ -144,7 +151,7 @@ export default function QuranPage({
     );
 
   return (
-    <div className="mushaf max-w-[40rem] mx-auto px-3 sm:px-6 py-6 text-slate-100" dir="rtl">
+    <div className={`mushaf ${hideWords ? "words-hidden" : ""} max-w-[40rem] mx-auto px-3 sm:px-6 py-6 text-slate-100`} dir="rtl">
       <div className="text-center mb-3">
         <span className="text-xs font-sans text-slate-500">Page {page.pageNumber}</span>
       </div>

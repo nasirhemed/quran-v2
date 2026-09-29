@@ -124,6 +124,11 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   so importing that hook costs almost nothing. The reader's `components/recitation/FollowControl.tsx` adds
   the Follow button, turns pages, and marks the word just recited by toggling `.voice-current` on the
   `[data-w="s:a:w"]` span directly (QuranPage never re-renders per step). Follow mode never marks mistakes.
+- **Hidden words** (recite from memory): the reader's Hide button (`components/recitation/HideWords.tsx`,
+  `hooks/useHiddenWords.ts`, remembered in localStorage "hideWords") masks every word (`.words-hidden` in
+  `index.css`: transparent text over a faint baseline, highlights suppressed). Words come back one by one as
+  Follow mode hears them (`useFollowMode`'s `onHeard`) or when tapped (a hint); `.word-revealed` goes on the span
+  directly and QuranPage also reads the revealed set when it renders.
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
   shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). The mushaf's
   page fonts are not precached (98 MB): see Mushaf font pack. Updates
