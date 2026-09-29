@@ -70,7 +70,9 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   bundled or precached) with a `manifest.json` (sizes, SHA-256) so other clients (a native app) use the same
   files. A page's font is fetched on first view, kept in Cache Storage (`mushaf-qcf-v2-1`), registered as a
   FontFace, and the pages either side are loaded ahead. The Read home page (`components/mushaf/OfflineMushaf.tsx`)
-  saves the whole pack for offline use. The bismillah line is drawn with page 1's glyphs for 1:1.
+  saves the whole pack for offline use. The bismillah line is drawn with page 1's glyphs for 1:1. Surah headers
+  draw the font's "surah" and "001"…"114" ligatures as two items of a right-to-left row (سورة on the right, the
+  name on its left); in one string the name would come out on the right.
   `scripts/build-mushaf-data.py <pack dir>` (Python, fontTools) rebuilds the page data from quran.com's own
   verses API (`api.qurancdn.com/api/qdc`, mushaf=1; NOT the public v4 by_page, which is the 1405H pagination with
   some wrong glyphs), the fonts, the manifest (also `public/data/mushaf-fonts.json`) and `LINE_WIDTH_EM`; it fails
