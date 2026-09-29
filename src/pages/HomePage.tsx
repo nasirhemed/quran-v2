@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSurahs } from "@/lib/data";
 import type { SurahMeta } from "@/types";
+import OfflineMushaf from "@/components/mushaf/OfflineMushaf";
 
 interface SurahCardProps {
   surah: SurahMeta;
@@ -106,6 +107,8 @@ export default function HomePage({ onNavigateToSurah }: HomePageProps) {
               />
             </div>
           </div>
+
+          <OfflineMushaf />
         </div>
 
         {/* Surah grid */}

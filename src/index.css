@@ -172,6 +172,45 @@
   }
 }
 
+/* A mushaf page drawn from QCF V2 glyphs (components/page/QuranPage.tsx). Every page uses one font size: the
+   widest printed line (--line-em, in em) fills the column, so no line ever wraps. Every line, headers and
+   bismillah included, is one fixed-height row, like the print's 15-line grid. */
+.mushaf {
+  container-type: inline-size;
+}
+.mushaf-glyphs {
+  font-size: calc(100cqw / var(--line-em));
+}
+.mushaf-line {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  height: 1.8em;
+  line-height: 1.8em;
+}
+/* Where a platform rounds glyph widths up to whole pixels, a full line can gain a pixel or two: let words give
+   that back (their glyphs overlap by a fraction of a pixel) rather than the line overflow. */
+.mushaf-line > * {
+  min-width: 0;
+}
+.surah-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 1.5em;
+  align-self: center;
+  border: 1px solid var(--gold);
+  border-radius: 0.25em;
+  /* a second, inner rule, as on the printed frames */
+  box-shadow: inset 0 0 0 0.12em var(--ground), inset 0 0 0 calc(0.12em + 1px) var(--gold);
+  color: var(--ink);
+}
+.surah-frame > span {
+  font-size: 1.25em;
+  line-height: 1;
+}
+
 /* Follow mode (voice): the word just recited. Set on [data-w] spans directly, so following never re-renders
    the page. */
 .voice-current {
