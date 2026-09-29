@@ -202,6 +202,62 @@ function SimilarCard({
   );
 }
 
+/**
+ * One collapsible Juz. Its cards are only mounted while it is open: a closed
+ * <details> still holds its children in the DOM, and building every card of
+ * all 30 Juz up front (~2,600 phrase cards, ~13,000 reader links) took tens of
+ * seconds on a phone whenever the page opened or the tab switched.
+ */
+function JuzSection({
+  group,
+  tab,
+  surahs,
+}: {
+  group: JuzGroup<PhraseListItem | SimilarAyahListItem>;
+  tab: Tab;
+  surahs: SurahMeta[];
+}) {
+  const [open, setOpen] = useState(false);
+  const itemCount = group.surahGroups.reduce((n, sg) => n + sg.items.length, 0);
+
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+      className="border border-edge rounded-xl overflow-hidden bg-surface"
+    >
+      <summary className="cursor-pointer list-none px-4 py-3 bg-card2 flex items-center gap-3 text-sm font-semibold text-ink">
+        <span>Juz {group.juz}</span>
+        <span className="text-xs font-normal text-faint">{itemCount} items</span>
+        <span className="ml-auto text-faint text-xs">▾</span>
+      </summary>
+      {open && (
+        <div className="divide-y divide-[var(--border)]">
+          {group.surahGroups.map((sg) => (
+            <div key={sg.surahNum} className="px-4 py-3">
+              <div className="text-sm font-semibold text-ink-soft mb-3">
+                {sg.surahNum} · {surahTname(surahs, sg.surahNum)}
+                <span className="ml-2 text-xs font-normal text-faint">
+                  {sg.items.length} {sg.items.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {tab === "phrases"
+                  ? (sg.items as PhraseListItem[]).map((item) => (
+                      <PhraseCard key={item.id} item={item} surahs={surahs} />
+                    ))
+                  : (sg.items as SimilarAyahListItem[]).map((item) => (
+                      <SimilarCard key={item.id} item={item} surahs={surahs} />
+                    ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </details>
+  );
+}
+
 export default function BrowsePage() {
   const [tab, setTab] = useState<Tab>("phrases");
   const [search, setSearch] = useState("");
@@ -359,40 +415,7 @@ export default function BrowsePage() {
       ) : (
         <div className="space-y-3">
           {grouped.map((jg) => (
-            <details
-              key={`${tab}-${jg.juz}`}
-              className="border border-edge rounded-xl overflow-hidden bg-surface"
-            >
-              <summary className="cursor-pointer list-none px-4 py-3 bg-card2 flex items-center gap-3 text-sm font-semibold text-ink">
-                <span>Juz {jg.juz}</span>
-                <span className="text-xs font-normal text-faint">
-                  {jg.surahGroups.reduce((n, sg) => n + sg.items.length, 0)} items
-                </span>
-                <span className="ml-auto text-faint text-xs">▾</span>
-              </summary>
-              <div className="divide-y divide-[var(--border)]">
-                {jg.surahGroups.map((sg) => (
-                  <div key={sg.surahNum} className="px-4 py-3">
-                    <div className="text-sm font-semibold text-ink-soft mb-3">
-                      {sg.surahNum} · {surahTname(surahs!, sg.surahNum)}
-                      <span className="ml-2 text-xs font-normal text-faint">
-                        {sg.items.length}{" "}
-                        {sg.items.length === 1 ? "item" : "items"}
-                      </span>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {tab === "phrases"
-                        ? (sg.items as PhraseListItem[]).map((item) => (
-                            <PhraseCard key={item.id} item={item} surahs={surahs!} />
-                          ))
-                        : (sg.items as SimilarAyahListItem[]).map((item) => (
-                            <SimilarCard key={item.id} item={item} surahs={surahs!} />
-                          ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </details>
+            <JuzSection key={`${tab}-${jg.juz}`} group={jg} tab={tab} surahs={surahs!} />
           ))}
         </div>
       )}
