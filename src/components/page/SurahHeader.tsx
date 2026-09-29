@@ -1,4 +1,4 @@
-import { SURAH_NAMES_FAMILY, surahNameLigature } from "@/lib/mushaf/pack";
+import { SURAH_NAMES_FAMILY, SURAH_WORD_LIGATURE, surahNameLigature } from "@/lib/mushaf/pack";
 
 interface SurahHeaderProps {
   surahName: string;
@@ -12,7 +12,11 @@ export default function SurahHeader({ surahName, tname, surahIndex, glyphs }: Su
   if (glyphs) {
     return (
       <div className="mushaf-line justify-center">
-        <div className="surah-frame" title={tname}>
+        {/* Right to left: the first item, سورة, sits on the right and the name on its left. */}
+        <div className="surah-frame" dir="rtl" title={tname}>
+          <span aria-hidden="true" className="select-none" style={{ fontFamily: `"${SURAH_NAMES_FAMILY}"` }}>
+            {SURAH_WORD_LIGATURE}
+          </span>
           <span aria-hidden="true" className="select-none" style={{ fontFamily: `"${SURAH_NAMES_FAMILY}"` }}>
             {surahNameLigature(surahIndex)}
           </span>

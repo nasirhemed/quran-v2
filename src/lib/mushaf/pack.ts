@@ -7,7 +7,7 @@
  * MODELS_DIR at /models in dev), never in the app bundle: 98 MB is too much to precache. The same URLs and the
  * manifest (file sizes and SHA-256) serve any other client, e.g. a native app.
  *
- * Files: p1.woff2 … p604.woff2, surah-names.woff2 (headers: the ligature "surah038" draws "سورة ص") and
+ * Files: p1.woff2 … p604.woff2, surah-names.woff2 (headers: the ligatures "surah" and "038" draw "سورة" and "ص") and
  * manifest.json. Built by scripts/build-mushaf-data.py; uploaded with `npm run upload-models -- <dir> qcf-v2`.
  */
 export const MUSHAF_PACK = { id: "qcf-v2", version: "1" } as const;
@@ -38,8 +38,13 @@ export const pageFontFamily = (page: number) => `qcf-p${page}`;
 export const SURAH_NAMES_FILE = "surah-names.woff2";
 export const SURAH_NAMES_FAMILY = "qcf-surah-names";
 
-/** The header ligature for a surah: "surah001" … "surah114". */
-export const surahNameLigature = (surah: number) => `surah${String(surah).padStart(3, "0")}`;
+/**
+ * The surah-name font has two ligatures per header: "surah" draws the word سورة, and "001" … "114" draws the
+ * surah's name. They are drawn as two items of a right-to-left row (SurahHeader), so سورة comes first, on the
+ * right, and the name follows on its left. (Both in one string would put the name on the right.)
+ */
+export const SURAH_WORD_LIGATURE = "surah";
+export const surahNameLigature = (surah: number) => String(surah).padStart(3, "0");
 
 /** Where packs are hosted: VITE_MODEL_BASE_URL, or `/models` (served from MODELS_DIR by the dev server). */
 export function packBaseUrl(): string {
