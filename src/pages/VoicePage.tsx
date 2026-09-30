@@ -12,7 +12,8 @@ interface Row {
   error: string | null;
 }
 
-export default function VoicePage() {
+/** `embedded`: rendered inside the Settings page, which supplies the heading and outer layout. */
+export default function VoicePage({ embedded = false }: { embedded?: boolean }) {
   const support = getVoiceSupport();
   const store = useRef<ModelStore | null>(null);
   const aborts = useRef(new Map<string, AbortController>());
@@ -82,8 +83,8 @@ export default function VoicePage() {
 
   if (!support.supported) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-8">
-        <h1 className="text-xl font-semibold text-ink mb-2">Voice</h1>
+      <div className={embedded ? "" : "max-w-xl mx-auto px-4 py-8"}>
+        {!embedded && <h1 className="text-xl font-semibold text-ink mb-2">Voice</h1>}
         <p className="text-sm text-muted">
           Voice features need a browser with {support.missing.join(", ")}. Recent Chrome on Android or desktop works.
           Everything else in Itqān works as usual.
@@ -93,9 +94,9 @@ export default function VoicePage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
+    <div className={embedded ? "space-y-6" : "max-w-xl mx-auto px-4 py-8 space-y-6"}>
       <div>
-        <h1 className="text-xl font-semibold text-ink mb-2">Voice</h1>
+        {!embedded && <h1 className="text-xl font-semibold text-ink mb-2">Voice</h1>}
         <p className="text-sm text-muted">
           Recite and Itqān follows along or checks your recitation afterwards. Listening happens entirely on this device:
           your voice is never uploaded. First, download a speech model (once; it then works offline).

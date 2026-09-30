@@ -8,6 +8,7 @@ import PracticePage from "@/pages/PracticePage";
 import BrowseSurahPage from "@/pages/browse/BrowseSurahPage";
 import BrowseVersePage from "@/pages/browse/BrowseVersePage";
 import BrowsePhrasePage from "@/pages/browse/BrowsePhrasePage";
+import SettingsPage from "@/pages/SettingsPage";
 
 // Voice settings load on demand, so the reader stays as small as before.
 const VoicePage = lazy(() => import("@/pages/VoicePage"));
@@ -49,6 +50,9 @@ export default function App() {
           <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>
             <TranscribePage />
           </Suspense>
+        </Route>
+        <Route path="/settings">
+          <SettingsPage />
         </Route>
         <Route path="/voice">
           <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>
