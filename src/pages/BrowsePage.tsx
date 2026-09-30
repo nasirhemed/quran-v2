@@ -67,10 +67,7 @@ function SearchResults({ query, surahs, index }: { query: string; surahs: SurahM
 
   if (empty) {
     return (
-      <div className="text-center py-16 text-muted text-sm">
-        Nothing found. Search covers the {index.matched.length.toLocaleString()} verses that share a phrase
-        or have a similar verse.
-      </div>
+      <div className="text-center py-16 text-muted text-sm">Nothing found.</div>
     );
   }
 

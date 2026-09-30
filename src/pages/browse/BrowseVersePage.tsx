@@ -143,7 +143,10 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
 
       {verse.phrases.length === 0 && verse.similar.length === 0 && (
         <div className="text-center py-10 text-muted text-sm">
-          No similar phrases or verses are recorded for this verse.
+          No similar phrases or verses are recorded for this verse.{" "}
+          <Link href={readerHref(key)} className="text-primary hover:underline">
+            Read it in the mushaf
+          </Link>
         </div>
       )}
 

@@ -54,9 +54,15 @@ describe("buildBrowseIndex", () => {
 describe("searchBrowse", () => {
   it("finds verses and phrases without harakat", () => {
     const r = searchBrowse(index, surahs, "وما ارسلنا");
-    expect(r.verses.length).toBeGreaterThan(5);
+    expect(r.verses.length).toBe(16);
     expect(r.verses.map((v) => v.key)).toContain("21:25");
     expect(r.phrases.length).toBeGreaterThan(0);
+  });
+
+  it("finds verses that have no similar phrase or verse too", () => {
+    const r = searchBrowse(index, surahs, "قل يا ايها الكافرون");
+    expect(r.verses.map((v) => v.key)).toEqual(["109:1"]);
+    expect(r.verses[0].phrases.length + r.verses[0].similar.length).toBe(0);
   });
 
   it("finds verse keys and surah names", () => {

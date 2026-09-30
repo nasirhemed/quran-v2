@@ -121,6 +121,9 @@ function Counts({ verse }: { verse: BrowseVerse }) {
           {verse.similar.length} similar {verse.similar.length === 1 ? "verse" : "verses"}
         </span>
       )}
+      {verse.phrases.length === 0 && verse.similar.length === 0 && (
+        <span className="px-2 py-0.5 text-xs text-faint">no similar verses recorded</span>
+      )}
     </span>
   );
 }

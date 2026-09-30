@@ -56,7 +56,7 @@ export interface BrowseIndex {
   phrases: Map<string, BrowsePhrase>;
   /** one entry per distinct phrase, most occurrences first */
   phraseList: BrowsePhrase[];
-  /** folded text for search, per matched verse / distinct phrase */
+  /** folded text for search, per verse / distinct phrase */
   foldedVerse: Map<string, string>;
   foldedPhrase: Map<string, string>;
 }
@@ -209,7 +209,7 @@ export function buildBrowseIndex(
     bySurah.get(verse.surah)!.push(verse);
   }
 
-  const foldedVerse = new Map(matched.map((v) => [v.key, foldArabic(v.words.join(" "))]));
+  const foldedVerse = new Map([...verses.values()].map((v) => [v.key, foldArabic(v.words.join(" "))]));
   const foldedPhrase = new Map(phraseList.map((p) => [p.id, foldArabic(p.text)]));
 
   return { verses, matched, bySurah, phrases, phraseList, foldedVerse, foldedPhrase };
@@ -257,7 +257,8 @@ export function searchBrowse(index: BrowseIndex, surahs: SurahMeta[], query: str
     surahs: surahs.filter((s) => foldArabic(s.name).includes(fq)),
     verse: null,
     phrases: index.phraseList.filter((p) => index.foldedPhrase.get(p.id)!.includes(fq)),
-    verses: index.matched.filter((v) => index.foldedVerse.get(v.key)!.includes(fq)),
+    // Every verse, not only those with matches: a verse is worth finding either way.
+    verses: [...index.verses.values()].filter((v) => index.foldedVerse.get(v.key)!.includes(fq)),
   };
 }
 

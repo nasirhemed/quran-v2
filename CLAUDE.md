@@ -103,7 +103,8 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   the phrase where the source is a word or two off. Verse text comes from the page words, whose segmentation the
   ranges use (the details files' `ayahText` split on spaces does not: waqf marks are separate tokens there).
   Search folds Arabic (`foldArabic`: no harakat/Qur'anic marks, no alef/hamza, no spaces, ى/ي and ة/ه merged)
-  so وما ارسلنا finds وَمَآ أَرۡسَلۡنَا. Browse links (`BrowseLink` + `useRestoreScroll`) put you back where you
+  so وما ارسلنا finds وَمَآ أَرۡسَلۡنَا; it covers every verse (one with no matches still gets its verse page,
+  which links to the reader). Browse links (`BrowseLink` + `useRestoreScroll`) put you back where you
   were when you go back.
 
 - **Voice features (in progress)**: the build spec is `docs/RECITATION_SPEC.md` in the private
