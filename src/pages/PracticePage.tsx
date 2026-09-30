@@ -1,20 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import {
-  fetchMutashabihatDetails,
-  fetchQuranPages,
-  fetchSimilarAyahDetails,
-  fetchSurahs,
-} from "@/lib/data";
+import { fetchQuranPages, fetchSimilarAyahDetails, fetchSurahs } from "@/lib/data";
 import {
   buildAyahIndex,
-  buildPracticeGroups,
-  generateGroupDrillQuestions,
-  generateRandomQuestions,
-  generateTwinsQuestions,
-  HUGE_GROUP_LIMIT,
+  buildSimilarGroups,
+  generateCompetitionQuestions,
+  generateSimilarQuestions,
   type PracticeConfig,
+  type PracticeMode,
   type PracticeQuestion,
 } from "@/lib/practice";
 import HighlightedAyah from "@/components/HighlightedAyah";
@@ -29,14 +23,25 @@ interface Result {
 const JUZ_OPTIONS = Array.from({ length: 30 }, (_, i) => i + 1);
 const COUNT_OPTIONS = [5, 10, 15, 20];
 
+const MODES: { mode: PracticeMode; title: string; blurb: string }[] = [
+  {
+    mode: "similar",
+    title: "Similar verses",
+    blurb:
+      "Look-alike verses back to back. Where two open the same way you get the shared words and must carry on the right one. The answer marks where they differ.",
+  },
+  {
+    mode: "competition",
+    title: "Competition",
+    blurb:
+      "Like a judge: a few words from anywhere in your range, often mid-verse, with no surah name. Say where you are and recite to the end of the next verse.",
+  },
+];
+
 export default function PracticePage() {
   const { data: pages } = useQuery({
     queryKey: ["quran-pages"],
     queryFn: fetchQuranPages,
-  });
-  const { data: phraseDetails } = useQuery({
-    queryKey: ["mutashabihat-details"],
-    queryFn: fetchMutashabihatDetails,
   });
   const { data: similarDetails } = useQuery({
     queryKey: ["similar-ayah-details"],
@@ -45,15 +50,15 @@ export default function PracticePage() {
   const { data: surahs } = useQuery({ queryKey: ["surahs"], queryFn: fetchSurahs });
 
   const ayahIndex = useMemo(() => (pages ? buildAyahIndex(pages) : null), [pages]);
+  const groups = useMemo(
+    () => (ayahIndex && similarDetails ? buildSimilarGroups(similarDetails, ayahIndex) : null),
+    [ayahIndex, similarDetails]
+  );
 
   const [config, setConfig] = useState<PracticeConfig>({
     range: { type: "juz", from: 1, to: 30 },
-    mode: "drill",
+    mode: "similar",
     count: 10,
-    skipSameSurah: true,
-    skipHugeGroups: true,
-    usePhrases: true,
-    useSimilarAyahs: true,
   });
   const [phase, setPhase] = useState<Phase>("setup");
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
@@ -68,7 +73,7 @@ export default function PracticePage() {
   const startWith = (qs: PracticeQuestion[]) => {
     if (qs.length === 0) {
       setEmptyMessage(
-        "No questions match this range and these gates. Widen the range or relax the gates."
+        "No look-alike verses in this range. Widen the range or try Competition."
       );
       return;
     }
@@ -81,11 +86,7 @@ export default function PracticePage() {
   };
 
   const start = () => {
-    if (!ayahIndex || !phraseDetails || !similarDetails) return;
-    if (config.mode !== "random" && !config.usePhrases && !config.useSimilarAyahs) {
-      setEmptyMessage("Pick at least one source: Mutashabihat phrases or similar ayahs.");
-      return;
-    }
+    if (!ayahIndex || !groups) return;
     const normalized: PracticeConfig = {
       ...config,
       range: {
@@ -94,15 +95,10 @@ export default function PracticePage() {
         to: Math.max(config.range.from, config.range.to),
       },
     };
-    if (normalized.mode === "random") {
-      startWith(generateRandomQuestions(ayahIndex, normalized));
-      return;
-    }
-    const groups = buildPracticeGroups(phraseDetails, similarDetails, normalized);
     startWith(
-      normalized.mode === "drill"
-        ? generateGroupDrillQuestions(groups, ayahIndex, normalized)
-        : generateTwinsQuestions(groups, ayahIndex, normalized)
+      normalized.mode === "similar"
+        ? generateSimilarQuestions(groups, ayahIndex, normalized)
+        : generateCompetitionQuestions(groups, ayahIndex, normalized)
     );
   };
 
@@ -118,11 +114,14 @@ export default function PracticePage() {
   };
 
   const retryMissed = () => {
-    const missed = results.filter((r) => !r.correct).map((r) => r.question);
+    // Retried verses stand alone, so each reveals its look-alikes.
+    const missed = results
+      .filter((r) => !r.correct)
+      .map(({ question: { groupNumber, groupPosition, groupSize, ...q } }) => q);
     startWith(missed);
   };
 
-  const dataReady = !!pages && !!phraseDetails && !!similarDetails && !!surahs;
+  const dataReady = !!groups && !!surahs;
 
   // ── Setup ──────────────────────────────────────────────────────
   if (phase === "setup") {
@@ -138,8 +137,7 @@ export default function PracticePage() {
             Practice
           </h1>
           <p className="text-slate-400 text-sm">
-            Test your recall. Similar-verse questions come from the curated
-            Mutashabihat and similar-ayah data.
+            Recite from memory, then check yourself.
           </p>
         </div>
 
@@ -191,163 +189,33 @@ export default function PracticePage() {
 
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
-              Mode
+              Questions
             </div>
             <div className="space-y-2">
-              <label
-                className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-colors ${
-                  config.mode === "drill"
-                    ? "border-primary bg-primary-soft"
-                    : "border-edge hover:border-edge-strong"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="mode"
-                  checked={config.mode === "drill"}
-                  onChange={() => setConfig({ ...config, mode: "drill" })}
-                  className="mt-1 accent-[var(--primary)]"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-ink">
-                    Similar verses — full group
+              {MODES.map((m) => (
+                <label
+                  key={m.mode}
+                  className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-colors ${
+                    config.mode === m.mode
+                      ? "border-primary bg-primary-soft"
+                      : "border-edge hover:border-edge-strong"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="mode"
+                    checked={config.mode === m.mode}
+                    onChange={() => setConfig({ ...config, mode: m.mode })}
+                    className="mt-1 accent-[var(--primary)]"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-ink">{m.title}</span>
+                    <span className="block text-xs text-muted mt-0.5">{m.blurb}</span>
                   </span>
-                  <span className="block text-xs text-muted mt-0.5">
-                    Every occurrence of a confusable group, back to back —
-                    recite what follows each one.
-                  </span>
-                </span>
-              </label>
-              <label
-                className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-colors ${
-                  config.mode === "similar"
-                    ? "border-primary bg-primary-soft"
-                    : "border-edge hover:border-edge-strong"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="mode"
-                  checked={config.mode === "similar"}
-                  onChange={() => setConfig({ ...config, mode: "similar" })}
-                  className="mt-1 accent-[var(--primary)]"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-ink">
-                    Similar verses — spot the twins
-                  </span>
-                  <span className="block text-xs text-muted mt-0.5">
-                    One verse per group — recite it, then reveal all its
-                    look-alikes at once.
-                  </span>
-                </span>
-              </label>
-              <label
-                className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-colors ${
-                  config.mode === "random"
-                    ? "border-primary bg-primary-soft"
-                    : "border-edge hover:border-edge-strong"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="mode"
-                  checked={config.mode === "random"}
-                  onChange={() => setConfig({ ...config, mode: "random" })}
-                  className="mt-1 accent-[var(--primary)]"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-ink">
-                    Random verses
-                  </span>
-                  <span className="block text-xs text-muted mt-0.5">
-                    Spread across your range — recall what follows the opening
-                    words.
-                  </span>
-                </span>
-              </label>
+                </label>
+              ))}
             </div>
           </div>
-
-          {config.mode !== "random" && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
-                Sources
-              </div>
-              <div className="flex flex-wrap gap-x-5 gap-y-2">
-                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={config.usePhrases}
-                    onChange={(e) =>
-                      setConfig({ ...config, usePhrases: e.target.checked })
-                    }
-                    className="accent-[var(--primary)]"
-                  />
-                  <span className={config.usePhrases ? "text-ink" : "text-muted"}>
-                    Mutashabihat phrases
-                  </span>
-                </label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={config.useSimilarAyahs}
-                    onChange={(e) =>
-                      setConfig({ ...config, useSimilarAyahs: e.target.checked })
-                    }
-                    className="accent-[var(--primary)]"
-                  />
-                  <span className={config.useSimilarAyahs ? "text-ink" : "text-muted"}>
-                    Similar ayahs
-                  </span>
-                </label>
-              </div>
-            </div>
-          )}
-
-          {config.mode !== "random" && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
-                Quality gates
-              </div>
-              <div className="flex flex-wrap gap-x-5 gap-y-2">
-                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={config.skipSameSurah}
-                    onChange={(e) =>
-                      setConfig({ ...config, skipSameSurah: e.target.checked })
-                    }
-                    className="accent-[var(--primary)]"
-                  />
-                  <span
-                    className={config.skipSameSurah ? "text-primary font-medium" : "text-muted"}
-                  >
-                    Skip same-surah refrains
-                  </span>
-                </label>
-                {config.mode === "drill" && (
-                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={config.skipHugeGroups}
-                      onChange={(e) =>
-                        setConfig({ ...config, skipHugeGroups: e.target.checked })
-                      }
-                      className="accent-[var(--primary)]"
-                    />
-                    <span
-                      className={
-                        config.skipHugeGroups ? "text-primary font-medium" : "text-muted"
-                      }
-                    >
-                      Skip huge groups ({HUGE_GROUP_LIMIT}+ verses)
-                    </span>
-                  </label>
-                )}
-              </div>
-            </div>
-          )}
 
           <div className="flex items-center gap-3">
             <select
@@ -411,6 +279,7 @@ export default function PracticePage() {
                       lang="ar"
                       className="font-arabic text-base text-ink truncate"
                     >
+                      {r.question.midVerse && "… "}
                       {r.question.hint} …
                     </div>
                   </div>
@@ -448,6 +317,8 @@ export default function PracticePage() {
 
   // ── Play ───────────────────────────────────────────────────────
   const q = questions[current];
+  const showLookAlikes = !q.groupSize || q.groupPosition === q.groupSize;
+  const place = `${q.key} · ${q.tname}`;
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-4 text-xs text-muted">
@@ -460,52 +331,43 @@ export default function PracticePage() {
             style={{ width: `${(current / questions.length) * 100}%` }}
           />
         </div>
-        {q.groupSize ? (
+        {q.groupSize && q.groupSize > 1 && (
           <span className="whitespace-nowrap">
             Group {q.groupNumber} · verse {q.groupPosition} of {q.groupSize}
           </span>
-        ) : q.twins.length > 0 ? (
-          <span className="whitespace-nowrap">
-            {q.twins.length + 1} occurrences
-          </span>
-        ) : null}
+        )}
       </div>
 
       <div className="bg-surface border border-edge rounded-xl overflow-hidden">
         <div className="p-5 bg-card2 border-b border-edge">
           <div className="text-xs text-muted mb-2">
-            {q.groupSize ? (
-              <>
-                One of <b className="text-ink">{q.groupSize} confusable verses</b> in
-                this group — recite what follows:
-              </>
-            ) : q.twins.length > 0 ? (
-              <>
-                This verse has <b className="text-ink">{q.twins.length} look-alikes</b>.
-                Recite what follows — then check the twins.
-              </>
+            {q.hideLocation ? (
+              <>Where is this? Recite on to the end of the next verse:</>
             ) : (
-              <>Recite what follows:</>
+              <>
+                <b className="text-ink">{place}</b> has{" "}
+                {q.lookAlikes.length === 1 ? "a look-alike" : `${q.lookAlikes.length} look-alikes`}.
+                Recite it to the end:
+              </>
             )}
           </div>
           <p dir="rtl" lang="ar" className="font-arabic text-2xl leading-loose text-ink">
+            {q.midVerse && <span className="text-faint">… </span>}
             {q.hint} <span className="text-faint">…</span>
           </p>
-          {q.phraseText && (
-            <div className="flex items-baseline gap-2 flex-wrap mt-2">
-              <span className="text-xs text-faint">Watch for</span>
-              <span
-                dir="rtl"
-                lang="ar"
-                className="font-arabic text-base px-2 py-0.5 rounded bg-primary-soft text-primary"
-              >
-                {q.phraseText}
-              </span>
+          {q.ambiguous && (
+            <div className="text-xs text-primary mt-2">
+              These words are in more than one place. Recite any of them.
             </div>
           )}
-          <div className="text-xs text-faint mt-2">
-            {q.key} · {q.tname}
-          </div>
+          {q.sameOpening > 0 && (
+            <div className="text-xs text-primary mt-2">
+              {q.sameOpening === 1
+                ? "Another verse opens like this"
+                : `${q.sameOpening} other verses open like this`}{" "}
+              — they part at the next word.
+            </div>
+          )}
         </div>
 
         {!revealed ? (
@@ -520,60 +382,72 @@ export default function PracticePage() {
         ) : (
           <div className="p-5 space-y-4">
             <div>
-              <div className="text-xs font-semibold text-primary mb-1">
-                {q.key} · {q.tname}
+              <div className="text-xs font-semibold text-primary mb-1">{place}</div>
+              <HighlightedAyah words={q.words} ranges={q.marks} />
+              <div className="text-xs text-faint mt-1">
+                {q.hideLocation
+                  ? "Marked: the words you were given."
+                  : q.marks.length > 0
+                    ? "Marked: where it differs from its closest look-alike."
+                    : "Word for word the same as a look-alike: know what comes after it."}
               </div>
-              <HighlightedAyah text={q.fullText} ranges={q.promptRanges} />
             </div>
-
-            {q.twins.map((t) => (
-              <div key={t.key} className="border-t border-edge pt-3">
-                <div className="text-xs font-semibold text-primary mb-1 flex items-center justify-between">
-                  <span>
-                    {t.key} · {t.tname}
-                  </span>
-                  <Link
-                    href={`/read?surah=${t.key.split(":")[0]}&ayah=${t.key.split(":")[1]}`}
-                    className="text-muted hover:text-primary underline font-normal"
-                  >
-                    Reader
-                  </Link>
-                </div>
-                <HighlightedAyah
-                  text={t.text}
-                  ranges={t.ranges}
-                  className="font-arabic text-xl leading-loose text-ink-soft"
-                />
-              </div>
-            ))}
 
             {q.nextAyahText && (
               <div className="border-t border-edge pt-3">
-                <div className="text-xs text-faint mb-1">Next ayah</div>
+                <div className="text-xs text-faint mb-1">Next verse</div>
                 <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink-soft">
                   {q.nextAyahText}
                 </p>
               </div>
             )}
 
+            {showLookAlikes && q.lookAlikes.length > 0 && (
+              <div className="border-t border-edge pt-3 space-y-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted">
+                  {q.groupSize && q.groupSize > 1 ? "The whole group" : "Don't mix it up with"}
+                </div>
+                {q.lookAlikes.map((t) => (
+                  <div key={t.key}>
+                    <div className="text-xs font-semibold text-primary mb-1 flex items-center justify-between">
+                      <span>
+                        {t.key} · {t.tname}
+                      </span>
+                      <Link
+                        href={`/read?surah=${t.key.split(":")[0]}&ayah=${t.key.split(":")[1]}`}
+                        className="text-muted hover:text-primary underline font-normal"
+                      >
+                        Reader
+                      </Link>
+                    </div>
+                    <HighlightedAyah
+                      words={t.words}
+                      ranges={t.marks}
+                      className="font-arabic text-xl leading-loose text-ink-soft"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => answer(true)}
-                className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+                className="flex-1 whitespace-nowrap bg-primary text-on-primary rounded-lg px-3 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
               >
                 ✓ Got it
               </button>
               <button
                 onClick={() => answer(false)}
-                className="flex-1 border border-red-400/40 text-red-400 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-red-500/10 transition-colors"
+                className="flex-1 whitespace-nowrap border border-red-400/40 text-red-400 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-red-500/10 transition-colors"
               >
                 ✗ Missed
               </button>
               <Link
                 href={`/read?surah=${q.surah}&ayah=${q.ayah}`}
-                className="border border-edge-strong text-muted rounded-lg px-4 py-2 text-sm font-medium hover:bg-card2 transition-colors"
+                className="whitespace-nowrap border border-edge-strong text-muted rounded-lg px-3 py-2 text-sm font-medium hover:bg-card2 transition-colors"
               >
-                Show in Reader
+                Reader
               </Link>
             </div>
           </div>

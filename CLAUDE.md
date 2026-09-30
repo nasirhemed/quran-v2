@@ -78,20 +78,20 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   some wrong glyphs), the fonts, the manifest (also `public/data/mushaf-fonts.json`) and `LINE_WIDTH_EM`; it fails
   on any line wider than the print allows (source errors go in its `LINE_FIXES`); `npm run upload-models -- <pack dir>/qcf-v2/1 qcf-v2`
   uploads it. Local testing: put the pack under `MODELS_DIR` (`<dir>/qcf-v2/1/…`).
-- **Practice engine**: `src/lib/practice.ts` — builds an ayah index from
-  quran-pages.json and unifies both similarity datasets into `PracticeGroup`s
-  (sources are user-selectable: Mutashabihat phrases and/or similar ayahs).
-  Groups with identical occurrence sets are merged (`dedupeGroups`) — the QUL
-  data has orthographic-variant duplicates. Range is by Juz or by Surah.
-  Quality gates: `skipSameSurah` (surahCount < 2) and `skipHugeGroups`
-  (drills skip groups with > HUGE_GROUP_LIMIT in-range verses). Three modes:
-  `drill` (default; walks every in-range occurrence of a group back to back,
-  group badges, no twin spoilers — the original memorization app's "Similar
-  Verses" mode), `similar` (one verse per group, twins revealed at once),
-  `random`. Prompts show the shared phrase as a "Watch for" chip; reveals
-  highlight the shared/matched words inline via
-  `components/HighlightedAyah.tsx` (word ranges are 1-indexed and align with
-  the page data's word segmentation). The setup screen must never block on
+- **Practice engine**: `src/lib/practice.ts` (plain TS, tested in `tests/practice`). The setup screen has
+  three dials only (range by Juz or Surah, question type, count); the old source/gate checkboxes are fixed
+  choices now. Questions come from the similar-ayah data only (`buildSimilarGroups`: a source verse plus the
+  listed verses sharing >= 3 words with it in order; same-surah refrains dropped; groups deduped by verse set).
+  Mutashabihat phrases were too easy as recall prompts (the prompt was the verse's unique opening) and stay in
+  Read/Browse. Verses are compared word by word on `foldArabic`ed words (`matchedWords` = LCS). Two types:
+  `similar` (default; walks every in-range verse of a group back to back; a verse that opens like a look-alike
+  is prompted with that shared opening up to where they part (`sharedOpening`, a leading وَ/فَ ignored);
+  answers mark where the verse differs from its closest look-alike; the group's last verse lays the whole group
+  out, so earlier ones are not spoiled; groups over HUGE_GROUP_LIMIT in range are skipped) and `competition`
+  (judge-style: surah hidden, start often mid-verse, the prompt grows until its words are found in only one
+  place in the Qur'an, half the prompts land on verses with a look-alike; recite to the end of the next verse).
+  Word ranges are 1-indexed against the page words; pass `words` (not a space-split string: 4,580 words hold a
+  space before their waqf mark) to `components/HighlightedAyah.tsx`. The setup screen must never block on
   data loading — the Start button disables instead.
 - **Browse**: verse-centred. `/browse` lists the 114 surahs and searches (`?q=`); `/browse/surah/:s` lists
   that surah's verses that share a phrase or have a similar verse; `/browse/surah/:s/:a` shows one verse with
@@ -158,7 +158,7 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
    (kills the sibling-repo coupling both legacy scripts have). The legacy
    scripts reference `../memorization` and `../mutashabihat` paths and do NOT
    run from this repo — they are references only.
-2. Practice: "Practice these" entry point from the reader side panel;
-   min-similarity-score gate using similar-ayah data; diff-marked twins
-   (word ranges exist in mutashabihat-details.json).
+2. Practice: "Practice these" entry point from the reader side panel; a
+   fill-the-gap question (a verse with the words that differ from its
+   look-alike blanked out).
 3. Browse → Reader deep links could pre-open the side panel on the phrase.
