@@ -1,21 +1,20 @@
 interface HighlightedAyahProps {
-  text: string;
+  /** The verse's words as the page data segments them (a word can hold a space before its waqf mark). */
+  words: string[];
   /** 1-indexed [from, to] word ranges to emphasize. */
   ranges?: [number, number][];
   className?: string;
 }
 
 /**
- * Renders an ayah with the given word ranges highlighted. Word positions in
- * the phrase/similarity data are 1-indexed against the same segmentation the
- * page data uses, so a plain space split lines up.
+ * Renders an ayah with the given 1-indexed word ranges highlighted.
  */
-export default function HighlightedAyah({ text, ranges, className }: HighlightedAyahProps) {
+export default function HighlightedAyah({ words, ranges, className }: HighlightedAyahProps) {
   const cls = className ?? "font-arabic text-xl leading-loose text-ink";
   if (!ranges || ranges.length === 0) {
     return (
       <p dir="rtl" lang="ar" className={cls}>
-        {text}
+        {words.join(" ")}
       </p>
     );
   }
@@ -25,7 +24,6 @@ export default function HighlightedAyah({ text, ranges, className }: Highlighted
     for (let i = from; i <= to; i++) marked.add(i);
   }
 
-  const words = text.split(" ");
   return (
     <p dir="rtl" lang="ar" className={cls}>
       {words.map((word, i) => (
