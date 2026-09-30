@@ -16,7 +16,7 @@ function needsHomeScreen(): boolean {
  * The mushaf's fonts on this device: pages once opened are kept automatically; this saves all 604 at once so
  * every page opens offline.
  */
-export default function OfflineMushaf() {
+export default function OfflineMushaf({ onDismiss }: { onDismiss?: () => void } = {}) {
   const { data: manifest } = useQuery({
     queryKey: ["mushaf-manifest"],
     queryFn: async (): Promise<MushafManifest> => (await fetch(MANIFEST_URL)).json(),
@@ -66,7 +66,17 @@ export default function OfflineMushaf() {
   const pct = Math.floor((100 * status.bytes) / status.totalBytes);
 
   return (
-    <div className="max-w-md mx-auto mt-4 rounded-lg border border-edge bg-card px-4 py-3 text-left font-sans text-sm">
+    <div className="relative max-w-md mx-auto mt-4 rounded-lg border border-edge bg-card px-4 py-3 text-left font-sans text-sm">
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          title="Dismiss (you can still manage this in Settings)"
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full border border-edge bg-card2 text-muted hover:text-ink leading-none"
+        >
+          ×
+        </button>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-medium text-ink">{done ? "Whole mushaf saved for offline reading" : "Read offline"}</div>
