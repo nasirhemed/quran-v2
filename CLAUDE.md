@@ -9,8 +9,8 @@ app with three tabs sharing one shell, one theme, and one data folder:
 
 - **Read** (`/`, `/read`) — mushaf reader with word-level Mutashabihat
   highlighting, ported from `nasirhemed/quran-reader`.
-- **Browse** (`/browse`) — similar phrases & similar verses grouped by
-  Juz/Surah, rebuilt from `nasirhemed/Quran-Practice`.
+- **Browse** (`/browse`) — similar phrases & similar verses by surah and
+  verse, with harakat-insensitive search; rebuilt from `nasirhemed/Quran-Practice`.
 - **Practice** (`/practice`) — recall quiz rebuilt from
   `nasirhemed/memorization`, now driven by the curated Mutashabihat data
   instead of the old first-3-words prefix heuristic.
@@ -93,9 +93,19 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   `components/HighlightedAyah.tsx` (word ranges are 1-indexed and align with
   the page data's word segmentation). The setup screen must never block on
   data loading — the Start button disables instead.
-- **Browse**: phrase items are deduplicated by occurrence-set signature
-  (same QUL duplicate issue); Similar Ayah cards expand in place to list all
-  similar verses with score/word-count and matched-segment highlighting.
+- **Browse**: verse-centred. `/browse` lists the 114 surahs and searches (`?q=`); `/browse/surah/:s` lists
+  that surah's verses that share a phrase or have a similar verse; `/browse/surah/:s/:a` shows one verse with
+  each of its phrases (and the other verses they occur in) and its similar verses; `/browse/phrase/:id` lists a
+  phrase's verses. `lib/browse.ts` (plain TS, tested) builds the per-verse index from quran-pages.json +
+  mutashabihat-details + similar-ayah-details + ayah-highlights, once per session (`hooks/useBrowseIndex`):
+  duplicate phrases merged by occurrence set (the QUL duplicates; merged ids still resolve), similar pairs shown
+  from both sides (the data lists them under the source only), phrase ranges nudged onto the words that spell
+  the phrase where the source is a word or two off. Verse text comes from the page words, whose segmentation the
+  ranges use (the details files' `ayahText` split on spaces does not: waqf marks are separate tokens there).
+  Search folds Arabic (`foldArabic`: no harakat/Qur'anic marks, no alef/hamza, no spaces, ى/ي and ة/ه merged)
+  so وما ارسلنا finds وَمَآ أَرۡسَلۡنَا; it covers every verse (one with no matches still gets its verse page,
+  which links to the reader). Browse links (`BrowseLink` + `useRestoreScroll`) put you back where you
+  were when you go back.
 
 - **Voice features (in progress)**: the build spec is `docs/RECITATION_SPEC.md` in the private
   `quran-audio-c` repo (models, prototypes, milestone reports). `src/recitation/` is the voice engine —

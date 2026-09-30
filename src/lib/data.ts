@@ -5,8 +5,6 @@ import type {
   AyahHighlights,
   MutashabihatPhrase,
   SimilarAyahEntry,
-  PhraseListItem,
-  SimilarAyahListItem,
 } from "@/types";
 
 const cache: Record<string, unknown> = {};
@@ -46,12 +44,4 @@ export async function fetchSimilarAyahDetails(): Promise<
   Record<string, SimilarAyahEntry>
 > {
   return fetchJson("/data/similar-ayah-details.json");
-}
-
-export async function fetchMutashabihatList(): Promise<PhraseListItem[]> {
-  return fetchJson("/data/mutashabihat-list.json");
-}
-
-export async function fetchSimilarAyahList(): Promise<SimilarAyahListItem[]> {
-  return fetchJson("/data/similar-ayah-list.json");
 }
