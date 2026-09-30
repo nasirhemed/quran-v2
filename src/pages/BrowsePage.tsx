@@ -180,7 +180,7 @@ export default function BrowsePage() {
           const q = e.target.value;
           navigate(q ? `/browse?q=${encodeURIComponent(q)}` : "/browse", { replace: true });
         }}
-        placeholder="Search in Arabic, harakat optional (وما ارسلنا), a verse (2:51) or a surah"
+        placeholder="Search in Arabic (وما ارسلنا), a verse (2:51) or a surah"
         className="w-full mb-8 bg-surface border border-edge rounded-lg px-4 py-3 text-base text-ink placeholder-faint focus:outline-none focus:border-primary"
       />
 
