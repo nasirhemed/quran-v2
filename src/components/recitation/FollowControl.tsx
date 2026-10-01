@@ -47,11 +47,14 @@ export function useFollowMode({
   surahs,
   currentPage,
   onNavigateToPage,
+  onHeard,
 }: {
   pages: QuranPage[] | undefined;
   surahs: SurahMeta[] | undefined;
   currentPage: number;
   onNavigateToPage: (page: number) => void;
+  /** the words heard since the last call ("s:a:w"), in order: for revealing hidden words */
+  onHeard?: (keys: string[]) => void;
 }): { supported: boolean; following: boolean; button: ReactNode; strip: ReactNode } {
   const supported = useMemo(() => getVoiceSupport().supported, []);
   const [wanted, setWanted] = useState<Mode | null>(() => (voiceNow()?.getState().phase === "listening" ? voiceNow()!.getState().mode : null));
@@ -92,6 +95,28 @@ export function useFollowMode({
     keepInView(el, stripRef.current);
     return () => el.classList.remove("voice-current");
   }, [last, currentPage]);
+
+  // Report the words heard since last time. Paragraphs only grow (ids rise, items are appended), so this reads
+  // just the new ones; whatever was heard before the reader opened is not reported.
+  const paragraphs = state?.paragraphs;
+  const seen = useRef<{ id: number; n: number } | null>(null);
+  const onHeardRef = useRef(onHeard);
+  onHeardRef.current = onHeard;
+  useEffect(() => {
+    if (!paragraphs) return;
+    const end = paragraphs[paragraphs.length - 1];
+    const prev = seen.current;
+    seen.current = end ? { id: end.id, n: end.items.length } : { id: 0, n: 0 }; // ids start at 1
+    if (!prev) return;
+    const keys: string[] = [];
+    let i = paragraphs.length;
+    while (i > 0 && paragraphs[i - 1].id >= prev.id) i--;
+    for (; i < paragraphs.length; i++) {
+      const p = paragraphs[i];
+      for (const it of p.items.slice(p.id === prev.id ? prev.n : 0)) keys.push(it.key);
+    }
+    if (keys.length) onHeardRef.current?.(keys);
+  }, [paragraphs]);
 
   // Turn the page with the reciter.
   useEffect(() => {
@@ -191,7 +216,8 @@ export function useFollowMode({
     <div className="flex items-center gap-1.5 shrink-0">
       <button onClick={() => start("follow")} disabled={loading || verifying} className={pill(false)} title="Follow along as you recite">
         <MicIcon className="w-4 h-4" />
-        {loading && wanted === "follow" ? "Loading…" : "Follow"}
+        {/* icon only on the narrowest phones, so the Surah/Juz menus keep room */}
+        <span className="max-[399px]:sr-only">{loading && wanted === "follow" ? "Loading…" : "Follow"}</span>
       </button>
       <button
         onClick={() => start("verify")}
@@ -200,7 +226,7 @@ export function useFollowMode({
         title="Recite, then get your mistakes"
       >
         <CheckIcon className="w-4 h-4" />
-        {loading && wanted === "verify" ? "Loading…" : "Verify"}
+        <span className="max-[399px]:sr-only">{loading && wanted === "verify" ? "Loading…" : "Verify"}</span>
       </button>
     </div>
   );

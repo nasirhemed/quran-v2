@@ -2,16 +2,25 @@
 
 export interface QuranWord {
   text: string;
-  lineNumber: number;
+  /** QCF V2 glyph codes: they draw this word with its page's font (src/lib/mushaf/pack.ts) */
+  glyph: string;
+  lineNumber: number; // printed line of the 1421H Madinah mushaf (QCF V2), 1-15
   position: number; // 1-indexed position in ayah
-  charType?: "word" | "end"; // stripped from shipped data; only "word" entries survive the pipeline
 }
 
 export interface PageAyah {
   surah: number;
   ayah: number;
   words: QuranWord[];
+  /** the ayah-number ornament; it can open the line after the ayah's last word */
+  end: { glyph: string; lineNumber: number };
 }
+
+/** One printed line, top to bottom. A surah's header can sit at the foot of the page before it. */
+export type PageLine =
+  | { kind: "surah"; surah: number }
+  | { kind: "bismillah" }
+  | { kind: "text"; centered?: true };
 
 export interface PageSurahGroup {
   surahIndex: number;
@@ -26,6 +35,8 @@ export interface QuranPage {
   pageNumber: number;
   juz: number;
   surahGroups: PageSurahGroup[];
+  /** 15 lines (8 on pages 1-2), from scripts/build-mushaf-data.py */
+  lines: PageLine[];
 }
 
 // ─── Surah / Juz metadata ───────────────────────────────────────
@@ -93,28 +104,6 @@ export interface SimilarAyahEntry {
   sourceAyahKey: string;
   sourceAyahText: string;
   similarAyahs: SimilarAyahMatch[];
-}
-
-// ─── Browse list data (from Quran-Practice exports) ─────────────
-
-export interface PhraseListItem {
-  id: string;
-  phraseText: string;
-  surahCount: number;
-  ayahCount: number;
-  totalOccurrences: number;
-  sourceAyah: string;
-  occurrences: string[]; // verse keys "surah:ayah"
-  occurrencePhraseTexts: Record<string, string>;
-  occurrenceAyahPreviews: Record<string, string>;
-}
-
-export interface SimilarAyahListItem {
-  id: string;
-  primaryVerseKey: string;
-  sourceAyahText: string;
-  occurrences: string[];
-  totalSimilarCount: number;
 }
 
 // ─── Computed highlight for rendering ───────────────────────────

@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSurahs } from "@/lib/data";
 import type { SurahMeta } from "@/types";
+import OfflineMushaf from "@/components/mushaf/OfflineMushaf";
+
+const OFFLINE_DISMISSED_KEY = "offlineMushafDismissed";
 
 interface SurahCardProps {
   surah: SurahMeta;
@@ -43,6 +46,21 @@ interface HomePageProps {
 
 export default function HomePage({ onNavigateToSurah }: HomePageProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [offlineDismissed, setOfflineDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(OFFLINE_DISMISSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const dismissOffline = () => {
+    setOfflineDismissed(true);
+    try {
+      localStorage.setItem(OFFLINE_DISMISSED_KEY, "1");
+    } catch {
+      /* storage unavailable: hidden for this visit only */
+    }
+  };
 
   const { data: surahs, isLoading } = useQuery({
     queryKey: ["surahs"],
@@ -106,6 +124,8 @@ export default function HomePage({ onNavigateToSurah }: HomePageProps) {
               />
             </div>
           </div>
+
+          {!offlineDismissed && <OfflineMushaf onDismiss={dismissOffline} />}
         </div>
 
         {/* Surah grid */}

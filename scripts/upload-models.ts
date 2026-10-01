@@ -1,8 +1,12 @@
 /**
- * Upload a model pack to Vercel Blob, laid out the way the app downloads it:
- *   <base url>/<pack id>/<version>/<file>          (src/recitation/asr/modelStore.ts)
+ * Upload a pack to Vercel Blob, laid out the way the app downloads it:
+ *   <base url>/<pack id>/<version>/<file>          (src/recitation/asr/modelStore.ts, src/lib/mushaf/pack.ts)
  *
  *   npm run upload-models -- <folder with the pack's files> [pack id]
+ *
+ * Packs: the voice models (src/recitation/asr/modelPack.ts), and the mushaf fonts `qcf-v2`, whose file list is
+ * public/data/mushaf-fonts.json (built with the fonts by scripts/build-mushaf-data.py; its manifest.json is
+ * uploaded too, for other clients).
  *
  * The token comes from BLOB_READ_WRITE_TOKEN, or from `.env.local` (gitignored) in this folder: paste the line
  * from Vercel → Storage → your Blob store → .env.local, or run `vercel env pull .env.local`.
@@ -17,11 +21,27 @@ import fs from "node:fs";
 import path from "node:path";
 import { head, put } from "@vercel/blob";
 import { DEFAULT_PACK, MODEL_PACKS } from "../src/recitation/asr/modelPack";
+import { MUSHAF_PACK, type MushafManifest } from "../src/lib/mushaf/pack";
+
+interface Pack {
+  id: string;
+  version: string;
+  files: { name: string; bytes: number; sha256: string }[];
+}
+
+/** The mushaf font pack as the app expects it, plus its manifest file. */
+function mushafPack(): Pack {
+  const file = "public/data/mushaf-fonts.json";
+  const text = fs.readFileSync(file);
+  const manifest = JSON.parse(text.toString()) as MushafManifest;
+  const sha256 = createHash("sha256").update(text).digest("hex");
+  return { ...manifest, files: [...manifest.files, { name: "manifest.json", bytes: text.length, sha256 }] };
+}
 
 const [dir, packId = DEFAULT_PACK.id] = process.argv.slice(2);
-const pack = MODEL_PACKS.find((p) => p.id === packId);
+const pack: Pack | undefined = packId === MUSHAF_PACK.id ? mushafPack() : MODEL_PACKS.find((p) => p.id === packId);
 if (!dir || !pack) {
-  console.error(`usage: npx tsx scripts/upload-models.ts <dir> [${MODEL_PACKS.map((p) => p.id).join(" | ")}]`);
+  console.error(`usage: npx tsx scripts/upload-models.ts <dir> [${[...MODEL_PACKS.map((p) => p.id), MUSHAF_PACK.id].join(" | ")}]`);
   process.exit(1);
 }
 if (!process.env.BLOB_READ_WRITE_TOKEN && fs.existsSync(".env.local")) process.loadEnvFile(".env.local");
@@ -40,8 +60,10 @@ async function sha256(file: string) {
   return h.digest("hex");
 }
 
+const CONTENT_TYPES: Record<string, string> = { ".woff2": "font/woff2", ".json": "application/json" };
+
 let base = "";
-for (const f of pack.files) {
+const upload = async (f: Pack["files"][number]) => {
   const local = path.join(dir, f.name);
   const pathname = `${pack.id}/${pack.version}/${f.name}`;
   if (!fs.existsSync(local)) throw new Error(`missing ${local}`);
@@ -61,7 +83,7 @@ for (const f of pack.files) {
       addRandomSuffix: false,
       allowOverwrite: true,
       multipart: f.bytes > 8 << 20,
-      contentType: "application/octet-stream",
+      contentType: CONTENT_TYPES[path.extname(f.name)] ?? "application/octet-stream",
       cacheControlMaxAge: 365 * 24 * 3600, // a pack version never changes; a new model gets a new version path
     });
     url = res.url;
@@ -75,5 +97,12 @@ for (const f of pack.files) {
   const ok = r.status === 206 && (cors === "*" || cors === "https://example.com");
   console.log(`  ${ok ? "✔" : "✘"} Range → ${r.status}, CORS → ${cors ?? "none"}`);
   if (!ok) process.exitCode = 1;
-}
+};
+
+const queue = [...pack.files];
+await Promise.all(
+  Array.from({ length: 6 }, async () => {
+    for (let f = queue.shift(); f; f = queue.shift()) await upload(f);
+  }),
+);
 console.log(`\nVITE_MODEL_BASE_URL=${base}`);

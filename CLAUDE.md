@@ -9,8 +9,8 @@ app with three tabs sharing one shell, one theme, and one data folder:
 
 - **Read** (`/`, `/read`) — mushaf reader with word-level Mutashabihat
   highlighting, ported from `nasirhemed/quran-reader`.
-- **Browse** (`/browse`) — similar phrases & similar verses grouped by
-  Juz/Surah, rebuilt from `nasirhemed/Quran-Practice`.
+- **Browse** (`/browse`) — similar phrases & similar verses by surah and
+  verse, with harakat-insensitive search; rebuilt from `nasirhemed/Quran-Practice`.
 - **Practice** (`/practice`) — recall quiz rebuilt from
   `nasirhemed/memorization`, now driven by the curated Mutashabihat data
   instead of the old first-3-words prefix heuristic.
@@ -37,7 +37,8 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   repos' generated outputs and then MINIFIED (no whitespace; the unused
   `charType` word field is stripped — quran-pages.json went 14.6MB → 4.8MB).
   The future pipeline must emit minified JSON too. Files: `quran-pages.json`
-  (604 pages, word-level, from the quran.com API), `surahs.json`,
+  (604 pages of the 1421H print, word-level, from the quran.com API; mushaf layout fields and pagination from
+  `scripts/build-mushaf-data.py`), `surahs.json`,
   `juz-metadata.json`, `ayah-highlights.json`,
   `mutashabihat-{list,details}.json`, `similar-ayah-{list,details}.json`,
   `phrase-verses.json`. Original source: QUL morphology phrases
@@ -53,6 +54,30 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   `/read`), `hooks/useQuranPage`, `lib/highlights.ts` (colors are
   `var(--hl-N-bg/bd)` references), localStorage phrase editing in
   `hooks/useLocalPhrases` + `components/edit/`.
+- **Mushaf rendering** (`components/page/QuranPage.tsx`): pages are drawn like quran.com, from the King Fahd
+  Complex's QCF V2 fonts (the 1421H Madinah print): one font per page, each word one glyph (`QuranWord.glyph`),
+  on its printed line. Pages follow that print too (36 pages differ from the older 1405H print, e.g. 120-123,
+  583-600). `quran-pages.json` carries, per word, `glyph` + `lineNumber` (V2 line); per ayah, `end`
+  (the ayah-number ornament's glyph and line: it can open the next line); per page, `lines` (15, or 8 on pages
+  1-2: `surah` header / `bismillah` / `text`, `centered` for short lines; a header can sit at the foot of the
+  previous page). `lib/mushaf/layout.ts` turns that into lines (plain TS, portable). One font size for all pages:
+  column width / `LINE_WIDTH_EM`, so lines never wrap; highlights must only colour a word (no padding, margin or
+  border). Glyph codes are meaningless outside their font, so each word carries `sr-only` text for screen readers,
+  and copying swaps in the selected words' Unicode text (`data-copy`, `onCopy`). Without fonts (not hosted, or offline on a page never opened) the page falls back to Unicode text.
+  Everything else (Browse, Practice, voice) uses the Unicode `text`.
+- **Mushaf font pack** (`lib/mushaf/pack.ts`, `fontStore.ts`, `hooks/useMushafFonts.ts`): `qcf-v2`, 604 page fonts
+  + `surah-names.woff2`, 98 MB, hosted with the model packs at `$VITE_MODEL_BASE_URL/qcf-v2/1/<file>` (never
+  bundled or precached) with a `manifest.json` (sizes, SHA-256) so other clients (a native app) use the same
+  files. A page's font is fetched on first view, kept in Cache Storage (`mushaf-qcf-v2-1`), registered as a
+  FontFace, and the pages either side are loaded ahead. The Read home page (`components/mushaf/OfflineMushaf.tsx`)
+  saves the whole pack for offline use. The bismillah line is drawn with page 1's glyphs for 1:1. Surah headers
+  draw the font's "surah" and "001"…"114" ligatures as two items of a right-to-left row (سورة on the right, the
+  name on its left); in one string the name would come out on the right.
+  `scripts/build-mushaf-data.py <pack dir>` (Python, fontTools) rebuilds the page data from quran.com's own
+  verses API (`api.qurancdn.com/api/qdc`, mushaf=1; NOT the public v4 by_page, which is the 1405H pagination with
+  some wrong glyphs), the fonts, the manifest (also `public/data/mushaf-fonts.json`) and `LINE_WIDTH_EM`; it fails
+  on any line wider than the print allows (source errors go in its `LINE_FIXES`); `npm run upload-models -- <pack dir>/qcf-v2/1 qcf-v2`
+  uploads it. Local testing: put the pack under `MODELS_DIR` (`<dir>/qcf-v2/1/…`).
 - **Practice engine**: `src/lib/practice.ts` — builds an ayah index from
   quran-pages.json and unifies both similarity datasets into `PracticeGroup`s
   (sources are user-selectable: Mutashabihat phrases and/or similar ayahs).
@@ -68,9 +93,19 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   `components/HighlightedAyah.tsx` (word ranges are 1-indexed and align with
   the page data's word segmentation). The setup screen must never block on
   data loading — the Start button disables instead.
-- **Browse**: phrase items are deduplicated by occurrence-set signature
-  (same QUL duplicate issue); Similar Ayah cards expand in place to list all
-  similar verses with score/word-count and matched-segment highlighting.
+- **Browse**: verse-centred. `/browse` lists the 114 surahs and searches (`?q=`); `/browse/surah/:s` lists
+  that surah's verses that share a phrase or have a similar verse; `/browse/surah/:s/:a` shows one verse with
+  each of its phrases (and the other verses they occur in) and its similar verses; `/browse/phrase/:id` lists a
+  phrase's verses. `lib/browse.ts` (plain TS, tested) builds the per-verse index from quran-pages.json +
+  mutashabihat-details + similar-ayah-details + ayah-highlights, once per session (`hooks/useBrowseIndex`):
+  duplicate phrases merged by occurrence set (the QUL duplicates; merged ids still resolve), similar pairs shown
+  from both sides (the data lists them under the source only), phrase ranges nudged onto the words that spell
+  the phrase where the source is a word or two off. Verse text comes from the page words, whose segmentation the
+  ranges use (the details files' `ayahText` split on spaces does not: waqf marks are separate tokens there).
+  Search folds Arabic (`foldArabic`: no harakat/Qur'anic marks, no alef/hamza, no spaces, ى/ي and ة/ه merged)
+  so وما ارسلنا finds وَمَآ أَرۡسَلۡنَا; it covers every verse (one with no matches still gets its verse page,
+  which links to the reader). Browse links (`BrowseLink` + `useRestoreScroll`) put you back where you
+  were when you go back.
 
 - **Voice features (in progress)**: the build spec is `docs/RECITATION_SPEC.md` in the private
   `quran-audio-c` repo (models, prototypes, milestone reports). `src/recitation/` is the voice engine —
@@ -105,10 +140,16 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   (`VerifyResult` in `workers/engineProtocol.ts`) show in `components/recitation/VerifyResults.tsx` (lazy in
   the reader) and are marked on the mushaf with `.voice-skipped / -wrong / -slip / -slip-from` on `[data-w]`.
   Verify recordings stop at `VERIFY_MAX_MINUTES` (15). Only log-prob-confirmed findings are ever shown.
+- **Hidden words** (recite from memory): the reader's Hide button (`components/recitation/HideWords.tsx`,
+  `hooks/useHiddenWords.ts`, remembered in localStorage "hideWords") masks every word (`.words-hidden` in
+  `index.css`: transparent text over a faint baseline, highlights suppressed). Words come back one by one as
+  Follow mode hears them (`useFollowMode`'s `onHeard`) or when tapped (a hint); `.word-revealed` goes on the span
+  directly and QuranPage also reads the revealed set when it renders.
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
-  shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). Updates
+  shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). The mushaf's
+  page fonts are not precached (98 MB): see Mushaf font pack. Updates
   wait for the user (`components/layout/UpdatePrompt.tsx`) and never reload by themselves. Any new data file
-  over 6 MB needs `maximumFileSizeToCacheInBytes` raised.
+  over 8 MB needs `maximumFileSizeToCacheInBytes` raised.
 - **Cross-origin isolation**: every response carries COOP `same-origin` + COEP `require-corp`
   (`vercel.json`, and `server`/`preview.headers` in `vite.config.ts`), needed for threaded WebAssembly. So
   nothing may be loaded from another origin unless it sends CORS or CORP headers — no CDN fonts or scripts.
@@ -118,7 +159,7 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
 ## Pending work (agreed roadmap)
 
 1. **Merged data pipeline**: combine `scripts/legacy-reader-build-data.ts`
-   and `scripts/legacy-practice-export-data.ts` into one `scripts/build-data.ts`
+   and `scripts/legacy-practice-export-data.ts` (and `scripts/build-mushaf-data.py`'s layout step) into one `scripts/build-data.ts`
    that re-ingests fresh QUL morphology phrases and emits every JSON artifact
    (kills the sibling-repo coupling both legacy scripts have). The legacy
    scripts reference `../memorization` and `../mutashabihat` paths and do NOT

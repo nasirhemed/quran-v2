@@ -1,6 +1,10 @@
-import { useMemo, useCallback } from "react";
-import type { QuranPage as QuranPageType, PageHighlightMap, WordHighlight, WordSelection, QuranWord } from "@/types";
+import { useMemo, useCallback, type ClipboardEvent, type CSSProperties } from "react";
+import type { QuranPage as QuranPageType, PageHighlightMap, WordHighlight, WordSelection, SurahMeta } from "@/types";
 import { HIGHLIGHT_COLORS, HIGHLIGHT_BORDER_COLORS } from "@/lib/highlights";
+import { ayahNumberText, pageLayout, type LineItem } from "@/lib/mushaf/layout";
+import { LINE_WIDTH_EM, pageFontFamily } from "@/lib/mushaf/pack";
+import { BISMILLAH_PAGE, useMushafFonts } from "@/hooks/useMushafFonts";
+import { REVEALED_CLASS } from "@/hooks/useHiddenWords";
 import SurahHeader from "./SurahHeader";
 import Bismillah from "./Bismillah";
 import VerseMarker from "./VerseMarker";
@@ -8,212 +12,193 @@ import VerseMarker from "./VerseMarker";
 interface QuranPageProps {
   page: QuranPageType;
   highlights: PageHighlightMap;
+  /** names for surah headers (a header can belong to the next page's surah) */
+  surahs: SurahMeta[];
+  /** page 1's glyphs for 1:1, drawn on bismillah lines */
+  bismillah: string[];
   activeAyah?: { surah: number; ayah: number } | null;
   onHighlightClick?: (highlight: WordHighlight) => void;
   editMode?: boolean;
   wordSelection?: WordSelection | null;
   onWordSelect?: (ayahKey: string, wordIndex1Based: number) => void;
+  /** recite from memory: words are masked until revealed (tapping a masked word reveals it) */
+  hideWords?: { revealed: ReadonlySet<string>; onReveal: (key: string) => void } | null;
 }
 
-interface WordWithMeta extends QuranWord {
-  surah: number;
-  ayah: number;
-  ayahKey: string;
-  wordIndex0: number; // 0-indexed position within ayah
-  isAyahEnd: boolean; // last word of its ayah → verse marker follows
+type WordItem = Extract<LineItem, { kind: "word" }>;
+
+/**
+ * A rub' al-hizb mark (۞) and its word come as one glyph run with a space the page fonts have no glyph for; a
+ * fixed spacer (the width the build measures with) keeps it the same on every platform, whatever fallback font.
+ */
+const glyphRun = (glyph: string) =>
+  glyph.includes(" ")
+    ? glyph.split(" ").flatMap((part, i) => (i ? [<span key={i} className="inline-block w-[0.25em]" />, part] : [part]))
+    : glyph;
+
+/**
+ * Glyph codes paste as gibberish outside their font: a copy of the page gives the selected words' Unicode text
+ * instead (each word, ornament and bismillah carries it in data-copy), in reading order.
+ */
+function copyText(e: ClipboardEvent<HTMLElement>) {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) return;
+  const parts: string[] = [];
+  e.currentTarget.querySelectorAll<HTMLElement>("[data-copy]").forEach((el) => {
+    if (selection.containsNode(el, true)) parts.push(el.dataset.copy!);
+  });
+  if (!parts.length) return;
+  e.clipboardData.setData("text/plain", parts.join(" "));
+  e.preventDefault();
 }
 
-interface PageLine {
-  lineNumber: number;
-  words: WordWithMeta[];
-  /** Short surah-final / ornamental lines are centered like the printed mushaf. */
-  centered: boolean;
-  /** Surah groups whose header (name + bismillah) precedes this line. */
-  headers: QuranPageType["surahGroups"];
-}
-
-// Pages 1 and 2 (Al-Faatiha / start of Al-Baqara) are ornamental in the
-// madani mushaf: short centered lines rather than a justified 15-line block.
-const ORNAMENTAL_PAGES = new Set([1, 2]);
-
+/**
+ * One mushaf page as printed: 15 lines (8 on pages 1-2), each word drawn from its glyph in the page's QCF V2 font,
+ * so words, line breaks and ornaments match the Madinah print. Every line is one font size wide (the size comes
+ * from the column width), so lines never wrap; highlights only colour a word's box, never resize it.
+ *
+ * Without the fonts (offline and never opened, or not hosted), the same lines are drawn from the Unicode text.
+ */
 export default function QuranPage({
   page,
   highlights,
+  surahs,
+  bismillah,
   activeAyah,
   onHighlightClick,
   editMode,
   wordSelection,
   onWordSelect,
+  hideWords,
 }: QuranPageProps) {
-  const lines = useMemo<PageLine[]>(() => {
-    // Collect words line by line. A mushaf line may span ayahs, but never
-    // surahs — a surah always begins under its own header row.
-    const byLine = new Map<number, PageLine>();
-    const getLine = (n: number): PageLine => {
-      if (!byLine.has(n)) {
-        byLine.set(n, { lineNumber: n, words: [], centered: false, headers: [] });
-      }
-      return byLine.get(n)!;
-    };
-
-    for (const group of page.surahGroups) {
-      const groupLineNumbers = new Set<number>();
-      for (const ayah of group.ayahs) {
-        ayah.words.forEach((word, i) => {
-          groupLineNumbers.add(word.lineNumber);
-          getLine(word.lineNumber).words.push({
-            ...word,
-            surah: ayah.surah,
-            ayah: ayah.ayah,
-            ayahKey: `${ayah.surah}:${ayah.ayah}`,
-            wordIndex0: word.position - 1,
-            isAyahEnd: i === ayah.words.length - 1,
-          });
-        });
-      }
-
-      if (group.isSurahStart || group.bismillah) {
-        const firstLine = Math.min(...groupLineNumbers);
-        getLine(firstLine).headers.push(group);
-      }
-    }
-
-    const sorted = [...byLine.values()].sort((a, b) => a.lineNumber - b.lineNumber);
-
-    // Justify by default; center the visibly short lines the print centers:
-    // a surah's last line on the page when it holds well under a full line's
-    // worth of words. Median word count stands in for real glyph metrics
-    // until the pipeline ingests the QUL mushaf-layout database.
-    const counts = sorted.map((l) => l.words.length).sort((a, b) => a - b);
-    const median = counts[Math.floor(counts.length / 2)] ?? 0;
-
-    const lastLineOfGroup = new Set<number>();
-    for (const group of page.surahGroups) {
-      let last = 0;
-      for (const ayah of group.ayahs) {
-        for (const word of ayah.words) last = Math.max(last, word.lineNumber);
-      }
-      lastLineOfGroup.add(last);
-    }
-
-    for (const line of sorted) {
-      if (ORNAMENTAL_PAGES.has(page.pageNumber)) {
-        line.centered = true;
-      } else if (lastLineOfGroup.has(line.lineNumber)) {
-        line.centered = line.words.length < median * 0.6;
-      }
-    }
-
-    return sorted;
-  }, [page]);
+  const lines = useMemo(() => pageLayout(page), [page]);
+  const fontState = useMushafFonts(page.pageNumber, {
+    headers: lines.some((l) => l.kind === "surah"),
+    bismillah: lines.some((l) => l.kind === "bismillah"),
+  });
+  const glyphs = fontState === "ready" || fontState === "loading";
 
   const handleWordClick = useCallback(
-    (word: WordWithMeta) => {
+    (item: WordItem) => {
       if (editMode && onWordSelect) {
-        onWordSelect(word.ayahKey, word.position);
+        onWordSelect(item.ayahKey, item.word.position);
         return;
       }
       if (!onHighlightClick) return;
-      const hl = highlights[word.ayahKey]?.get(word.wordIndex0);
-      if (hl) {
-        onHighlightClick(hl);
-      }
+      const hl = highlights[item.ayahKey]?.get(item.wordIndex0);
+      if (hl) onHighlightClick(hl);
     },
     [editMode, onWordSelect, onHighlightClick, highlights]
   );
 
-  const isWordSelected = (word: WordWithMeta): boolean => {
-    if (!wordSelection || wordSelection.ayahKey !== word.ayahKey) return false;
-    const w = word.position;
-    if (wordSelection.endWord === null) {
-      return w === wordSelection.startWord;
-    }
+  const isWordSelected = (item: WordItem): boolean => {
+    if (!wordSelection || wordSelection.ayahKey !== item.ayahKey) return false;
+    const w = item.word.position;
+    if (wordSelection.endWord === null) return w === wordSelection.startWord;
     return w >= wordSelection.startWord && w <= wordSelection.endWord;
   };
 
-  const isActive = (word: WordWithMeta): boolean => {
-    return activeAyah?.surah === word.surah && activeAyah?.ayah === word.ayah;
+  const isActive = (item: LineItem) => activeAyah?.surah === item.surah && activeAyah?.ayah === item.ayah;
+
+  const surahMeta = (n: number) => surahs.find((s) => s.index === n);
+
+  const renderWord = (item: WordItem) => {
+    const key = `${item.ayahKey}:${item.word.position}`;
+    const revealed = !!hideWords?.revealed.has(key);
+    const masked = !!hideWords && !revealed;
+    const hl = highlights[item.ayahKey]?.get(item.wordIndex0);
+    const selected = editMode && isWordSelected(item);
+    const clickable = editMode || !!hl || masked;
+    // Colour only: a background with the underline painted into it, so the word keeps its exact width.
+    const style: CSSProperties | undefined =
+      hl && !selected
+        ? {
+            backgroundImage: `linear-gradient(to top, ${HIGHLIGHT_BORDER_COLORS[hl.colorIndex]} 2px, ${HIGHLIGHT_COLORS[hl.colorIndex]} 2px)`,
+          }
+        : undefined;
+    return (
+      <span
+        key={key}
+        data-w={key}
+        data-copy={glyphs ? item.word.text : undefined}
+        className={`rounded ${clickable ? "cursor-pointer" : ""} ${
+          selected ? "ring-2 ring-amber-400 bg-amber-500/20" : ""
+        } ${isActive(item) ? "text-amber-200" : ""} ${revealed ? REVEALED_CLASS : ""}`}
+        style={style}
+        onClick={clickable ? () => (masked ? hideWords?.onReveal(key) : handleWordClick(item)) : undefined}
+      >
+        {glyphs ? (
+          <>
+            {/* Glyph codes mean nothing outside the page's font: screen readers get the text instead. */}
+            <span aria-hidden="true">{glyphRun(item.word.glyph)}</span>
+            <span className="sr-only">{item.word.text} </span>
+          </>
+        ) : (
+          item.word.text
+        )}
+      </span>
+    );
   };
 
+  const renderEnd = (item: Extract<LineItem, { kind: "end" }>) =>
+    glyphs ? (
+      <span key={`end-${item.ayahKey}`} className={isActive(item) ? "text-amber-200" : ""} data-copy={ayahNumberText(item.ayah)}>
+        <span aria-hidden="true">{item.glyph}</span>
+        <span className="sr-only">({item.ayah}) </span>
+      </span>
+    ) : (
+      <VerseMarker key={`end-${item.ayahKey}`} ayahNumber={item.ayah} />
+    );
+
   return (
-    <div
-      className="max-w-3xl mx-auto px-2 sm:px-6 py-6 font-arabic text-lg sm:text-2xl text-slate-100"
-      dir="rtl"
-    >
-      {/* Page label */}
-      <div className="text-center mb-4">
+    <div className={`mushaf ${hideWords ? "words-hidden" : ""} max-w-[40rem] mx-auto px-3 sm:px-6 py-6 text-slate-100`} dir="rtl">
+      <div className="text-center mb-3">
         <span className="text-xs font-sans text-slate-500">Page {page.pageNumber}</span>
       </div>
 
-      <div className="space-y-1">
-        {lines.map((line) => (
-          <div key={`line-${line.lineNumber}`}>
-            {line.headers.map((group, gIdx) => (
-              <div key={`header-${group.surahIndex}-${gIdx}`}>
-                {group.isSurahStart && (
-                  <SurahHeader
-                    surahName={group.surahName}
-                    tname={group.tname}
-                    surahIndex={group.surahIndex}
-                  />
-                )}
-                {group.bismillah && <Bismillah text={group.bismillah} />}
+      {glyphs ? (
+        <div
+          lang="ar"
+          className={`mushaf-glyphs ${fontState === "loading" ? "invisible overflow-hidden" : ""}`}
+          onCopy={copyText}
+          style={{ fontFamily: `"${pageFontFamily(page.pageNumber)}"`, "--line-em": LINE_WIDTH_EM } as CSSProperties}
+        >
+          {lines.map((line) => {
+            if (line.kind === "surah") {
+              const meta = surahMeta(line.surah);
+              return <SurahHeader key={line.n} glyphs surahIndex={line.surah} surahName={meta?.name ?? ""} tname={meta?.tname ?? ""} />;
+            }
+            if (line.kind === "bismillah") {
+              return <Bismillah key={line.n} glyphs={bismillah} fontFamily={pageFontFamily(BISMILLAH_PAGE)} />;
+            }
+            return (
+              <div key={line.n} className={`mushaf-line ${line.centered ? "justify-center gap-[0.35em]" : "justify-between"}`}>
+                {line.items.map((item) => (item.kind === "word" ? renderWord(item) : renderEnd(item)))}
               </div>
-            ))}
-
-            {/* One printed mushaf line: flex spreads the words edge to edge
-                (CSS text-justify never justifies a block's last line, and
-                every line here is one). */}
-            <div
-              className={`flex items-baseline flex-wrap leading-[2.1] ${
-                line.centered ? "justify-center gap-x-2" : "justify-between gap-x-1"
-              }`}
-            >
-              {line.words.map((word) => {
-                const hl = highlights[word.ayahKey]?.get(word.wordIndex0);
-                const highlighted = !!hl;
-                const selected = editMode && isWordSelected(word);
-                const clickable = editMode || highlighted;
-                const active = isActive(word);
-
-                return (
-                  <span
-                    key={`${word.ayahKey}:${word.position}`}
-                    className="inline-flex items-baseline"
-                  >
-                    <span
-                      data-w={`${word.ayahKey}:${word.position}`}
-                      className={`${
-                        clickable ? "cursor-pointer" : ""
-                      } ${
-                        highlighted ? "rounded px-1 py-0.5" : ""
-                      } ${
-                        editMode ? "px-1 py-1" : ""
-                      } ${
-                        selected
-                          ? "ring-2 ring-amber-400 rounded bg-amber-500/20"
-                          : ""
-                      } ${active ? "text-amber-200" : ""}`}
-                      style={
-                        highlighted && !selected
-                          ? {
-                              backgroundColor: HIGHLIGHT_COLORS[hl!.colorIndex],
-                              borderBottom: `2px solid ${HIGHLIGHT_BORDER_COLORS[hl!.colorIndex]}`,
-                            }
-                          : undefined
-                      }
-                      onClick={clickable ? () => handleWordClick(word) : undefined}
-                    >
-                      {word.text}
-                    </span>
-                    {word.isAyahEnd && <VerseMarker ayahNumber={word.ayah} />}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div lang="ar" className="font-arabic text-lg sm:text-2xl space-y-1">
+          {lines.map((line) => {
+            if (line.kind === "surah") {
+              const meta = surahMeta(line.surah);
+              return <SurahHeader key={line.n} surahIndex={line.surah} surahName={meta?.name ?? ""} tname={meta?.tname ?? ""} />;
+            }
+            if (line.kind === "bismillah") return <Bismillah key={line.n} />;
+            return (
+              <div
+                key={line.n}
+                className={`flex items-baseline flex-wrap leading-[2.1] ${
+                  line.centered ? "justify-center gap-x-2" : "justify-between gap-x-1"
+                }`}
+              >
+                {line.items.map((item) => (item.kind === "word" ? renderWord(item) : renderEnd(item)))}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

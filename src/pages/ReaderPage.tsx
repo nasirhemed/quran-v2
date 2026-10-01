@@ -1,10 +1,12 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useQuranPage } from "@/hooks/useQuranPage";
 import { useSidePanel } from "@/hooks/useSidePanel";
 import { useLocalPhrases } from "@/hooks/useLocalPhrases";
+import { useHiddenWords } from "@/hooks/useHiddenWords";
 import { fetchQuranPages, fetchSurahs } from "@/lib/data";
+import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
 import QuranPage from "@/components/page/QuranPage";
 import SidePanel from "@/components/sidepanel/SidePanel";
@@ -12,6 +14,7 @@ import SelectionActionBar from "@/components/edit/SelectionActionBar";
 import AddOccurrenceDialog from "@/components/edit/AddOccurrenceDialog";
 import ExportImportPanel from "@/components/edit/ExportImportPanel";
 import { useFollowMode } from "@/components/recitation/FollowControl";
+import { HideWordsBar, HideWordsButton } from "@/components/recitation/HideWords";
 import type { WordHighlight, LocalPhrase } from "@/types";
 
 export default function ReaderPage() {
@@ -39,6 +42,7 @@ export default function ReaderPage() {
   });
 
   const localPhrases = useLocalPhrases(pages);
+  const bismillah = useMemo(() => (pages ? bismillahGlyphs(pages) : []), [pages]);
 
   const { page, pageHighlights, isLoading } = useQuranPage(
     currentPage,
@@ -46,7 +50,16 @@ export default function ReaderPage() {
   );
 
   const sidePanel = useSidePanel(localPhrases.phrases);
-  const follow = useFollowMode({ pages, surahs: surahsMeta, currentPage, onNavigateToPage: navigateToPage });
+  const hide = useHiddenWords();
+  const hiding = hide.hidden && !localPhrases.editMode;
+  const follow = useFollowMode({
+    pages,
+    surahs: surahsMeta,
+    currentPage,
+    onNavigateToPage: navigateToPage,
+    onHeard: hiding ? hide.reveal : undefined,
+  });
+  const onRevealWord = useCallback((key: string) => hide.reveal([key]), [hide.reveal]);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dialogPhrase, setDialogPhrase] = useState<LocalPhrase | null>(null);
@@ -144,7 +157,14 @@ export default function ReaderPage() {
         editMode={localPhrases.editMode}
         onToggleEditMode={localPhrases.toggleEditMode}
         onExportImport={() => setShowExportImport(true)}
-        voiceControl={localPhrases.editMode ? null : follow.button}
+        voiceControl={
+          localPhrases.editMode ? null : (
+            <>
+              <HideWordsButton hidden={hide.hidden} onToggle={hide.toggle} />
+              {follow.button}
+            </>
+          )
+        }
         compact={follow.following}
       />
 
@@ -171,15 +191,27 @@ export default function ReaderPage() {
 
         {/* Main content */}
         <main className={`flex-1 pb-16 ${localPhrases.selection ? "pb-28" : ""}`}>
+          {hiding && (
+            <HideWordsBar
+              canFollow={follow.supported}
+              following={follow.following}
+              revealedCount={hide.revealedCount}
+              onReset={hide.reset}
+              onShowAll={hide.toggle}
+            />
+          )}
           {page ? (
             <QuranPage
               page={page}
               highlights={pageHighlights}
+              surahs={surahs}
+              bismillah={bismillah}
               activeAyah={activeAyah}
               onHighlightClick={handleHighlightClick}
               editMode={localPhrases.editMode}
               wordSelection={localPhrases.selection}
               onWordSelect={localPhrases.handleWordClick}
+              hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
             />
           ) : (
             <div className="text-center py-20 text-slate-400">
