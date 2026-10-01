@@ -11,9 +11,9 @@ app with three tabs sharing one shell, one theme, and one data folder:
   highlighting, ported from `nasirhemed/quran-reader`.
 - **Browse** (`/browse`) — similar phrases & similar verses by surah and
   verse, with harakat-insensitive search; rebuilt from `nasirhemed/Quran-Practice`.
-- **Practice** (`/practice`) — recall quiz rebuilt from
-  `nasirhemed/memorization`, now driven by the curated Mutashabihat data
-  instead of the old first-3-words prefix heuristic.
+- **Practice** (`/practice`) — a competition-style recitation test, rebuilt
+  from `nasirhemed/memorization`: the opening words of a verse, recite on to
+  the end of the next page; questions start where verses have look-alikes.
 
 ## Commands
 
@@ -21,7 +21,7 @@ app with three tabs sharing one shell, one theme, and one data folder:
 npm run dev      # Vite dev server
 npm run build    # tsc -b && vite build
 npm run check    # TypeScript type checking (app, then tests)
-npm test         # Vitest: the recitation engine (tests/recitation)
+npm test         # Vitest: the recitation engine, browse, practice and mushaf libs (tests/)
 npm run preview  # Preview production build
 ```
 
@@ -78,21 +78,23 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   some wrong glyphs), the fonts, the manifest (also `public/data/mushaf-fonts.json`) and `LINE_WIDTH_EM`; it fails
   on any line wider than the print allows (source errors go in its `LINE_FIXES`); `npm run upload-models -- <pack dir>/qcf-v2/1 qcf-v2`
   uploads it. Local testing: put the pack under `MODELS_DIR` (`<dir>/qcf-v2/1/…`).
-- **Practice engine**: `src/lib/practice.ts` — builds an ayah index from
-  quran-pages.json and unifies both similarity datasets into `PracticeGroup`s
-  (sources are user-selectable: Mutashabihat phrases and/or similar ayahs).
-  Groups with identical occurrence sets are merged (`dedupeGroups`) — the QUL
-  data has orthographic-variant duplicates. Range is by Juz or by Surah.
-  Quality gates: `skipSameSurah` (surahCount < 2) and `skipHugeGroups`
-  (drills skip groups with > HUGE_GROUP_LIMIT in-range verses). Three modes:
-  `drill` (default; walks every in-range occurrence of a group back to back,
-  group badges, no twin spoilers — the original memorization app's "Similar
-  Verses" mode), `similar` (one verse per group, twins revealed at once),
-  `random`. Prompts show the shared phrase as a "Watch for" chip; reveals
-  highlight the shared/matched words inline via
-  `components/HighlightedAyah.tsx` (word ranges are 1-indexed and align with
-  the page data's word segmentation). The setup screen must never block on
-  data loading — the Start button disables instead.
+- **Practice** (`src/lib/practice.ts`, plain TS, tested; `pages/PracticePage.tsx`): modelled on how competitions
+  test hifz — the judge reads a verse's opening words (5–7, or as many as tell it from look-alikes), the contestant
+  recites on (5–7 lines to a page), judges like to start inside look-alikes, and drifting into one is the classic
+  slip. A question is a start verse + the passage to the end of the NEXT page (1–2 pages), clipped to the range.
+  The only settings are the range (juz or surah) and 3/5/10 questions, remembered in localStorage "practice".
+  `buildPracticeIndex` (once per session, `hooks/usePracticeIndex`, ~200 ms) rates verse pairs from their words, not
+  the similar-ayah scores (which rate a one-word الٓمٓ a perfect match): candidates are the QUL pairs plus verses
+  sharing a rare three-word run (finds what QUL misses, e.g. 20:10/28:29); strength = logistic of the rarity-weighted
+  words shared in order (word LCS over `foldWord`, which merges spellings that sound alike: dagger alef/alef, ة/ت)
+  + half the weight of a shared opening + a share-of-verse term. Identical verses count where a run of matching
+  verses ends (the slip is in what follows: Ash-Shu'ara's stories); refrains repeated through a surah are
+  discounted. A verse's `trap` = its strongest look-alike + 0.15 × the next three. `generateQuestions` weights
+  starts (trap ≥ 0.4) by passage difficulty², never reuses a page, spreads across surahs, and skips starts its
+  surah repeats word for word (`promptLength` null). Checking shows the passage; verses with a look-alike ≥
+  `SHOW_STRENGTH` stand out with up to two look-alikes beneath, both marked by `compareVerses` ("diff" = where they
+  part), and for an identical look-alike, how the other place goes on. The setup screen must never block on data
+  loading — Start disables instead.
 - **Browse**: verse-centred. `/browse` lists the 114 surahs and searches (`?q=`); `/browse/surah/:s` lists
   that surah's verses that share a phrase or have a similar verse; `/browse/surah/:s/:a` shows one verse with
   each of its phrases (and the other verses they occur in) and its similar verses; `/browse/phrase/:id` lists a
@@ -158,7 +160,7 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
    (kills the sibling-repo coupling both legacy scripts have). The legacy
    scripts reference `../memorization` and `../mutashabihat` paths and do NOT
    run from this repo — they are references only.
-2. Practice: "Practice these" entry point from the reader side panel;
-   min-similarity-score gate using similar-ayah data; diff-marked twins
-   (word ranges exist in mutashabihat-details.json).
+2. Practice: "Practice these" entry point from the reader side panel; keep
+   slips across sessions and bring them back (spaced review); recite a question
+   in the Reader with hidden words and voice Follow mode.
 3. Browse → Reader deep links could pre-open the side panel on the phrase.

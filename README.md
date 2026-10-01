@@ -16,10 +16,13 @@ A unified Qur'an study app for hifz review, built around the **Mutashabihat**
   Surah. Same-surah repeats (refrains) are hidden by default; Similar Ayah
   cards expand in place to show each look-alike with its match score and the
   matched words highlighted.
-- **Practice** — a recall quiz driven by the curated similarity data.
-  Modes: walk a whole confusable group back to back, one-verse-per-group
-  with twins revealed together, or random verses. Range by Juz or Surah,
-  selectable data sources, and quality gates to skip refrain noise.
+- **Practice** — tested the way Qur'an competitions test: you get the
+  opening words of a verse and recite on to the end of the next page.
+  Questions start where verses have look-alikes elsewhere, on the pages where
+  look-alikes crowd together (the prophets' stories in Al-A'raf and
+  Ash-Shu'ara rank hardest, Surah Yusuf and Juz 30 easiest). Checking shows
+  the passage with each look-alike beneath its verse and the words where they
+  part marked. Pick a range by Juz or Surah and 3, 5 or 10 questions.
 
 Light theme is a warm "paper mushaf"; dark theme is slate. One token set
 drives both.
