@@ -62,6 +62,20 @@ describe("look-alikes", () => {
     expect(strength("55:13", "55:16")).toBeLessThan(SHOW_STRENGTH); // فَبِأَيِّ ءَالَآءِ رَبِّكُمَا تُكَذِّبَانِ
   });
 
+  it("rates verses that open alike, then part, as look-alikes", () => {
+    // قَالَ ٱلَّذِينَ ٱسۡتَكۡبَرُوٓاْ and وَمَا ظَلَمۡنَٰهُمۡ: little else in common
+    for (const [a, b] of [["34:32", "7:76"], ["34:32", "40:48"], ["43:76", "11:101"]]) {
+      expect(strength(a, b), `${a} ~ ${b}`).toBeGreaterThanOrEqual(SHOW_STRENGTH);
+    }
+    // but not an opening dozens of verses share: إِنَّ ٱلَّذِينَ
+    expect(strength("2:6", "2:62")).toBeLessThan(SHOW_STRENGTH);
+  });
+
+  it("rates openings with the same words in another order as look-alikes", () => {
+    expect(strength("28:20", "36:20")).toBeGreaterThanOrEqual(0.6); // رَجُلٞ مِّنۡ أَقۡصَا / مِنۡ أَقۡصَا … رَجُلٞ
+    expect(strength("30:47", "40:78")).toBeGreaterThanOrEqual(SHOW_STRENGTH); // مِن قَبۡلِكَ رُسُلًا / رُسُلٗا مِّن قَبۡلِكَ
+  });
+
   it("flags where a run of identical verses ends and the stories part", () => {
     // Ash-Shu'ara: Nuh's and Hud's stories share four verses, then go on differently.
     expect(strength("26:109", "26:127")).toBeGreaterThanOrEqual(0.8);
@@ -91,9 +105,17 @@ describe("compareVerses", () => {
 });
 
 describe("promptLength", () => {
-  it("shows five words, or more where the surah has another verse opening the same way", () => {
-    expect(promptLength(index, at("7:65"))).toBe(PROMPT_WORDS);
-    expect(promptLength(index, at("2:231"))).toBe(6); // وَإِذَا طَلَّقۡتُمُ ٱلنِّسَآءَ فَبَلَغۡنَ أَجَلَهُنَّ, as 2:232
+  it("stops where the verse parts from a look-alike that opens the same way", () => {
+    expect(promptLength(index, at("43:76"))).toBe(3); // وَمَا ظَلَمۡنَٰهُمۡ وَلَٰكِن, as 11:101
+    // 7:65 and 11:50 share thirteen words, up to غَيۡرُهُۥٓ; then أَفَلَا تَتَّقُونَ / إِنۡ أَنتُمۡ إِلَّا مُفۡتَرُونَ
+    const n = promptLength(index, at("7:65"))!;
+    expect(n).toBe(13);
+    expect(foldWord(words("7:65")[n - 1])).toBe(foldWord(words("11:50")[n - 1]));
+    expect(foldWord(words("7:65")[n])).not.toBe(foldWord(words("11:50")[n]));
+  });
+
+  it("otherwise shows five words, or more where the surah has another verse opening the same way", () => {
+    expect(promptLength(index, at("2:58"))).toBe(PROMPT_WORDS);
     expect(promptLength(index, at("112:1"))).toBe(4); // the whole verse
   });
 
@@ -113,7 +135,7 @@ describe("generateQuestions", () => {
       expect(index.trap[q.start]).toBeGreaterThanOrEqual(0.4);
       expect(end.page).toBe(start.page + 1);
       expect(index.verses[q.end + 1]?.page).not.toBe(end.page);
-      expect(q.promptWords).toBeGreaterThanOrEqual(Math.min(PROMPT_WORDS, start.words.length));
+      expect(q.promptWords).toBe(promptLength(index, q.start));
     }
   });
 
@@ -137,5 +159,34 @@ describe("generateQuestions", () => {
     const keys = (seed: number) => generateQuestions(index, WHOLE, 5, seeded(seed)).map((q) => q.key);
     expect(keys(5)).toEqual(keys(5));
     expect(keys(5)).not.toEqual(keys(6));
+  });
+});
+
+describe("against a teacher's question bank", () => {
+  // 95 recitation questions a teacher set on the mutashabihat of 20 juz, with the look-alikes her notes warn
+  // about (tests/fixtures/practice). When written: 72% of the start verses were traps (47% of all verses),
+  // their median trap percentile 75, and 73% of the named look-alikes shown. Most of the rest are questions on
+  // a unique wording (ضَرَبَ لَكُم مَّثَلٗا where elsewhere it is ضَرَبَ ٱللَّهُ مَثَلٗا) or a one-word variant
+  // (وَلَهُۥ مَن فِي / وَلَهُۥ مَا فِي), which matching words can't see.
+  const bank: { questions: { key: string; twins?: string[] }[] } = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, "../fixtures/practice/sard-questions.json"), "utf-8")
+  );
+  const starts = bank.questions.map((q) => at(q.key));
+  const twins = bank.questions.flatMap((q) => (q.twins ?? []).map((t) => [q.key, t]));
+  const isTrap = (i: number) => index.trap[i] >= SHOW_STRENGTH;
+
+  it("finds most of its start verses confusable, well above chance", () => {
+    const hit = starts.filter(isTrap).length / starts.length;
+    const base = index.verses.filter((_, i) => isTrap(i)).length / index.verses.length;
+    expect(hit).toBeGreaterThanOrEqual(0.68);
+    expect(hit / base).toBeGreaterThanOrEqual(1.4);
+    const percentile = (i: number) => index.trap.filter((t) => t < index.trap[i]).length / index.trap.length;
+    const median = starts.map(percentile).sort((a, b) => a - b)[Math.floor(starts.length / 2)];
+    expect(median).toBeGreaterThanOrEqual(0.72);
+  });
+
+  it("shows most of the look-alikes the teacher warns about", () => {
+    const shown = twins.filter(([a, b]) => strength(a, b) >= SHOW_STRENGTH).length / twins.length;
+    expect(shown).toBeGreaterThanOrEqual(0.68);
   });
 });

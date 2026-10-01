@@ -48,6 +48,8 @@ export interface PracticeIndex {
   trap: Float64Array;
   /** per verse: word ids after folding away harakat and marks, for alignment */
   ids: Int32Array[];
+  /** the same, but blind to a leading و/ف (for comparing openings) */
+  loose: Int32Array[];
 }
 
 export interface PracticeRange {
@@ -82,6 +84,9 @@ export const PROMPT_WORDS = 5;
 const MAX_PHRASE_VERSES = 10;
 /** Likewise a run of three words. */
 const MAX_TRIGRAM_VERSES = 12;
+/** Likewise a verse opening; and the longest opening that counts. */
+const MAX_OPENING_VERSES = 12;
+const MAX_OPENING = 6;
 
 // ─── Words ──────────────────────────────────────────────────────
 
@@ -202,6 +207,71 @@ export function buildPracticeIndex(
   });
   for (const list of trigrams.values()) if (list.length <= MAX_TRIGRAM_VERSES) addAll(list);
 
+  // Verses that open alike: the same first words (a leading و/ف aside) in a few verses, which then go on
+  // differently. Which way this one goes is the classic question (قَالَ ٱلَّذِينَ ٱسۡتَكۡبَرُواْ opens 7:76, 34:32
+  // and 40:48; وَمَا ظَلَمۡنَٰهُمۡ 11:101, 16:118 and 43:76), even when little else is shared. An opening that dozens
+  // of verses share (يَٰٓأَيُّهَا ٱلَّذِينَ ءَامَنُواْ) is a formula, not a trap.
+  const openingGroups = new Map<string, number[]>();
+  const openingKeys = loose.map((a, i) => {
+    const keys: string[] = [];
+    let key = String(a[0]);
+    for (let k = 2; k <= Math.min(MAX_OPENING, a.length - 1); k++) {
+      key += `,${a[k - 1]}`;
+      keys[k] = key;
+      const list = openingGroups.get(key);
+      if (list) list.push(i);
+      else openingGroups.set(key, [i]);
+    }
+    return keys;
+  });
+  const opening = new Map<number, number>();
+  for (const list of openingGroups.values()) {
+    if (list.length > MAX_OPENING_VERSES) continue;
+    for (let x = 0; x < list.length; x++) {
+      for (let y = x + 1; y < list.length; y++) {
+        const [i, j] = [list[x], list[y]];
+        const pair = i * 8192 + j;
+        if (opening.has(pair)) continue;
+        const k = Math.min(MAX_OPENING, commonOpening(loose[i], loose[j]));
+        if (k >= ids[i].length || k >= ids[j].length) continue; // one is the other's opening
+        const sharing = openingGroups.get(openingKeys[i][k])!.length;
+        let weight = 0;
+        for (let w = 0; w < k; w++) weight += idf[ids[i][w]];
+        const strength = openingStrength(k, sharing, weight);
+        if (strength === 0) continue;
+        opening.set(pair, strength);
+        pairs.add(pair);
+      }
+    }
+  }
+  // Openings with the same words in another order, the most treacherous kind: وَجَآءَ رَجُلٞ مِّنۡ أَقۡصَا ٱلۡمَدِينَةِ
+  // (28:20) and وَجَآءَ مِنۡ أَقۡصَا ٱلۡمَدِينَةِ رَجُلٞ (36:20).
+  const reordered = new Map<string, number[]>();
+  loose.forEach((a, i) => {
+    for (let n = 3; n <= Math.min(MAX_OPENING, a.length - 1); n++) {
+      const key = `${n}:${Array.from(a.subarray(0, n)).sort((x, y) => x - y).join(",")}`;
+      const list = reordered.get(key);
+      if (list) list.push(i);
+      else reordered.set(key, [i]);
+    }
+  });
+  for (const [key, list] of reordered) {
+    if (list.length > 6) continue;
+    const n = Number(key.slice(0, key.indexOf(":")));
+    for (let x = 0; x < list.length; x++) {
+      for (let y = x + 1; y < list.length; y++) {
+        const [i, j] = [list[x], list[y]];
+        if (commonOpening(loose[i], loose[j]) >= n) continue; // the same order: an opening, above
+        let weight = 0;
+        for (let w = 0; w < n; w++) weight += idf[ids[i][w]];
+        if (n === 3 && weight < 9) continue;
+        const pair = i * 8192 + j;
+        opening.set(pair, Math.max(opening.get(pair) ?? 0, n === 3 ? 0.5 : Math.min(0.9, openingStrength(n, list.length, weight) + 0.1)));
+        pairs.add(pair);
+      }
+    }
+  }
+
   const uniq = ids.map((a) => Int32Array.from(new Set(a)).sort());
   const raw = new Map<number, PairStrength>();
   // How many times each verse is repeated word for word within its surah.
@@ -214,7 +284,7 @@ export function buildPracticeIndex(
       identicalInSurah[i]++;
       identicalInSurah[j]++;
     }
-    if (s.strength > 0 || s.identical) raw.set(pair, s);
+    if (s.strength > 0 || s.identical || opening.has(pair)) raw.set(pair, s);
   }
 
   const get = (i: number, j: number) => raw.get(i < j ? i * 8192 + j : j * 8192 + i);
@@ -241,6 +311,8 @@ export function buildPracticeIndex(
         const refrain = verses[i].surah === verses[j].surah && identicalInSurah[i] >= 2;
         strength = Math.max(strength * (refrain ? 0.25 : 0.5), run ? 0.25 + 0.15 * run : 0) * (1 + 0.25 * run);
       }
+    } else {
+      strength = Math.max(strength, opening.get(pair) ?? 0);
     }
     strength = Math.min(1, strength);
     if (strength < MIN_STRENGTH) continue;
@@ -253,12 +325,25 @@ export function buildPracticeIndex(
     trap[i] = list.length ? list[0].strength + 0.15 * list.slice(1, 4).reduce((sum, l) => sum + l.strength, 0) : 0;
   });
 
-  return { verses, at, lookAlikes, trap, ids };
+  return { verses, at, lookAlikes, trap, ids, loose };
 }
 
 interface PairStrength {
   strength: number;
   identical: boolean;
+}
+
+/**
+ * How alike two verses that open with the same `k` words are, by the opening alone: `sharing` verses open that
+ * way, and `weight` is how rare its words are. Two words count only when as rare as وَمَا ظَلَمۡنَٰهُمۡ (three
+ * verses) and three only when a few verses share them; from four words on, an opening is a look-alike however
+ * many of the verses (up to MAX_OPENING_VERSES) share it. Checked against a teacher's question bank and the
+ * Aswaatul Qurraa list of look-alikes (see tests/practice).
+ */
+function openingStrength(k: number, sharing: number, weight: number): number {
+  if (k === 2) return sharing <= 3 && weight >= 8 ? 0.45 : 0;
+  if (k === 3) return sharing <= 6 && weight >= 6 ? (sharing <= 3 ? 0.55 : 0.48) : 0;
+  return (k === 4 ? 0.62 : k === 5 ? 0.72 : 0.8) * (sharing <= 3 ? 1 : sharing <= 6 ? 0.9 : 0.8);
 }
 
 /**
@@ -320,9 +405,11 @@ export function passageEnd(index: PracticeIndex, start: number, range: PracticeR
 }
 
 /**
- * How many opening words of verse `i` to show: at least PROMPT_WORDS (or the whole verse), and enough to tell
- * it from every other verse of its surah that opens the same way. Null if no number of its words can: the
- * verse is repeated (or opens another verse) word for word in its surah.
+ * How many opening words of verse `i` to show. Where the verse opens like a look-alike, the words they share
+ * and no more, so the question is the one teachers ask: given وَمَا ظَلَمۡنَٰهُمۡ in Az-Zukhruf, how does it go on
+ * here? (The surah, verse and page shown with it say which place is meant.) Otherwise at least PROMPT_WORDS
+ * (or the whole verse), and enough to tell it from every other verse of its surah that opens the same way.
+ * Null if no number of its words can: the verse is repeated (or opens another verse) word for word in its surah.
  */
 export function promptLength(index: PracticeIndex, i: number): number | null {
   const ids = index.ids[i];
@@ -333,6 +420,9 @@ export function promptLength(index: PracticeIndex, i: number): number | null {
     need = Math.max(need, commonOpening(ids, index.ids[j]) + 1);
   }
   if (need > ids.length) return null;
+  let shared = 0;
+  for (const l of shownLookAlikes(index, i, 4)) shared = Math.max(shared, commonOpening(index.loose[i], index.loose[l.other]));
+  if (shared >= 2 && shared < ids.length) return shared;
   return Math.min(ids.length, Math.max(PROMPT_WORDS, need));
 }
 

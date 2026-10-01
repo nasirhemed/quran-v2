@@ -83,18 +83,28 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   recites on (5–7 lines to a page), judges like to start inside look-alikes, and drifting into one is the classic
   slip. A question is a start verse + the passage to the end of the NEXT page (1–2 pages), clipped to the range.
   The only settings are the range (juz or surah) and 3/5/10 questions, remembered in localStorage "practice".
-  `buildPracticeIndex` (once per session, `hooks/usePracticeIndex`, ~200 ms) rates verse pairs from their words, not
+  `buildPracticeIndex` (once per session, `hooks/usePracticeIndex`, ~250 ms) rates verse pairs from their words, not
   the similar-ayah scores (which rate a one-word الٓمٓ a perfect match): candidates are the QUL pairs plus verses
   sharing a rare three-word run (finds what QUL misses, e.g. 20:10/28:29); strength = logistic of the rarity-weighted
   words shared in order (word LCS over `foldWord`, which merges spellings that sound alike: dagger alef/alef, ة/ت)
-  + half the weight of a shared opening + a share-of-verse term. Identical verses count where a run of matching
-  verses ends (the slip is in what follows: Ash-Shu'ara's stories); refrains repeated through a surah are
-  discounted. A verse's `trap` = its strongest look-alike + 0.15 × the next three. `generateQuestions` weights
-  starts (trap ≥ 0.4) by passage difficulty², never reuses a page, spreads across surahs, and skips starts its
-  surah repeats word for word (`promptLength` null). Checking shows the passage; verses with a look-alike ≥
-  `SHOW_STRENGTH` stand out with up to two look-alikes beneath, both marked by `compareVerses` ("diff" = where they
-  part), and for an identical look-alike, how the other place goes on. The setup screen must never block on data
-  loading — Start disables instead.
+  + half the weight of a shared opening + a share-of-verse term. Verses that open alike count on their own
+  (`openingStrength`: the same first 2–6 words, a leading و/ف aside, in few verses — قَالَ ٱلَّذِينَ ٱسۡتَكۡبَرُواْ in
+  7:76/34:32/40:48), and more so the same opening words in another order (28:20/36:20). Identical verses count
+  where a run of matching verses ends (the slip is in what follows: Ash-Shu'ara's stories); refrains repeated
+  through a surah are discounted. A verse's `trap` = its strongest look-alike + 0.15 × the next three.
+  `generateQuestions` weights starts (trap ≥ 0.4) by passage difficulty², never reuses a page, spreads across
+  surahs, and skips starts its surah repeats word for word (`promptLength` null). The prompt stops where the start
+  verse parts from a look-alike that opens the same way (وَإِذَا بُشِّرَ أَحَدُهُم in 43:17, as 16:58), as teachers'
+  questions do; otherwise 5 words, or as many as tell it apart in its surah. Checking shows the passage; verses
+  with a look-alike ≥ `SHOW_STRENGTH` stand out with up to two look-alikes beneath, both marked by `compareVerses`
+  ("diff" = where they part), and for an identical look-alike, how the other place goes on. The setup screen must
+  never block on data loading — Start disables instead.
+  Validated against two outside sources (tests/practice): a teacher's 95 recitation questions with the look-alikes
+  her notes warn about (`tests/fixtures/practice/sard-questions.json`, verse references only): 72% of her start
+  verses are traps (47% of all verses), 73% of her look-alikes shown; and Aswaatul Qurraa's per-juz look-alike
+  lists (aswaatulqurraa.com/mutashabihat, not committed): 88% of pairs rated ≥ 0.8 are on their list, page ranks
+  correlate 0.6. What neither catches: questions on a unique wording (ضَرَبَ لَكُم مَّثَلٗا vs the usual ضَرَبَ ٱللَّهُ
+  مَثَلٗا) and one-word variants (وَلَهُۥ مَن فِي / وَلَهُۥ مَا فِي).
 - **Browse**: verse-centred. `/browse` lists the 114 surahs and searches (`?q=`); `/browse/surah/:s` lists
   that surah's verses that share a phrase or have a similar verse; `/browse/surah/:s/:a` shows one verse with
   each of its phrases (and the other verses they occur in) and its similar verses; `/browse/phrase/:id` lists a
