@@ -69,7 +69,11 @@ export default function PracticePage() {
   const [slipped, setSlipped] = useState<boolean[]>([]);
   const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
 
-  useEffect(() => window.scrollTo(0, 0), [phase, current]);
+  // A block body, not `() => window.scrollTo(0, 0)`: newer Chrome's scrollTo returns a Promise, which React then
+  // takes for the effect's cleanup and calls on the next question ("n is not a function").
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [phase, current]);
 
   const startWith = (qs: PracticeQuestion[]) => {
     if (qs.length === 0) {
