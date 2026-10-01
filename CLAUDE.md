@@ -134,6 +134,12 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   so importing that hook costs almost nothing. The reader's `components/recitation/FollowControl.tsx` adds
   the Follow button, turns pages, and marks the word just recited by toggling `.voice-current` on the
   `[data-w="s:a:w"]` span directly (QuranPage never re-renders per step). Follow mode never marks mistakes.
+- **Verify mode (M5)**: `VoiceSession.start("verify")` runs the same live follow-along; on stop it flushes,
+  takes the whole recording's log-probs from the ASR worker and sends them to the engine worker, which runs
+  `engine/verify.ts` over `FollowSession.passage()` (the longest run of nearby ayat actually followed). Results
+  (`VerifyResult` in `workers/engineProtocol.ts`) show in `components/recitation/VerifyResults.tsx` (lazy in
+  the reader) and are marked on the mushaf with `.voice-skipped / -wrong / -slip / -slip-from` on `[data-w]`.
+  Verify recordings stop at `VERIFY_MAX_MINUTES` (15). Only log-prob-confirmed findings are ever shown.
 - **Hidden words** (recite from memory): the reader's Hide button (`components/recitation/HideWords.tsx`,
   `hooks/useHiddenWords.ts`, remembered in localStorage "hideWords") masks every word (`.words-hidden` in
   `index.css`: transparent text over a faint baseline, highlights suppressed). Words come back one by one as

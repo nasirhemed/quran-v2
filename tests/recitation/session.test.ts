@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { passageWords, wordIndex } from "@/recitation/engine/data";
 import { FollowSession, type EngineEvent } from "@/recitation/engine/session";
+import { verify } from "@/recitation/engine/verify";
 import { FIXTURES, loadFixture, quran, type Fixture } from "./helpers";
 
 function run(fx: Fixture) {
@@ -106,5 +107,44 @@ describe("follow session", () => {
     expect(repeats).toEqual(["33:49:13(r)", "33:49:14(r)", "33:49:15(r)", "33:49:16(r)", "33:49:17(r)"]);
     expect(heard.slice(heard.indexOf("33:49:17(r)") + 1, heard.indexOf("33:49:17(r)") + 6)).toEqual(["33:49:18", "33:49:19", "33:49:20", "33:49:21", "33:49:22"]);
     expect(heard).toContain("33:50:6");
+  });
+
+});
+
+describe("verify mode (follow live, check after stop)", () => {
+  /** What the engine worker does: follow each step, then verify the passage it followed. */
+  function verifyRun(name: string) {
+    const { fx, lp } = loadFixture(FIXTURES, name);
+    const { words, ref, table } = quran();
+    const s = new FollowSession(ref, words, table.symbols);
+    const steps = Math.ceil(fx.frames / fx.stepFrames);
+    for (let step = 0; step < steps; step++) {
+      const units = fx.units.filter(([, f]) => Math.floor(f / fx.stepFrames) === step).map(([u]) => u);
+      s.push(units, step, ((step + 1) * fx.stepFrames * fx.frameMs) / 1000);
+    }
+    const range = s.passage()!;
+    const heard = fx.units.map(([unit, frame]) => ({ unit, time: frame * 0.04 }));
+    const { findings } = verify(heard, lp, words, table, ref, range.from, range.to);
+    const key = wordIndex(words).key;
+    return { range, findings: findings.map((f) => ({ kind: f.kind, first: key[f.words[0]] })) };
+  }
+
+  it("clean: the passage is found from the recitation, and nothing is flagged", () => {
+    const { range, findings } = verifyRun("husary-2-255-clean");
+    expect(range).toEqual({ from: "2:255", to: "2:255" });
+    expect(findings).toEqual([]);
+  });
+
+  it("skip: the cut words are reported, nothing else", () => {
+    const { range, findings } = verifyRun("husary-2-255-skip");
+    expect(range).toEqual({ from: "2:255", to: "2:255" });
+    expect(findings).toEqual([{ kind: "SKIPPED", first: "2:255:18" }]);
+  });
+
+  it("slip: the brief visit to 3:3 is not taken as the passage, and is reported as a slip", () => {
+    const { range, findings } = verifyRun("husary-2-255-slip");
+    expect(range).toEqual({ from: "2:255", to: "2:255" });
+    expect(findings.map((f) => f.kind)).toEqual(["MUTASHABIH_SLIP"]);
+    expect(findings[0].first.startsWith("3:3:")).toBe(true);
   });
 });

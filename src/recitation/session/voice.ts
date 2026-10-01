@@ -10,9 +10,23 @@ import { selectedPack } from "../asr/modelPack";
 import { ModelStore, OpfsFileStore } from "../asr/modelStore";
 import { BrowserSource, type Loaded } from "../sources/BrowserSource";
 import type { ChunkEvent } from "../sources/RecognizerSource";
-import type { FromEngine, KeyedEvent } from "../workers/engineProtocol";
+import type { FromEngine, KeyedEvent, VerifyResult } from "../workers/engineProtocol";
 
-export type Phase = "checking" | "no-model" | "loading" | "ready" | "listening" | "stopping" | "error";
+/** "checking" (model/index status on start-up) and "verifying" (verify mode's check after stop) differ. */
+export type Phase = "checking" | "no-model" | "loading" | "ready" | "listening" | "stopping" | "verifying" | "error";
+
+export type Mode = "follow" | "verify";
+
+export interface VerifyState {
+  status: "idle" | "recording" | "checking" | "done" | "error";
+  result: VerifyResult | null;
+  /** epoch ms when the verify recording started (for the time limit) */
+  startedAt: number | null;
+  error?: string;
+}
+
+/** Spec §7.6 [DECISION]: verify recordings are capped (the whole recording's log-probs are kept, ≈1.5 MB/min). */
+export const VERIFY_MAX_MINUTES = 15;
 
 export interface TranscriptItem {
   key: string; // "s:a:w"
@@ -35,6 +49,8 @@ export interface RawLine {
 
 export interface VoiceState {
   phase: Phase;
+  mode: Mode;
+  verify: VerifyState;
   message: string | null;
   loaded: Loaded | null;
   engineReady: boolean;
@@ -96,6 +112,8 @@ export class VoiceSession {
 
   state: VoiceState = {
     phase: "checking",
+    mode: "follow",
+    verify: { status: "idle", result: null, startedAt: null },
     message: null,
     loaded: null,
     engineReady: false,
@@ -125,6 +143,8 @@ export class VoiceSession {
   private wakeLock: WakeLockSentinel | null = null;
   private paragraphId = 0;
   private stepCapture = new Map<number, number>();
+  private verified: ((r: VerifyResult) => void) | null = null;
+  private verifyTimer: ReturnType<typeof setTimeout> | null = null;
 
   private constructor() {
     document.addEventListener("visibilitychange", () => {
@@ -218,7 +238,7 @@ export class VoiceSession {
     s.lastChunk = c.chunk;
     s.steps++;
     if (c.captureAtMs < c.emittedAtMs) s.latency.push(arrival - c.captureAtMs);
-    this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), time: (c.chunk + 1) * STEP_S });
+    this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), frames: c.units.map((u) => u.frame), time: (c.chunk + 1) * STEP_S });
     if (c.units.length) {
       const raw = this.s.raw.slice();
       for (const u of c.units) {
@@ -237,7 +257,15 @@ export class VoiceSession {
       this.stats.engineLoadMs = m.ms;
       return this.set({ engineReady: true });
     }
-    if (m.type === "error") return this.set({ message: `Follow mode: ${m.message}` });
+    if (m.type === "error") {
+      if (this.verified) this.set({ verify: { ...this.s.verify, status: "error", error: m.message } });
+      return this.set({ message: `Voice engine: ${m.message}` });
+    }
+    if (m.type === "verified") {
+      this.verified?.(m.result);
+      this.verified = null;
+      return;
+    }
     this.stats.engineMs.push(m.ms);
     if (!m.events.length) return;
     this.engineLog.push({ step: m.step, events: m.events });
@@ -300,36 +328,76 @@ export class VoiceSession {
     this.set({ message: null, speaking: false, quietSince: Date.now(), tracking: false, cursor: null, candidates: [], pendingLetters: 0 });
   }
 
-  /** Start listening. Call from a tap (the AudioContext must be created inside it). */
-  async start() {
+  private beginMode(mode: Mode) {
+    this.set({
+      mode,
+      verify: mode === "verify" ? { status: "recording", result: null, startedAt: Date.now() } : { status: "idle", result: null, startedAt: null },
+    });
+  }
+
+  /**
+   * Start listening. Call from a tap (the AudioContext must be created inside it). In verify mode the same
+   * follow-along runs live; the check happens on stop (spec §7.6).
+   */
+  async start(mode: Mode = "follow") {
     const src = this.source;
     if (!src || this.state.phase !== "ready") return;
     this.resetRun();
+    this.beginMode(mode);
     try {
       const pending = src.start();
       this.set({ phase: "listening" }, true);
       await pending;
       this.wakeLock = (await navigator.wakeLock?.request("screen").catch(() => null)) ?? null;
+      if (mode === "verify") this.verifyTimer = setTimeout(() => void this.stop(), VERIFY_MAX_MINUTES * 60_000);
     } catch {
-      this.set({ phase: "ready" }, true);
+      this.set({ phase: "ready", verify: { status: "idle", result: null, startedAt: null } }, true);
     }
   }
 
   async stop() {
     const src = this.source;
     if (!src || this.state.phase !== "listening") return;
+    if (this.verifyTimer) clearTimeout(this.verifyTimer);
+    this.verifyTimer = null;
     this.set({ phase: "stopping" }, true);
     await src.stop();
     await this.wakeLock?.release().catch(() => undefined);
     this.wakeLock = null;
-    this.set({ phase: "ready", level: 0 }, true);
+    this.set({ level: 0 });
+    if (this.state.mode === "verify") await this.check();
+    this.set({ phase: "ready" }, true);
   }
 
-  /** Runs an audio file through the same pipeline and engine, as fast as the device allows. */
-  async transcribeFile(file: File) {
+  /** Verify mode's check (spec §7.6): the whole recording, against the passage the reciter recited. */
+  private async check() {
+    const src = this.source;
+    if (!src || !this.engine) return;
+    this.set({ phase: "verifying", verify: { ...this.s.verify, status: "checking" } }, true);
+    try {
+      await this.engineIdle(); // every step followed first: the passage comes from where the cursor went
+      const lp = await src.logProbs();
+      const result = await new Promise<VerifyResult>((resolve) => {
+        this.verified = resolve;
+        this.engine!.postMessage({ type: "verify", logprobs: lp.data, vocab: lp.vocab, blank: lp.blank, frameS: 0.04 }, [lp.data.buffer]);
+      });
+      this.set({ verify: { ...this.s.verify, status: "done", result } }, true);
+    } catch (e) {
+      this.set({ verify: { ...this.s.verify, status: "error", error: e instanceof Error ? e.message : String(e) } }, true);
+    }
+  }
+
+  /** Clears verify results (e.g. when the results panel is closed). */
+  dismissResults() {
+    this.set({ mode: "follow", verify: { status: "idle", result: null, startedAt: null } }, true);
+  }
+
+  /** Runs an audio file through the same pipeline and engine, as fast as the device allows (and checks it). */
+  async transcribeFile(file: File, mode: Mode = "follow") {
     const src = this.source;
     if (!src || this.state.phase !== "ready") return;
     this.resetRun();
+    this.beginMode(mode);
     this.set({ phase: "stopping" }, true);
     try {
       // decoded straight to 16 kHz by the browser; the worker's resampler then passes it through unchanged
@@ -342,6 +410,7 @@ export class VoiceSession {
       }
       await src.transcribe(mono, audio.sampleRate);
       await this.engineIdle();
+      if (mode === "verify") await this.check();
     } catch (e) {
       this.set({ message: `Couldn't read that file: ${e instanceof Error ? e.message : e}` });
     }

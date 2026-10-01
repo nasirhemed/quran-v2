@@ -19,7 +19,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header data-sticky-top className="sticky top-0 z-40 h-14 bg-surface-light/95 backdrop-blur border-b border-edge">
-        <div className="max-w-7xl mx-auto h-full px-4 flex items-center gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto h-full px-3 sm:px-4 flex items-center gap-2 sm:gap-4">
           <Link href="/" className="flex items-baseline gap-2 shrink-0">
             <span className="font-arabic text-2xl text-primary leading-none">إتقان</span>
             <span className="hidden sm:inline text-xs font-semibold tracking-[0.08em] text-muted">
@@ -27,7 +27,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          <nav className="flex gap-1 mx-auto">
+          <nav className="flex gap-0.5 sm:gap-1 mx-auto">
             {TABS.map((tab) => {
               const active = tab.match(location);
               return (
@@ -90,7 +90,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <button
             onClick={toggle}
             title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            className="shrink-0 w-8 h-8 rounded-lg border border-edge bg-card2 text-muted hover:text-ink flex items-center justify-center transition-colors"
+            className="shrink-0 max-[399px]:hidden w-8 h-8 rounded-lg border border-edge bg-card2 text-muted hover:text-ink flex items-center justify-center transition-colors"
           >
             {theme === "dark" ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

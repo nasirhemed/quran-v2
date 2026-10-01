@@ -39,6 +39,10 @@ export class FollowSession {
   readonly follower: Follower;
   private lastAyahWord = new Map<number, string>();
   private ayahStarts = new Set<number>();
+  private ayahKeys: string[] = [];
+  private ayahOfWord: Int32Array;
+  /** ayah (index into ayahKeys) → words of it passed the first time; the recited passage for verify mode */
+  private visits = new Map<number, number>();
   /** the furthest the cursor has been: words passed again before it are repeats */
   private highWater = -1;
   private completedAyat = new Set<string>();
@@ -47,9 +51,12 @@ export class FollowSession {
 
   constructor(private ref: Reference, words: RecitationWords, private symbols: string[]) {
     this.follower = new Follower(ref);
+    this.ayahOfWord = new Int32Array(words.ph.length);
     for (const [key, [first, n]] of Object.entries(words.ayat)) {
       this.lastAyahWord.set(first + n - 1, key);
       this.ayahStarts.add(first);
+      this.ayahOfWord.fill(this.ayahKeys.length, first, first + n);
+      this.ayahKeys.push(key);
     }
   }
 
@@ -140,7 +147,33 @@ export class FollowSession {
       const status: HeardStatus = idx <= this.highWater ? "repeat" : "match";
       return { idx, status };
     });
+    for (const { idx, status } of words) {
+      if (status !== "match") continue;
+      const a = this.ayahOfWord[idx];
+      this.visits.set(a, (this.visits.get(a) ?? 0) + 1);
+    }
     for (const i of idxs) this.highWater = Math.max(this.highWater, i);
     return { type: "heard", words, step };
+  }
+
+  /**
+   * The passage the reciter recited, for verify mode: the longest run of nearby ayat (gaps of up to 3) in which
+   * at least 2 words were followed. Brief visits elsewhere (a slip into a similar verse) don't count. Same rule
+   * as the M0b prototype (run_recording.py detect_range).
+   */
+  passage(): { from: string; to: string } | null {
+    const main = [...this.visits].filter(([, n]) => n >= 2).map(([a]) => a).sort((x, y) => x - y);
+    if (!main.length) return null;
+    let best: number[] = [];
+    let cur = [main[0]];
+    for (const a of main.slice(1)) {
+      if (a - cur[cur.length - 1] <= 3) cur.push(a);
+      else {
+        if (cur.length > best.length) best = cur;
+        cur = [a];
+      }
+    }
+    if (cur.length > best.length) best = cur;
+    return { from: this.ayahKeys[best[0]], to: this.ayahKeys[best[best.length - 1]] };
   }
 }
