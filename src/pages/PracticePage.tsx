@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchSurahs } from "@/lib/data";
 import { usePracticeIndex } from "@/hooks/usePracticeIndex";
+import { readAlongSupported, useReadAlong } from "@/hooks/useReadAlong";
+import { peekNext } from "@/lib/readAlong";
 import {
   compareVerses,
   generateQuestions,
@@ -18,11 +20,13 @@ type Phase = "setup" | "play" | "done";
 interface Settings {
   range: PracticeRange;
   count: number;
+  /** listen while the question is open and show each verse once it has been recited */
+  readAlong: boolean;
 }
 
 const COUNT_OPTIONS = [3, 5, 10];
 const STORAGE_KEY = "practice";
-const DEFAULTS: Settings = { range: { type: "juz", from: 1, to: 30 }, count: 5 };
+const DEFAULTS: Settings = { range: { type: "juz", from: 1, to: 30 }, count: 5, readAlong: false };
 /** Where a verse parts from its look-alike. */
 const DIFF_BG = "rgb(var(--gold-rgb) / 0.28)";
 
@@ -33,7 +37,7 @@ function loadSettings(): Settings {
     const max = type === "juz" ? 30 : 114;
     const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= max;
     if ((type === "juz" || type === "surah") && ok(s.range.from) && ok(s.range.to) && COUNT_OPTIONS.includes(s.count)) {
-      return { range: { type, from: s.range.from, to: s.range.to }, count: s.count };
+      return { range: { type, from: s.range.from, to: s.range.to }, count: s.count, readAlong: s.readAlong === true };
     }
   } catch {
     // private mode or a bad value: the defaults
@@ -187,7 +191,15 @@ export default function PracticePage() {
         </button>
       </div>
 
-      <Question key={`${q.key}-${current}`} index={index} question={q} checking={checking} onCheck={() => setChecking(true)} onAnswer={answer} />
+      <Question
+        key={`${q.key}-${current}`}
+        index={index}
+        question={q}
+        readAlong={settings.readAlong && readAlongSupported()}
+        checking={checking}
+        onCheck={() => setChecking(true)}
+        onAnswer={answer}
+      />
     </div>
   );
 }
@@ -319,6 +331,25 @@ function Setup({
           />
         </Field>
 
+        {readAlongSupported() && (
+          <Field label="Read along">
+            <Segmented
+              label="Read along"
+              options={[
+                { value: "off", label: "Off" },
+                { value: "on", label: "Listen and reveal" },
+              ]}
+              value={settings.readAlong ? "on" : "off"}
+              onChange={(v) => onChange({ ...settings, readAlong: v === "on" })}
+            />
+            <p className="text-xs text-muted mt-2">
+              {settings.readAlong
+                ? "The mic listens as you recite. Each verse appears once you finish it; Peek shows the next word. You still judge Clean or Slipped yourself."
+                : "Recite, then press Check."}
+            </p>
+          </Field>
+        )}
+
         <button
           onClick={onStart}
           disabled={!ready}
@@ -338,12 +369,14 @@ function Setup({
 function Question({
   index,
   question: q,
+  readAlong,
   checking,
   onCheck,
   onAnswer,
 }: {
   index: PracticeIndex;
   question: PracticeQuestion;
+  readAlong: boolean;
   checking: boolean;
   onCheck: () => void;
   onAnswer: (slipped: boolean) => void;
@@ -365,7 +398,9 @@ function Question({
         <div className="text-sm text-ink-soft mt-3">Recite on to {to}.</div>
       </div>
 
-      {!checking ? (
+      {readAlong && !checking ? (
+        <ReadAlongPassage index={index} question={q} onCheck={onCheck} onAnswer={onAnswer} />
+      ) : !checking ? (
         <div className="p-5">
           <button
             onClick={onCheck}
@@ -540,6 +575,138 @@ function MarkedWords({ words, marks, trim = false }: { words: string[]; marks: W
         </Fragment>
       ))}
       {to < words.length - 1 && " …"}
+    </>
+  );
+}
+
+// ─── Read along ─────────────────────────────────────────────────
+
+/**
+ * One slot per verse of the passage. The verse being recited shows only the words heard so far (Peek adds the
+ * next one, a hint, not counted as recited); a recited verse fills in whole, a look-alike one with its note.
+ */
+function ReadAlongPassage({
+  index,
+  question: q,
+  onCheck,
+  onAnswer,
+}: {
+  index: PracticeIndex;
+  question: PracticeQuestion;
+  onCheck: () => void;
+  onAnswer: (slipped: boolean) => void;
+}) {
+  const { listening, status, needsModel, progress, toggle } = useReadAlong(index, q);
+  const [peek, setPeek] = useState<{ verse: number; words: number }>({ verse: -1, words: 0 });
+  const done = progress.current === null;
+
+  return (
+    <>
+      <div>
+        {Array.from({ length: q.end - q.start + 1 }, (_, k) => q.start + k).map((i) => {
+          const v = index.verses[i];
+          const heard = progress.heard[i - q.start];
+          const trap = shownLookAlikes(index, i, 1).length > 0;
+          if (progress.current === null || i < progress.current) {
+            return (
+              <div key={i} className="border-b border-edge last:border-b-0">
+                {trap ? (
+                  <div className="px-3 py-1">
+                    <TrapVerse index={index} i={i} />
+                  </div>
+                ) : (
+                  <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink px-5 py-1">
+                    {v.words.join(" ")} <AyahNumber n={v.ayah} />
+                  </p>
+                )}
+              </div>
+            );
+          }
+          if (i === progress.current) {
+            const peeked = peek.verse === i ? peek.words : 0;
+            const shown = Math.max(heard, peeked);
+            return (
+              <div key={i} className="px-5 py-3 bg-primary/10 border-b border-edge">
+                <div className="flex items-center gap-2 text-xs text-muted">
+                  <span>
+                    {v.key} · {heard} of {v.words.length} words heard
+                  </span>
+                  <button
+                    onClick={() => setPeek({ verse: i, words: peekNext(heard, peeked, v.words.length) })}
+                    disabled={shown >= v.words.length}
+                    className="ml-auto rounded-full border border-gold/50 bg-gold/15 px-3 py-0.5 font-semibold text-gold-text disabled:opacity-40"
+                  >
+                    Peek next word
+                  </button>
+                </div>
+                <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink min-h-[2em]">
+                  {v.words.slice(0, heard).join(" ")}
+                  {shown > heard && (
+                    <>
+                      {heard > 0 && " "}
+                      <span className="text-gold-text">{v.words.slice(heard, shown).join(" ")}</span>
+                    </>
+                  )}{" "}
+                  <span className="text-faint">…</span>
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div key={i} className="px-5 py-1.5 border-b border-edge last:border-b-0 text-xs text-muted opacity-60">
+              {v.key}
+              {trap && <span className="ml-2 rounded-full bg-gold/15 px-2 py-px text-[10.5px] font-semibold text-gold-text">look-alike</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {done ? (
+        <div className="sticky bottom-0 p-4 bg-card border-t border-edge rounded-b-xl flex gap-2">
+          <button
+            onClick={() => onAnswer(false)}
+            className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            ✓ Clean
+          </button>
+          <button
+            onClick={() => onAnswer(true)}
+            className="flex-1 border border-red-400/40 text-red-400 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-red-500/10 transition-colors"
+          >
+            ✗ Slipped
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 border-t border-edge space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={toggle}
+              aria-pressed={listening}
+              className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-90 ${
+                listening ? "bg-red-500 text-white" : "bg-primary text-on-primary"
+              }`}
+            >
+              {listening ? "Stop listening" : "Start listening"}
+            </button>
+            <button
+              onClick={onCheck}
+              className="border border-edge-strong text-ink rounded-lg px-4 py-2 text-sm font-medium hover:bg-card2 transition-colors"
+            >
+              Check
+            </button>
+          </div>
+          {status && (
+            <p className="text-xs text-muted" data-testid="read-along-status">
+              {status}{" "}
+              {needsModel && (
+                <Link href="/voice" className="text-primary font-semibold hover:underline">
+                  Voice settings
+                </Link>
+              )}
+            </p>
+          )}
+        </div>
+      )}
     </>
   );
 }
