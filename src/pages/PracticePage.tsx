@@ -22,11 +22,13 @@ interface Settings {
   count: number;
   /** listen while the question is open and show each verse once it has been recited */
   readAlong: boolean;
+  /** with read along: show a recited verse's look-alikes straight away, not only once the passage is done */
+  lookAlikesWhileReading: boolean;
 }
 
 const COUNT_OPTIONS = [3, 5, 10];
 const STORAGE_KEY = "practice";
-const DEFAULTS: Settings = { range: { type: "juz", from: 1, to: 30 }, count: 5, readAlong: false };
+const DEFAULTS: Settings = { range: { type: "juz", from: 1, to: 30 }, count: 5, readAlong: false, lookAlikesWhileReading: false };
 /** Where a verse parts from its look-alike. */
 const DIFF_BG = "rgb(var(--gold-rgb) / 0.28)";
 
@@ -37,7 +39,7 @@ function loadSettings(): Settings {
     const max = type === "juz" ? 30 : 114;
     const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= max;
     if ((type === "juz" || type === "surah") && ok(s.range.from) && ok(s.range.to) && COUNT_OPTIONS.includes(s.count)) {
-      return { range: { type, from: s.range.from, to: s.range.to }, count: s.count, readAlong: s.readAlong === true };
+      return { range: { type, from: s.range.from, to: s.range.to }, count: s.count, readAlong: s.readAlong === true, lookAlikesWhileReading: s.lookAlikesWhileReading === true };
     }
   } catch {
     // private mode or a bad value: the defaults
@@ -196,6 +198,7 @@ export default function PracticePage() {
         index={index}
         question={q}
         readAlong={settings.readAlong && readAlongSupported()}
+        lookAlikesWhileReading={settings.lookAlikesWhileReading}
         checking={checking}
         onCheck={() => setChecking(true)}
         onAnswer={answer}
@@ -347,6 +350,20 @@ function Setup({
                 ? "The mic listens as you recite. Each verse appears once you finish it; Peek shows the next word. You still judge Clean or Slipped yourself."
                 : "Recite, then press Check."}
             </p>
+            {settings.readAlong && (
+              <label className="flex items-start gap-2 mt-3 text-sm text-ink cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.lookAlikesWhileReading}
+                  onChange={(e) => onChange({ ...settings, lookAlikesWhileReading: e.target.checked })}
+                  className="mt-1"
+                />
+                <span>
+                  Show look-alikes while I recite
+                  <span className="block text-xs text-muted">Off: they stay hidden until you finish, then you can expand them all.</span>
+                </span>
+              </label>
+            )}
           </Field>
         )}
 
@@ -370,6 +387,7 @@ function Question({
   index,
   question: q,
   readAlong,
+  lookAlikesWhileReading,
   checking,
   onCheck,
   onAnswer,
@@ -377,6 +395,7 @@ function Question({
   index: PracticeIndex;
   question: PracticeQuestion;
   readAlong: boolean;
+  lookAlikesWhileReading: boolean;
   checking: boolean;
   onCheck: () => void;
   onAnswer: (slipped: boolean) => void;
@@ -399,7 +418,7 @@ function Question({
       </div>
 
       {readAlong && !checking ? (
-        <ReadAlongPassage index={index} question={q} onCheck={onCheck} onAnswer={onAnswer} />
+        <ReadAlongPassage index={index} question={q} lookAlikesWhileReading={lookAlikesWhileReading} onCheck={onCheck} onAnswer={onAnswer} />
       ) : !checking ? (
         <div className="p-5">
           <button
@@ -588,17 +607,22 @@ function MarkedWords({ words, marks, trim = false }: { words: string[]; marks: W
 function ReadAlongPassage({
   index,
   question: q,
+  lookAlikesWhileReading,
   onCheck,
   onAnswer,
 }: {
   index: PracticeIndex;
   question: PracticeQuestion;
+  lookAlikesWhileReading: boolean;
   onCheck: () => void;
   onAnswer: (slipped: boolean) => void;
 }) {
   const { listening, status, needsModel, progress, toggle } = useReadAlong(index, q);
   const [peek, setPeek] = useState<{ verse: number; words: number }>({ verse: -1, words: 0 });
   const done = progress.current === null;
+  const [expanded, setExpanded] = useState(false);
+  const showLookAlikes = lookAlikesWhileReading || (done && expanded);
+  const lookAlikeCount = Array.from({ length: q.end - q.start + 1 }, (_, k) => shownLookAlikes(index, q.start + k, 1).length > 0).filter(Boolean).length;
 
   return (
     <>
@@ -610,13 +634,16 @@ function ReadAlongPassage({
           if (progress.current === null || i < progress.current) {
             return (
               <div key={i} className="border-b border-edge last:border-b-0">
-                {trap ? (
+                {trap && showLookAlikes ? (
                   <div className="px-3 py-1">
                     <TrapVerse index={index} i={i} />
                   </div>
                 ) : (
                   <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink px-5 py-1">
                     {v.words.join(" ")} <AyahNumber n={v.ayah} />
+                    {trap && !showLookAlikes && (
+                      <span className="ml-2 align-middle rounded-full bg-gold/15 px-2 py-px font-sans text-[10.5px] font-semibold text-gold-text">look-alike</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -660,6 +687,18 @@ function ReadAlongPassage({
           );
         })}
       </div>
+
+      {done && lookAlikeCount > 0 && !lookAlikesWhileReading && (
+        <div className="px-5 py-3 border-t border-edge">
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            aria-expanded={expanded}
+            className="text-sm font-semibold text-gold-text hover:underline"
+          >
+            {expanded ? "Hide look-alikes" : `Show look-alikes (${lookAlikeCount} ${lookAlikeCount === 1 ? "verse" : "verses"})`}
+          </button>
+        </div>
+      )}
 
       {done ? (
         <div className="sticky bottom-0 p-4 bg-card border-t border-edge rounded-b-xl flex gap-2">
