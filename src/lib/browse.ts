@@ -63,7 +63,7 @@ export interface BrowseIndex {
 
 // Harakat, Qur'anic annotation marks (small high letters, waqf signs, the
 // dagger alef), tatweel and the extended-Arabic marks some scripts use.
-const MARKS = /[ؐ-ًؚ-ٰٟۖ-ۭـ࣓-ࣿ]/g;
+export const MARKS = /[ؐ-ًؚ-ٰٟۖ-ۭـ࣓-ࣿ]/g;
 
 /**
  * Folds Arabic text so a search typed on a normal keyboard, without harakat,
