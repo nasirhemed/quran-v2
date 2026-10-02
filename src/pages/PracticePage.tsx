@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchSurahs } from "@/lib/data";
@@ -69,10 +69,12 @@ export default function PracticePage() {
   const [slipped, setSlipped] = useState<boolean[]>([]);
   const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
 
-  // A block body, not `() => window.scrollTo(0, 0)`: newer Chrome's scrollTo returns a Promise, which React then
-  // takes for the effect's cleanup and calls on the next question ("n is not a function").
-  useEffect(() => {
-    window.scrollTo(0, 0);
+  // Each question starts at the top. Set the scroll position directly, before the browser paints: newer Chrome's
+  // scrollTo returns a Promise and can scroll later, after the long passage has gone and the page has shrunk.
+  // (And a block body, not `() => window.scrollTo(0, 0)`: React would take that Promise for the effect's cleanup.)
+  useLayoutEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
   }, [phase, current]);
 
   const startWith = (qs: PracticeQuestion[]) => {
