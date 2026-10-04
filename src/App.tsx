@@ -14,6 +14,8 @@ import SettingsPage from "@/pages/SettingsPage";
 // Voice settings load on demand, so the reader stays as small as before.
 const VoicePage = lazy(() => import("@/pages/VoicePage"));
 const TranscribePage = lazy(() => import("@/pages/TranscribePage"));
+// The memorisation loop prototype: not linked from the app.
+const MemorizeLabPage = lazy(() => import("@/pages/MemorizeLabPage"));
 
 export default function App() {
   const [location, setLocation] = useLocation();
@@ -55,6 +57,11 @@ export default function App() {
           </Route>
           <Route path="/settings">
             <SettingsPage />
+          </Route>
+          <Route path="/lab/memorize">
+            <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>
+              <MemorizeLabPage />
+            </Suspense>
           </Route>
           <Route path="/voice">
             <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>

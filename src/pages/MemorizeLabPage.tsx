@@ -1,0 +1,392 @@
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchSurahs } from "@/lib/data";
+import { RECITERS, versesInRange, type Verse } from "@/lab/memorize";
+import { MemorizeLab, type LabConfig, type Mic, type MicMode } from "@/lab/MemorizeLab";
+
+/**
+ * `/lab/memorize`: a prototype of the memorisation loop (the reciter recites a verse, you recite it back, N times,
+ * then the next verse), built to try the microphone setups in a car on Bluetooth before designing the feature.
+ * Not linked from the app. Everything it does is logged; "Copy log" gives a text report to paste into a chat.
+ */
+
+interface Settings extends LabConfig {
+  from: Verse;
+  to: Verse;
+  reciterId: string;
+}
+
+const KEY = "memorizeLab";
+const DEFAULTS: Settings = {
+  from: { s: 112, a: 1 },
+  to: { s: 112, a: 4 },
+  reps: 3,
+  reciterId: RECITERS[0].id,
+  micMode: "always",
+  deviceId: "",
+  voiceProcessing: false,
+  endSilenceMs: 2000,
+  thresholdDb: 10,
+  cue: true,
+  gapMs: 0,
+  audioSessionHints: false,
+};
+
+function loadSettings(): Settings {
+  try {
+    return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Settings>) };
+  } catch {
+    return DEFAULTS;
+  }
+}
+
+const hasAudioSession = typeof navigator !== "undefined" && "audioSession" in navigator;
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">{label}</div>
+      {children}
+      {hint && <p className="text-xs text-muted mt-1.5">{hint}</p>}
+    </div>
+  );
+}
+
+const selectClass = "min-w-0 bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary";
+
+function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="inline-flex flex-wrap rounded-lg border border-edge bg-card2 p-0.5" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`px-3 py-1.5 rounded-md text-sm transition-colors ${value === o.value ? "bg-primary text-on-primary font-semibold" : "text-muted hover:text-ink"}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function VersePicker({ value, onChange, names, ayas }: { value: Verse; onChange: (v: Verse) => void; names: string[]; ayas: number[] }) {
+  return (
+    <div className="flex gap-2">
+      <select className={`${selectClass} flex-1`} value={value.s} onChange={(e) => onChange({ s: Number(e.target.value), a: 1 })} aria-label="Surah">
+        {names.map((n, i) => (
+          <option key={i} value={i + 1}>
+            {i + 1}. {n}
+          </option>
+        ))}
+      </select>
+      <input
+        type="number"
+        min={1}
+        max={ayas[value.s - 1] ?? 1}
+        value={value.a}
+        onChange={(e) => onChange({ ...value, a: Number(e.target.value) })}
+        className={`${selectClass} w-20`}
+        aria-label="Verse"
+      />
+    </div>
+  );
+}
+
+const ACTIVITY: Record<string, string> = {
+  loading: "Loading…",
+  gap: "…",
+  playing: "Listen",
+  "mic-opening": "Opening the mic…",
+  listening: "Your turn",
+};
+
+export default function MemorizeLabPage() {
+  const [lab] = useState(() => new MemorizeLab());
+  const state = useSyncExternalStore(lab.subscribe, lab.getState);
+  const { data: surahs } = useQuery({ queryKey: ["surahs"], queryFn: fetchSurahs });
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [mics, setMics] = useState<Mic[]>([]);
+  const [micError, setMicError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const logRef = useRef<HTMLPreElement | null>(null);
+
+  useEffect(() => {
+    return () => lab.stop();
+  }, [lab]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(settings));
+    } catch {
+      /* private mode */
+    }
+  }, [settings]);
+  useEffect(() => {
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).has("debug")) (window as unknown as Record<string, unknown>).__memorizeLab = lab;
+  }, [lab]);
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [state.logCount]);
+  // the names of microphones already allowed, without asking
+  useEffect(() => {
+    void navigator.mediaDevices
+      ?.enumerateDevices()
+      .then((d) => setMics(d.filter((x) => x.kind === "audioinput" && x.label).map((x) => ({ id: x.deviceId, label: x.label }))))
+      .catch(() => undefined);
+  }, []);
+
+  const names = useMemo(() => surahs?.map((s) => s.tname) ?? [], [surahs]);
+  const ayas = useMemo(() => surahs?.map((s) => s.ayas) ?? [], [surahs]);
+  const verses = useMemo(() => (ayas.length ? versesInRange(ayas, settings.from, settings.to) : []), [ayas, settings.from, settings.to]);
+  const reciter = RECITERS.find((r) => r.id === settings.reciterId) ?? RECITERS[0];
+  const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
+
+  const findMics = async () => {
+    setMicError(null);
+    try {
+      setMics(await MemorizeLab.listMics());
+    } catch (e) {
+      setMicError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const copyLog = async () => {
+    try {
+      await navigator.clipboard.writeText(lab.report());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      downloadLog();
+    }
+  };
+  const downloadLog = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lab.report()], { type: "text/plain" }));
+    a.download = `memorize-lab-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  const active = state.phase === "running" || state.phase === "paused" || state.phase === "starting";
+  const step = state.step;
+  const verse = step ? verses[step.verse] : null;
+  const yourTurn = step?.turn === "you";
+  const levelPct = Math.max(0, Math.min(100, ((state.level + 70) / 70) * 100));
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-ink">Memorize · prototype</h1>
+        <p className="text-sm text-muted mt-1">
+          The reciter recites a verse, then you recite it, {settings.reps} times, then the next verse. For trying the microphone setups (for example in
+          the car); not part of the app yet.
+        </p>
+      </div>
+
+      {!active && (
+        <div className="bg-card border border-edge rounded-xl p-5 space-y-5">
+          <Field label="From">
+            <VersePicker value={settings.from} onChange={(from) => set({ from, to: from.s > settings.to.s ? { s: from.s, a: ayas[from.s - 1] ?? 1 } : settings.to })} names={names} ayas={ayas} />
+          </Field>
+          <Field label="To" hint={verses.length ? `${verses.length} verse${verses.length > 1 ? "s" : ""}` : "Pick a range that ends after it starts"}>
+            <VersePicker value={settings.to} onChange={(to) => set({ to })} names={names} ayas={ayas} />
+          </Field>
+          <Field label="Repetitions">
+            <Segmented label="Repetitions" value={settings.reps} onChange={(reps) => set({ reps })} options={[1, 2, 3, 5, 7, 10].map((n) => ({ value: n, label: String(n) }))} />
+          </Field>
+          <Field label="Reciter">
+            <select className={`${selectClass} w-full`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })}>
+              {RECITERS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field
+            label="Microphone"
+            hint={
+              settings.micMode === "always"
+                ? "Opens once at Start and stays open; what it hears while the reciter plays is ignored."
+                : "Opens when it's your turn and is released while the reciter plays."
+            }
+          >
+            <Segmented<MicMode>
+              label="Microphone"
+              value={settings.micMode}
+              onChange={(micMode) => set({ micMode })}
+              options={[
+                { value: "always", label: "On the whole time" },
+                { value: "turn", label: "Only on my turn" },
+              ]}
+            />
+          </Field>
+          <Field label="Which microphone" hint="On Bluetooth, try the phone's own mic as well as the car's.">
+            <div className="flex gap-2">
+              <select className={`${selectClass} flex-1`} value={settings.deviceId} onChange={(e) => set({ deviceId: e.target.value })}>
+                <option value="">System default</option>
+                {mics.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => void findMics()} className="border border-edge-strong text-ink rounded-lg px-3 py-2 text-sm hover:bg-card2">
+                Find mics
+              </button>
+            </div>
+            {micError && <p className="text-xs text-red-400 mt-1">{micError}</p>}
+          </Field>
+          <Field label="My turn ends after">
+            <Segmented
+              label="Quiet that ends your turn"
+              value={settings.endSilenceMs}
+              onChange={(endSilenceMs) => set({ endSilenceMs })}
+              options={[1000, 1500, 2000, 3000, 4000].map((v) => ({ value: v, label: `${v / 1000} s quiet` }))}
+            />
+          </Field>
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={settings.cue} onChange={(e) => set({ cue: e.target.checked })} />
+            Beep when it's my turn
+          </label>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted">More settings</summary>
+            <div className="space-y-4 mt-4">
+              <label className="flex items-start gap-2 text-ink">
+                <input type="checkbox" className="mt-1" checked={settings.voiceProcessing} onChange={(e) => set({ voiceProcessing: e.target.checked })} />
+                <span>
+                  Voice processing (echo cancellation, noise suppression)
+                  <span className="block text-xs text-muted">The app's speech recognition turns these off. On some phones they also switch Bluetooth into call mode.</span>
+                </span>
+              </label>
+              <Field label="Pause before the reciter starts again" hint="If the start of the verse gets cut off in 'only on my turn' mode, try a longer pause.">
+                <Segmented label="Pause before reciter" value={settings.gapMs} onChange={(gapMs) => set({ gapMs })} options={[0, 500, 1000, 1500, 2500].map((v) => ({ value: v, label: `${v / 1000} s` }))} />
+              </Field>
+              <Field label="Speech threshold above the noise" hint="Higher if road noise ends your turn too late; lower if it ends while you are still reciting.">
+                <Segmented label="Speech threshold" value={settings.thresholdDb} onChange={(thresholdDb) => set({ thresholdDb })} options={[6, 8, 10, 12, 15].map((v) => ({ value: v, label: `${v} dB` }))} />
+              </Field>
+              {hasAudioSession && (
+                <label className="flex items-start gap-2 text-ink">
+                  <input type="checkbox" className="mt-1" checked={settings.audioSessionHints} onChange={(e) => set({ audioSessionHints: e.target.checked })} />
+                  <span>
+                    Tell Safari which turn it is (audio session)
+                    <span className="block text-xs text-muted">"Playback" while the reciter plays, "play and record" for your turn.</span>
+                  </span>
+                </label>
+              )}
+            </div>
+          </details>
+          <button
+            disabled={!verses.length}
+            onClick={() => void lab.start(settings, verses, reciter)}
+            className="w-full bg-primary text-on-primary rounded-lg px-4 py-3 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            Start
+          </button>
+          {state.phase === "error" && <p className="text-sm text-red-400">{state.message}</p>}
+          {state.phase === "done" && <p className="text-sm text-muted">Done. Copy the log below and paste it into the chat.</p>}
+        </div>
+      )}
+
+      {active && (
+        <div className="bg-card border border-edge rounded-xl p-5 space-y-5">
+          <div className="text-center">
+            <div className="text-sm text-muted">
+              {verse ? `${names[verse.s - 1] ?? ""} ${verse.s}:${verse.a}` : ""}
+              {step ? ` · ${step.verse + 1} of ${verses.length}` : ""}
+            </div>
+            <div className={`text-5xl font-bold mt-3 ${yourTurn && state.activity === "listening" ? "text-primary" : "text-ink"}`}>
+              {state.phase === "paused" ? "Paused" : state.phase === "starting" ? "Starting…" : ACTIVITY[state.activity ?? ""] ?? "…"}
+            </div>
+            {step && (
+              <div className="flex justify-center gap-1.5 mt-4" aria-label={`Repetition ${step.rep} of ${settings.reps}`}>
+                {Array.from({ length: settings.reps }, (_, i) => (
+                  <span key={i} className={`h-2.5 w-2.5 rounded-full ${i + 1 < step.rep || (i + 1 === step.rep && yourTurn) ? "bg-primary" : i + 1 === step.rep ? "bg-gold" : "bg-card2 border border-edge"}`} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="h-2 rounded-full bg-card2 overflow-hidden">
+              <div className={`h-full transition-[width] duration-75 ${state.speaking ? "bg-primary" : "bg-muted"}`} style={{ width: `${levelPct}%` }} />
+            </div>
+            <div className="flex justify-between text-xs text-muted mt-1">
+              <span>{state.micLabel ? `Mic: ${state.micLabel}` : "Mic off"}</span>
+              <span>{state.activity === "listening" ? (state.speaking ? "hearing you" : `quiet · floor ${state.floorDb.toFixed(0)} dB`) : ""}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {state.phase === "paused" ? (
+              <button onClick={() => lab.resume()} className="col-span-2 bg-primary text-on-primary rounded-xl py-6 text-2xl font-bold">
+                Resume
+              </button>
+            ) : (
+              <button onClick={() => lab.pause()} disabled={state.phase !== "running"} className="col-span-2 bg-primary text-on-primary rounded-xl py-6 text-2xl font-bold disabled:opacity-50">
+                Pause
+              </button>
+            )}
+            <button
+              onClick={() => lab.done()}
+              disabled={state.activity !== "listening"}
+              className="col-span-2 border-2 border-primary text-primary rounded-xl py-4 text-lg font-semibold disabled:opacity-30"
+            >
+              I'm done
+            </button>
+            <button onClick={() => lab.again()} className="border border-edge-strong text-ink rounded-lg py-3 text-sm font-medium hover:bg-card2">
+              Again
+            </button>
+            <button onClick={() => lab.skip()} className="border border-edge-strong text-ink rounded-lg py-3 text-sm font-medium hover:bg-card2">
+              Next verse
+            </button>
+            <button onClick={() => lab.stop()} className="col-span-2 text-muted text-sm py-2 hover:text-ink">
+              Stop
+            </button>
+          </div>
+          <p className="text-xs text-muted text-center">The car's play/pause, next and previous buttons may work too: try them, they are logged.</p>
+        </div>
+      )}
+
+      {state.logCount > 0 && (
+        <div className="bg-card border border-edge rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">Log</h2>
+            <div className="flex gap-2">
+              <button onClick={() => void copyLog()} className="bg-primary text-on-primary rounded-lg px-3 py-1.5 text-xs font-semibold">
+                {copied ? "Copied" : "Copy log"}
+              </button>
+              <button onClick={downloadLog} className="border border-edge-strong text-ink rounded-lg px-3 py-1.5 text-xs">
+                Download
+              </button>
+            </div>
+          </div>
+          <pre ref={logRef} className="text-[11px] leading-snug text-ink-soft bg-card2 rounded-lg p-3 max-h-72 overflow-auto whitespace-pre-wrap">
+            {lab.log.slice(-200).map((l) => `${l.t.toFixed(2).padStart(7)}  ${l.text}`).join("\n")}
+          </pre>
+        </div>
+      )}
+
+      {state.recordings.length > 0 && (
+        <div className="bg-card border border-edge rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-ink">What the mic heard on your turns</h2>
+          <p className="text-xs text-muted">Listen for how clear it is: the car's mic over Bluetooth often sounds like a phone call.</p>
+          <ul className="space-y-2">
+            {[...state.recordings].reverse().map((r) => (
+              <li key={r.id} className="flex items-center gap-2">
+                <span className="text-xs text-muted w-28 shrink-0">{r.label}</span>
+                <audio controls src={r.url} className="h-8 flex-1 min-w-0" />
+                <a href={r.url} download={`turn-${r.label.replace(/[^\w]+/g, "-")}.${r.mime.includes("mp4") ? "m4a" : "webm"}`} className="text-xs text-muted underline">
+                  Save
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
