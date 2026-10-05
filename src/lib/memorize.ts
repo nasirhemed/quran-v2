@@ -1,9 +1,7 @@
 /**
- * The memorisation loop prototype (`/lab/memorize`), plain TS: the verse plan, the turn order, and the gate that
- * decides when the reciter (you) has finished a verse from the microphone level alone (no speech model).
- *
- * A prototype for testing how the turn-taking feels, and which microphone setup works in a car over Bluetooth.
- * It is not wired into the rest of the app.
+ * Memorize (`/memorize`), plain TS: the verse plan and turn order (listen ×X, then you and the reciter in turn,
+ * N times per verse), the rules for your turn with the speech model (ModelTurn: when it ends, when to hint), and
+ * the gate that hears whether you are speaking (TurnGate; without the model, it alone decides when your turn ends).
  */
 
 export interface Verse {
@@ -34,41 +32,61 @@ export interface Reciter {
 }
 
 export const RECITERS: Reciter[] = [
+  { id: "ali-jaber", name: "Ali Jaber", folder: "Ali_Jaber_64kbps" },
   { id: "husary", name: "Mahmoud Khalil al-Husary", folder: "Husary_128kbps" },
   { id: "husary-muallim", name: "al-Husary (teaching, slower)", folder: "Husary_Muallim_128kbps" },
   { id: "minshawi", name: "Muhammad Siddiq al-Minshawi", folder: "Minshawy_Murattal_128kbps" },
   { id: "abdulbasit", name: "Abdul Basit (murattal)", folder: "Abdul_Basit_Murattal_192kbps" },
   { id: "alafasy", name: "Mishary al-Afasy", folder: "Alafasy_128kbps" },
-  { id: "ali-jaber", name: "Ali Jaber", folder: "Ali_Jaber_64kbps" },
 ];
+
+export const DEFAULT_RECITER = RECITERS[0];
 
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
 /** everyayah.com sends CORS `*`, so the page's COEP allows it with crossorigin="anonymous" / fetch. */
 export const verseAudioUrl = (r: Reciter, v: Verse) => `https://everyayah.com/data/${r.folder}/${pad3(v.s)}${pad3(v.a)}.mp3`;
 
-export type Turn = "reciter" | "you";
+/** "listen": the reciter alone, before your first turn; "reciter": the reciter before one of your turns. */
+export type Turn = "listen" | "reciter" | "you";
 
 export interface Step {
   /** index into the plan's verses */
   verse: number;
-  /** 1-based repetition */
+  /** 1-based: the listen number (turn "listen"), or the repetition (turn "reciter" / "you") */
   rep: number;
   turn: Turn;
 }
 
-/** The step after `step`: reciter → you → (next repetition, or the next verse) … null when the plan is done. */
-export function nextStep(step: Step, verses: number, reps: number): Step | null {
-  if (step.turn === "reciter") return { ...step, turn: "you" };
-  if (step.rep < reps) return { verse: step.verse, rep: step.rep + 1, turn: "reciter" };
-  if (step.verse + 1 < verses) return { verse: step.verse + 1, rep: 1, turn: "reciter" };
-  return null;
+export interface Plan {
+  verses: number;
+  /** times you recite each verse */
+  reps: number;
+  /** times you listen to it first */
+  listen: number;
 }
 
-/** The first step of the next verse (skipping what is left of this one); null after the last verse. */
-export function skipVerse(step: Step, verses: number): Step | null {
-  return step.verse + 1 < verses ? { verse: step.verse + 1, rep: 1, turn: "reciter" } : null;
+/** A verse starts with its listens; with none, with the reciter before your first turn. */
+export const verseStart = (verse: number, plan: Plan): Step => ({ verse, rep: 1, turn: plan.listen > 0 ? "listen" : "reciter" });
+
+/**
+ * The step after `step`, null when the plan is done. Each verse: listen ×X, then your turn (you have just heard
+ * it), then reciter → you for the remaining repetitions. With no listens: reciter → you, N times.
+ */
+export function nextStep(step: Step, plan: Plan): Step | null {
+  if (step.turn === "listen") return step.rep < plan.listen ? { ...step, rep: step.rep + 1 } : { verse: step.verse, rep: 1, turn: "you" };
+  if (step.turn === "reciter") return { ...step, turn: "you" };
+  if (step.rep < plan.reps) return { verse: step.verse, rep: step.rep + 1, turn: "reciter" };
+  return skipVerse(step, plan);
 }
+
+/** The start of the next verse (skipping what is left of this one); null after the last verse. */
+export function skipVerse(step: Step, plan: Plan): Step | null {
+  return step.verse + 1 < plan.verses ? verseStart(step.verse + 1, plan) : null;
+}
+
+/** "Again": hear this verse once more, then your turn (the same repetition). */
+export const again = (step: Step): Step => (step.turn === "listen" ? { ...step } : { verse: step.verse, rep: step.rep, turn: "reciter" });
 
 export interface GateOptions {
   /** frames before this (after the mic is live) are ignored: the cue beep and the room's echo of the reciter */
@@ -227,5 +245,106 @@ export function gateOptions(reciterMs: number, endSilenceMs: number, thresholdDb
     maxMs: Math.max(15000, r * 3 + 5000),
     // never above the prior: one turn's bad estimate (reciting without a pause) must not hide your voice next turn
     seedFloorDb: Math.min(Number.isFinite(seedFloorDb) ? seedFloorDb : ROOM_PRIOR_DB, ROOM_PRIOR_DB),
+  };
+}
+
+export interface ModelTurnOptions {
+  /** words in the verse */
+  words: number;
+  /** without progress (a new word heard, or a hint) for this long, the next words are shown; 0 = no hints */
+  hintAfterMs: number;
+  /** ...and before you have started (the car may still be playing the reciter's end) */
+  startHintAfterMs: number;
+  /** once you have started, this much quiet moves on (you stopped); Infinity = never */
+  giveUpMs: number;
+  /** not started after this long: moves on (the reciter plays it again) */
+  notStartedMs: number;
+  maxMs: number;
+}
+
+export type ModelTurnEnd = "complete" | "stopped" | "not-started" | "timeout";
+
+/** After the last word: this much quiet ends the turn (so a final madd isn't cut), or this long if you carry on. */
+const COMPLETE_QUIET_MS = 500;
+const COMPLETE_MAX_MS = 2500;
+/** A hint waits for you to be quiet this long (never mid-word)... */
+const HINT_QUIET_MS = 1200;
+/** ...and shows this many more words. */
+const HINT_WORDS = 2;
+
+/**
+ * Your turn with the speech model, by turn time (ms): the model says which of the verse's words you have reached
+ * (heard) and when you have recited it to the end (complete); tick() says whether the mic hears a voice.
+ *
+ * Quiet only counts once you have started the verse: before that, the reciter's end may still be playing in a car
+ * (Bluetooth adds seconds of delay), and you may need a moment. Once started, a pause to remember is fine: after
+ * hintAfterMs without progress the next words are shown, and only a long quiet (giveUpMs) moves on.
+ */
+export class ModelTurn {
+  /** the furthest word heard, 1-based (0: not started) */
+  heardTo = 0;
+  /** the furthest word shown as a hint */
+  hintTo = 0;
+  hints = 0;
+  end: ModelTurnEnd | null = null;
+  private lastProgressAt = 0;
+  private lastVoiceAt: number | null = null;
+  private completeAt: number | null = null;
+
+  constructor(readonly o: ModelTurnOptions) {}
+
+  get started() {
+    return this.heardTo > 0;
+  }
+
+  /** The model heard word `position` (1-based) of the verse. */
+  heard(position: number, t: number) {
+    if (position <= this.heardTo) return;
+    this.heardTo = Math.min(position, this.o.words);
+    this.lastProgressAt = t;
+  }
+
+  /** The model heard the verse to its last word. */
+  complete(t: number) {
+    this.completeAt ??= t;
+    this.heardTo = this.o.words;
+  }
+
+  /** At turn time t, with or without a voice at the mic. Returns the new hint (show words up to this one), or null. */
+  tick(t: number, voice: boolean): number | null {
+    if (this.end) return null;
+    if (voice) this.lastVoiceAt = t;
+    const quiet = t - (this.lastVoiceAt ?? 0);
+    const o = this.o;
+    if (this.completeAt !== null) {
+      if (quiet >= COMPLETE_QUIET_MS || t - this.completeAt >= COMPLETE_MAX_MS) this.end = "complete";
+      return null;
+    }
+    if (t >= o.maxMs) this.end = "timeout";
+    else if (!this.started && t >= o.notStartedMs) this.end = "not-started";
+    else if (this.started && quiet >= o.giveUpMs) this.end = "stopped";
+    if (this.end) return null;
+    const shown = Math.max(this.heardTo, this.hintTo);
+    const wait = this.started ? o.hintAfterMs : o.startHintAfterMs;
+    if (o.hintAfterMs > 0 && shown < o.words && t - this.lastProgressAt >= wait && quiet >= HINT_QUIET_MS) {
+      this.hintTo = Math.min(o.words, shown + HINT_WORDS);
+      this.hints++;
+      this.lastProgressAt = t;
+      return this.hintTo;
+    }
+    return null;
+  }
+}
+
+/** ModelTurn settings for a verse of `words` words the reciter took `reciterMs` to recite. */
+export function modelTurnOptions(words: number, reciterMs: number, hintAfterMs: number, giveUpMs: number): ModelTurnOptions {
+  const r = Number.isFinite(reciterMs) && reciterMs > 0 ? reciterMs : 10000;
+  return {
+    words,
+    hintAfterMs,
+    startHintAfterMs: hintAfterMs > 0 ? Math.max(6000, hintAfterMs) : 0,
+    giveUpMs,
+    notStartedMs: 30000,
+    maxMs: Math.max(120000, r * 4),
   };
 }

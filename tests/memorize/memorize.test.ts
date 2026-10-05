@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { gateOptions, nextStep, RECITERS, skipVerse, TurnGate, verseAudioUrl, versesInRange, type GateOptions, type Step } from "@/lab/memorize";
+import {
+  again,
+  DEFAULT_RECITER,
+  gateOptions,
+  ModelTurn,
+  modelTurnOptions,
+  nextStep,
+  RECITERS,
+  skipVerse,
+  TurnGate,
+  verseAudioUrl,
+  versesInRange,
+  verseStart,
+  type GateOptions,
+  type ModelTurnOptions,
+  type Plan,
+  type Step,
+} from "@/lib/memorize";
 
 const AYAS = [7, 286, 200]; // the first three surahs are enough here
 
@@ -25,24 +42,115 @@ describe("versesInRange", () => {
 });
 
 describe("turn order", () => {
-  it("goes reciter → you, N times, then the next verse, then ends", () => {
+  const walk = (plan: Plan) => {
     const seen: string[] = [];
-    let s: Step | null = { verse: 0, rep: 1, turn: "reciter" };
-    while (s) {
-      seen.push(`${s.verse}.${s.rep}.${s.turn[0]}`);
-      s = nextStep(s, 2, 2);
-    }
-    expect(seen).toEqual(["0.1.r", "0.1.y", "0.2.r", "0.2.y", "1.1.r", "1.1.y", "1.2.r", "1.2.y"]);
+    for (let s: Step | null = verseStart(0, plan); s; s = nextStep(s, plan)) seen.push(`${s.verse}.${s.rep}.${s.turn[0]}`);
+    return seen;
+  };
+  it("no listens: reciter → you, N times, then the next verse, then ends", () => {
+    expect(walk({ verses: 2, reps: 2, listen: 0 })).toEqual(["0.1.r", "0.1.y", "0.2.r", "0.2.y", "1.1.r", "1.1.y", "1.2.r", "1.2.y"]);
   });
-  it("skips to the next verse's first repetition", () => {
-    expect(skipVerse({ verse: 0, rep: 2, turn: "you" }, 3)).toEqual({ verse: 1, rep: 1, turn: "reciter" });
-    expect(skipVerse({ verse: 2, rep: 1, turn: "reciter" }, 3)).toBeNull();
+  it("listen ×X first, then straight to your turn (you have just heard it), then reciter → you", () => {
+    expect(walk({ verses: 2, reps: 2, listen: 3 })).toEqual(["0.1.l", "0.2.l", "0.3.l", "0.1.y", "0.2.r", "0.2.y", "1.1.l", "1.2.l", "1.3.l", "1.1.y", "1.2.r", "1.2.y"]);
+  });
+  it("skips to the next verse's start; again hears the verse once more", () => {
+    expect(skipVerse({ verse: 0, rep: 2, turn: "you" }, { verses: 3, reps: 3, listen: 0 })).toEqual({ verse: 1, rep: 1, turn: "reciter" });
+    expect(skipVerse({ verse: 0, rep: 2, turn: "you" }, { verses: 3, reps: 3, listen: 2 })).toEqual({ verse: 1, rep: 1, turn: "listen" });
+    expect(skipVerse({ verse: 2, rep: 1, turn: "reciter" }, { verses: 3, reps: 3, listen: 0 })).toBeNull();
+    expect(again({ verse: 1, rep: 2, turn: "you" })).toEqual({ verse: 1, rep: 2, turn: "reciter" });
+  });
+  it("Ali Jaber is the default reciter", () => {
+    expect(DEFAULT_RECITER.folder).toBe("Ali_Jaber_64kbps");
+  });
+});
+
+describe("ModelTurn (your turn with the speech model)", () => {
+  const O: ModelTurnOptions = { words: 10, hintAfterMs: 3000, startHintAfterMs: 6000, giveUpMs: 20000, notStartedMs: 30000, maxMs: 120000 };
+  /** Ticks every 50 ms from `from` to `to` with or without a voice; returns the hints given. */
+  const run = (m: ModelTurn, from: number, to: number, voice: boolean) => {
+    const hints: number[] = [];
+    for (let t = from; t <= to && !m.end; t += 50) {
+      const h = m.tick(t, voice);
+      if (h !== null) hints.push(h);
+    }
+    return hints;
+  };
+
+  it("quiet doesn't count before you start (the car still playing the reciter): only the not-started limit", () => {
+    const m = new ModelTurn({ ...O, hintAfterMs: 0, startHintAfterMs: 0 });
+    run(m, 0, 25000, false);
+    expect(m.end).toBeNull();
+    run(m, 25000, 31000, false);
+    expect(m.end).toBe("not-started");
+  });
+
+  it("once started, a pause to think gets hints, two words at a time, and doesn't end the turn", () => {
+    const m = new ModelTurn(O);
+    run(m, 0, 2000, true);
+    m.heard(1, 1000);
+    m.heard(3, 2000);
+    const hints = run(m, 2050, 9000, false);
+    expect(hints).toEqual([5, 7]); // after 3 s of no progress, then 3 s after that hint
+    expect(m.end).toBeNull();
+    m.heard(6, 9100); // you carry on
+    run(m, 9100, 10000, true);
+    expect(run(m, 10050, 12000, false)).toEqual([]); // the timer restarted with your progress
+  });
+
+  it("a hint waits for quiet: never while you are speaking", () => {
+    const m = new ModelTurn(O);
+    m.heard(2, 0);
+    expect(run(m, 0, 8000, true)).toEqual([]);
+  });
+
+  it("before you start, a hint comes later (6 s): the first words", () => {
+    const m = new ModelTurn(O);
+    expect(run(m, 0, 5900, false)).toEqual([]);
+    expect(run(m, 5950, 6100, false)).toEqual([2]);
+  });
+
+  it("the verse complete ends the turn after half a second of quiet (a final madd isn't cut)", () => {
+    const m = new ModelTurn(O);
+    m.heard(4, 0);
+    run(m, 0, 3000, true);
+    m.complete(3000);
+    run(m, 3000, 3400, true);
+    expect(m.end).toBeNull();
+    run(m, 3450, 4500, false);
+    expect(m.end).toBe("complete");
+  });
+
+  it("gives up after a long quiet once started, or never", () => {
+    const m = new ModelTurn(O);
+    m.heard(2, 0);
+    run(m, 0, 19000, false);
+    expect(m.end).toBeNull();
+    run(m, 19050, 21000, false);
+    expect(m.end).toBe("stopped");
+    const never = new ModelTurn({ ...O, giveUpMs: Infinity });
+    never.heard(2, 0);
+    run(never, 0, 100000, false);
+    expect(never.end).toBeNull();
+    run(never, 100000, 121000, false);
+    expect(never.end).toBe("timeout");
+  });
+
+  it("no more hints than words", () => {
+    const m = new ModelTurn({ ...O, words: 3, giveUpMs: Infinity });
+    m.heard(1, 0);
+    expect(run(m, 0, 20000, false)).toEqual([3]);
+  });
+
+  it("options scale with the verse", () => {
+    expect(modelTurnOptions(10, 50000, 3000, 20000).maxMs).toBe(200000);
+    expect(modelTurnOptions(10, 5000, 0, 20000).startHintAfterMs).toBe(0);
+    expect(modelTurnOptions(10, 5000, 3000, 20000).startHintAfterMs).toBe(6000);
   });
 });
 
 describe("verseAudioUrl", () => {
   it("uses everyayah's SSSAAA names", () => {
-    expect(verseAudioUrl(RECITERS[0], { s: 2, a: 255 })).toBe("https://everyayah.com/data/Husary_128kbps/002255.mp3");
+    expect(verseAudioUrl(RECITERS.find((r) => r.id === "husary")!, { s: 2, a: 255 })).toBe("https://everyayah.com/data/Husary_128kbps/002255.mp3");
   });
 });
 

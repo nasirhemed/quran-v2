@@ -1,9 +1,9 @@
 /**
- * The speech model for the memorisation prototype: knows when you have finished the verse instead of guessing
- * from silence. The same pieces as the app's voice session (BrowserSource → ASR worker, engine worker), but run
- * only during your turn, on the mic the prototype already opened, and told which verse you are about to recite
- * (the engine follows it from its first word: no voice search, so a verse that opens like another is no
- * problem). Nothing the reciter says is ever heard: listening starts with your turn and stops with it.
+ * The speech model for Memorize: knows which words of the verse you have recited and when you reach its end,
+ * instead of guessing from silence. The same pieces as the app's voice session (BrowserSource → ASR worker,
+ * engine worker), but run only during your turn, on the mic the session already opened, and told which verse you
+ * are about to recite (the engine follows it from its first word: no voice search, so a verse that opens like
+ * another is no problem). The reciter is never listened to: listening starts with your turn and stops with it.
  */
 import { selectedPack } from "@/recitation/asr/modelPack";
 import { ModelStore, OpfsFileStore } from "@/recitation/asr/modelStore";
@@ -43,7 +43,7 @@ function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
-export class LabRecognizer {
+export class Recognizer {
   private source: BrowserSource | null = null;
   private engine: Worker | null = null;
   private active = false;
@@ -79,7 +79,7 @@ export class LabRecognizer {
     src.on("state", (e) => {
       if (e.state === "behind") this.handlers.note("speech model: can't keep up on this device");
     });
-    const engine = new Worker(new URL("../recitation/workers/engine.worker.ts", import.meta.url), { type: "module", name: "itqan-lab-engine" });
+    const engine = new Worker(new URL("../recitation/workers/engine.worker.ts", import.meta.url), { type: "module", name: "itqan-memorize-engine" });
     this.engine = engine;
     const ready = new Promise<void>((resolve, reject) => {
       engine.onmessage = (e: MessageEvent<FromEngine>) => {

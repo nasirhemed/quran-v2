@@ -34,6 +34,7 @@ export default {
         gold: {
           DEFAULT: "var(--gold)",
           text: "var(--gold-text)",
+          soft: "rgb(var(--gold-rgb) / 0.16)",
         },
 
         // quran-reader compatibility aliases

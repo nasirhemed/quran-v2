@@ -1,5 +1,5 @@
 /**
- * Microphone level for the memorisation prototype: the level of every 10 ms of input (dBFS; -120 for digital
+ * Microphone level for Memorize: the level of every 10 ms of input (dBFS; -120 for digital
  * silence), posted to the page in batches of five. Forgets everything when the input is disconnected (or on a
  * "reset" message), so a new turn's first frames never carry the last turn's audio.
  */
@@ -47,4 +47,4 @@ class LevelProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("itqan-lab-level", LevelProcessor);
+registerProcessor("itqan-memorize-level", LevelProcessor);
