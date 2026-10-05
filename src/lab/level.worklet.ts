@@ -1,6 +1,7 @@
 /**
  * Microphone level for the memorisation prototype: the level of every 10 ms of input (dBFS; -120 for digital
- * silence), posted to the page in batches of five.
+ * silence), posted to the page in batches of five. Forgets everything when the input is disconnected (or on a
+ * "reset" message), so a new turn's first frames never carry the last turn's audio.
  */
 declare const sampleRate: number;
 declare function registerProcessor(name: string, ctor: unknown): void;
@@ -14,9 +15,23 @@ class LevelProcessor extends AudioWorkletProcessor {
   private n = 0;
   private batch: number[] = [];
 
+  constructor() {
+    super();
+    this.port.onmessage = () => this.reset();
+  }
+
+  private reset() {
+    this.sum = 0;
+    this.n = 0;
+    this.batch = [];
+  }
+
   process(inputs: Float32Array[][]): boolean {
     const ch = inputs[0]?.[0];
-    if (!ch) return true;
+    if (!ch || !ch.length) {
+      this.reset();
+      return true;
+    }
     for (let i = 0; i < ch.length; i++) {
       this.sum += ch[i] * ch[i];
       if (++this.n < this.frame) continue;

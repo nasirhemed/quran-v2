@@ -78,50 +78,75 @@ export interface GateOptions {
   minSpeechDb: number;
   /** this much quiet after you have recited ends your turn */
   endSilenceMs: number;
-  /** you must have spoken at least this long before quiet can end the turn */
+  /** you must have spoken at least this long before quiet can end the turn as "silence" */
   minSpeechMs: number;
-  /** no speech at all for this long ends the turn ("no speech") */
+  /** until you have spoken this long, the quiet needed is longer (long verses: a pause to remember a word) */
+  expectSpeechMs: number;
+  /** with less speech than minSpeechMs, quiet ends the turn as "no-speech" once the turn is this old */
   noSpeechMs: number;
   /** the turn never lasts longer than this */
   maxMs: number;
+  /** the room's level in the previous turn (dBFS), if known: the floor starts no higher than 6 dB above it, so a
+   * turn you start speaking straight into still learns the room */
+  seedFloorDb?: number;
 }
 
 export type GateEnd = "silence" | "no-speech" | "timeout";
 
 export interface GateStatus {
   speaking: boolean;
+  /** the last block was above the threshold (speech, or a bump, or the start of speech not yet confirmed) */
+  loud: boolean;
   /** total time judged as speech (ms) */
   speechMs: number;
   floorDb: number;
   /** set once the turn is over */
   end: GateEnd | null;
-  /** turn time of the first speech frame (ms), null before */
+  /** turn time of the first speech (ms), null before */
   firstSpeechAt: number | null;
 }
 
-/** 10 ms level frames averaged into 50 ms blocks; the floor is the quietest block of the last 5 s... */
+/** 10 ms level frames are averaged into 50 ms blocks. */
 const BLOCK_MS = 50;
+/** The floor is a low percentile of the last 5 s of blocks... */
 const FLOOR_WINDOW_MS = 5000;
-/** ...rising no faster than this, so a long stretch of recitation without a pause is not taken for noise */
+const FLOOR_PERCENTILE = 0.1;
+/** ...rising no faster than this, so a long stretch of recitation without a pause is not taken for noise. */
 const FLOOR_RISE_DB_PER_S = 2;
-/** the level worklet reports exact zeros as -120 dB */
-const DIGITAL_SILENCE_DB = -110;
+/** Speech needs this many blocks in a row above the threshold: syllables last longer, road bumps don't. */
+const SPEECH_RUN = 3;
+/** Long verses: the quiet that ends a turn is this much longer until you have recited for a while. */
+const LONG_QUIET_FACTOR = 1.75;
+/**
+ * Quieter than any real room on a phone or car mic: exact zeros (reported as -120) or near-silence from a mic
+ * still starting up (Bluetooth sends this for a moment). Says nothing about the noise floor, so it is skipped.
+ */
+export const NOT_A_ROOM_DB = -85;
+
+const percentile = (xs: number[], p: number) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s[Math.min(s.length - 1, Math.floor(p * s.length))];
+};
 
 /**
  * Decides when your turn is over from microphone levels, one 10 ms frame (dBFS) at a time. Turn time is counted
  * from frames, not a clock, so it stays right if timers are throttled.
  *
- * The noise floor is the quietest 50 ms block of the last 5 s: it drops at once in any pause (so a car's road
- * noise is learned within the first gap), and rises slowly (2 dB/s) only when a whole 5 s window is louder, so
- * reciting on without a breath for a while still counts as speech.
+ * The noise floor is the 10th percentile of the last 5 s of 50 ms blocks: it drops within half a second of
+ * quiet (so a car's road noise is learned in the first pause), a few odd blocks can't set it, and it rises at
+ * most 2 dB/s, so reciting on without a breath for a while still counts as speech. A block is speech when it is
+ * the third in a row above floor + threshold (then the whole run counts).
  */
 export class TurnGate {
   private t = 0;
   private blockSum = 0;
   private blockN = 0;
   private blocks: { t: number; db: number }[] = [];
+  /** every block of the turn (bounded), for roomDb() */
+  private history: number[] = [];
+  private run = 0;
   private lastSpeechAt = -1;
-  readonly status: GateStatus = { speaking: false, speechMs: 0, floorDb: -90, end: null, firstSpeechAt: null };
+  readonly status: GateStatus = { speaking: false, loud: false, speechMs: 0, floorDb: -90, end: null, firstSpeechAt: null };
 
   constructor(readonly opts: GateOptions, readonly frameMs = 10) {}
 
@@ -129,22 +154,28 @@ export class TurnGate {
     return this.t;
   }
 
+  /** The room as heard in this turn: the median of the blocks near the final floor (NaN if none). */
+  roomDb(): number {
+    const near = this.history.filter((db) => db <= this.status.floorDb + 3);
+    return near.length ? percentile(near, 0.5) : NaN;
+  }
+
   /** Feeds one frame's level (dBFS); returns the status (end set once the turn is over). */
   push(db: number): GateStatus {
     const st = this.status;
     if (st.end) return st;
     this.t += this.frameMs;
-    // Digital silence (exact zeros) is a mic still starting up (Bluetooth often sends it for a moment), not a
-    // quiet room: it says nothing about the noise floor.
-    if (this.t > this.opts.guardMs && db > DIGITAL_SILENCE_DB) {
+    if (this.t > this.opts.guardMs && db > NOT_A_ROOM_DB) {
       this.blockSum += 10 ** (db / 10);
       this.blockN++;
       if (this.blockN * this.frameMs >= BLOCK_MS) this.block(10 * Math.log10(this.blockSum / this.blockN));
     }
     const o = this.opts;
+    const need = st.speechMs < o.expectSpeechMs ? o.endSilenceMs * LONG_QUIET_FACTOR : o.endSilenceMs;
+    const quiet = !st.speaking && this.t - this.lastSpeechAt >= need;
     if (this.t >= o.maxMs) st.end = "timeout";
-    else if (st.firstSpeechAt === null && this.t >= o.noSpeechMs) st.end = "no-speech";
-    else if (st.speechMs >= o.minSpeechMs && !st.speaking && this.t - this.lastSpeechAt >= o.endSilenceMs) st.end = "silence";
+    else if (quiet && st.speechMs >= o.minSpeechMs) st.end = "silence";
+    else if (quiet && this.t >= o.noSpeechMs) st.end = "no-speech";
     return st;
   }
 
@@ -153,29 +184,37 @@ export class TurnGate {
     this.blockSum = 0;
     this.blockN = 0;
     this.blocks.push({ t: this.t, db });
+    if (this.history.length < 6000) this.history.push(db);
     while (this.blocks.length && this.blocks[0].t <= this.t - FLOOR_WINDOW_MS) this.blocks.shift();
-    const quietest = Math.min(...this.blocks.map((b) => b.db));
-    const rise = this.blocks.length > 1 ? st.floorDb + (FLOOR_RISE_DB_PER_S * BLOCK_MS) / 1000 : Infinity;
-    st.floorDb = Math.max(-90, Math.min(quietest, rise));
-    st.speaking = db > Math.max(st.floorDb + this.opts.thresholdDb, this.opts.minSpeechDb);
+    const low = percentile(this.blocks.map((b) => b.db), FLOOR_PERCENTILE);
+    const seed = this.opts.seedFloorDb;
+    const rise = this.blocks.length > 1 ? st.floorDb + (FLOOR_RISE_DB_PER_S * BLOCK_MS) / 1000 : seed !== undefined && Number.isFinite(seed) ? seed + 6 : Infinity;
+    st.floorDb = Math.max(-90, Math.min(low, rise));
+    const loud = db > Math.max(st.floorDb + this.opts.thresholdDb, this.opts.minSpeechDb);
+    st.loud = loud;
+    this.run = loud ? this.run + 1 : 0;
+    st.speaking = this.run >= SPEECH_RUN;
     if (st.speaking) {
-      st.speechMs += BLOCK_MS;
-      st.firstSpeechAt ??= this.t - BLOCK_MS;
+      const credit = this.run === SPEECH_RUN ? SPEECH_RUN : 1;
+      st.speechMs += credit * BLOCK_MS;
+      st.firstSpeechAt ??= this.t - SPEECH_RUN * BLOCK_MS;
       this.lastSpeechAt = this.t;
     }
   }
 }
 
 /** Gate settings for a verse the reciter took `reciterMs` to recite. */
-export function gateOptions(reciterMs: number, endSilenceMs: number, thresholdDb: number): GateOptions {
+export function gateOptions(reciterMs: number, endSilenceMs: number, thresholdDb: number, guardMs = 400, seedFloorDb = NaN): GateOptions {
   const r = Number.isFinite(reciterMs) && reciterMs > 0 ? reciterMs : 8000;
   return {
-    guardMs: 400,
+    guardMs,
     thresholdDb,
     minSpeechDb: -60,
     endSilenceMs,
     minSpeechMs: Math.min(1000, r * 0.2),
-    noSpeechMs: Math.max(8000, r * 1.5 + 4000),
+    expectSpeechMs: r > 12000 ? r * 0.4 : 0,
+    noSpeechMs: 10000,
     maxMs: Math.max(15000, r * 3 + 5000),
+    seedFloorDb,
   };
 }

@@ -52,7 +52,7 @@ function feed(g: TurnGate, db: number, ms: number) {
   return g.status;
 }
 
-const OPTS: GateOptions = { guardMs: 400, thresholdDb: 10, minSpeechDb: -60, endSilenceMs: 2000, minSpeechMs: 500, noSpeechMs: 8000, maxMs: 30000 };
+const OPTS: GateOptions = { guardMs: 400, thresholdDb: 10, minSpeechDb: -60, endSilenceMs: 2000, minSpeechMs: 500, expectSpeechMs: 0, noSpeechMs: 8000, maxMs: 30000 };
 
 describe("TurnGate", () => {
   it("ends after the quiet that follows your recitation", () => {
@@ -93,7 +93,7 @@ describe("TurnGate", () => {
     feed(g, -25, 10000); // 10 s without a single pause
     expect(g.status.end).toBeNull();
     expect(g.status.speaking).toBe(true);
-    expect(g.status.floorDb).toBeLessThan(-45);
+    expect(g.status.floorDb).toBeLessThan(-40); // rises at most 2 dB/s
   });
 
   it("follows road noise that gets louder (the car speeds up)", () => {
@@ -131,10 +131,78 @@ describe("TurnGate", () => {
     expect(g.status.end).toBe("silence");
   });
 
+  it("a little speech, then giving up, ends as no-speech, not at the timeout", () => {
+    const g = new TurnGate({ ...gateOptions(20000, 2000, 10), minSpeechMs: 1000 }); // a 20 s verse: maxMs 65 s
+    feed(g, -50, 1000);
+    feed(g, -25, 400); // one word, then forgot the verse
+    expect(feed(g, -50, 12000).end).toBe("no-speech");
+    expect(g.elapsedMs).toBeLessThan(13000);
+  });
+
+  it("near-silence from a starting mic (not exact zeros) does not hold the floor down", () => {
+    const g = new TurnGate(OPTS);
+    feed(g, -95, 800); // hands-free unit starting up
+    feed(g, -50, 3000);
+    expect(g.status.firstSpeechAt).toBeNull();
+    expect(feed(g, -50, 6000).end).toBe("no-speech");
+  });
+
+  it("road bumps (short loud blocks) are not speech and don't hold the turn open", () => {
+    const g = new TurnGate(OPTS);
+    feed(g, -50, 1000);
+    feed(g, -25, 3000);
+    // 2.4 s of quiet with a 100 ms thump in it: the thump does not restart the quiet
+    feed(g, -50, 800);
+    feed(g, -30, 100);
+    feed(g, -50, 1150);
+    expect(g.status.end).toBe("silence");
+  });
+
+  it("tells you the room's level while you are quiet", () => {
+    const g = new TurnGate(OPTS);
+    feed(g, -48, 2000);
+    feed(g, -25, 2000);
+    feed(g, -48, 1000);
+    expect(g.roomDb()).toBeCloseTo(-48, 0);
+  });
+
+  it("starting to recite straight away: the previous turn's room level lets it hear you", () => {
+    const blind = new TurnGate(OPTS);
+    feed(blind, -25, 3000); // reciting from the first moment
+    expect(blind.status.speechMs).toBe(0); // with nothing to compare, your voice looks like the room
+    const seeded = new TurnGate({ ...OPTS, seedFloorDb: -50 });
+    feed(seeded, -25, 3000);
+    expect(seeded.status.speechMs).toBeGreaterThan(2000);
+    feed(seeded, -50, 2100);
+    expect(seeded.status.end).toBe("silence");
+    expect(seeded.roomDb()).toBeCloseTo(-50, 0);
+  });
+
+  it("a louder car than last turn is not taken for speech", () => {
+    const g = new TurnGate({ ...OPTS, seedFloorDb: -60, noSpeechMs: 60000 });
+    feed(g, -48, 10000); // 12 dB louder than the seed
+    expect(g.status.firstSpeechAt).toBeNull();
+  });
+
+  it("long verses: a pause to remember a word does not end the turn early", () => {
+    const o = gateOptions(30000, 2000, 10); // the reciter took 30 s
+    const g = new TurnGate(o);
+    feed(g, -50, 1000);
+    feed(g, -25, 6000);
+    feed(g, -50, 3000); // 3 s pause, past the 2 s end silence
+    expect(g.status.end).toBeNull();
+    feed(g, -25, 7000);
+    feed(g, -50, 2100);
+    expect(g.status.end).toBe("silence"); // after recitation that long, 2 s of quiet is enough
+  });
+
   it("scales its limits with the reciter's verse", () => {
-    const o = gateOptions(20000, 2000, 10);
+    const o = gateOptions(20000, 2000, 10, 800);
+    expect(o.guardMs).toBe(800);
     expect(o.maxMs).toBe(65000);
-    expect(o.noSpeechMs).toBe(34000);
+    expect(o.noSpeechMs).toBe(10000);
+    expect(o.expectSpeechMs).toBe(8000);
+    expect(gateOptions(3000, 2000, 10).expectSpeechMs).toBe(0);
     expect(gateOptions(NaN, 2000, 10).maxMs).toBe(29000);
   });
 });

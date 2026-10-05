@@ -29,7 +29,7 @@ const DEFAULTS: Settings = {
   thresholdDb: 10,
   cue: true,
   gapMs: 0,
-  audioSessionHints: false,
+  audioSessionHints: true,
 };
 
 function loadSettings(): Settings {
@@ -142,6 +142,8 @@ export default function MemorizeLabPage() {
   const ayas = useMemo(() => surahs?.map((s) => s.ayas) ?? [], [surahs]);
   const verses = useMemo(() => (ayas.length ? versesInRange(ayas, settings.from, settings.to) : []), [ayas, settings.from, settings.to]);
   const reciter = RECITERS.find((r) => r.id === settings.reciterId) ?? RECITERS[0];
+  const savedMicMissing = settings.deviceId !== "" && !mics.some((m) => m.id === settings.deviceId);
+  const deviceLabel = mics.find((m) => m.id === settings.deviceId)?.label ?? (settings.deviceId ? "a saved mic" : "");
   const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
 
   const findMics = async () => {
@@ -153,9 +155,11 @@ export default function MemorizeLabPage() {
     }
   };
 
+  /** Every run kept so far, plus the one in progress: one paste covers a whole test. */
+  const fullLog = () => [lab.allReports(), active ? lab.report() : ""].filter(Boolean).join("\n\n════════════════════════════════════════\n\n");
   const copyLog = async () => {
     try {
-      await navigator.clipboard.writeText(lab.report());
+      await navigator.clipboard.writeText(fullLog());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -164,7 +168,7 @@ export default function MemorizeLabPage() {
   };
   const downloadLog = () => {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([lab.report()], { type: "text/plain" }));
+    a.href = URL.createObjectURL(new Blob([fullLog()], { type: "text/plain" }));
     a.download = `memorize-lab-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -224,10 +228,14 @@ export default function MemorizeLabPage() {
               ]}
             />
           </Field>
-          <Field label="Which microphone" hint="On Bluetooth, try the phone's own mic as well as the car's.">
+          <Field
+            label="Which microphone"
+            hint="Tap Find mics, then try both. The phone's own mic is 'Speakerphone' on Android and 'iPhone Microphone' on iPhone; System default is usually the car's mic, which puts the car in call mode."
+          >
             <div className="flex gap-2">
               <select className={`${selectClass} flex-1`} value={settings.deviceId} onChange={(e) => set({ deviceId: e.target.value })}>
                 <option value="">System default</option>
+                {savedMicMissing && <option value={settings.deviceId}>Saved mic (tap Find mics to see its name)</option>}
                 {mics.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
@@ -281,7 +289,7 @@ export default function MemorizeLabPage() {
           </details>
           <button
             disabled={!verses.length}
-            onClick={() => void lab.start(settings, verses, reciter)}
+            onClick={() => void lab.start({ ...settings, deviceLabel }, verses, reciter)}
             className="w-full bg-primary text-on-primary rounded-lg px-4 py-3 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Start
@@ -347,14 +355,27 @@ export default function MemorizeLabPage() {
               Stop
             </button>
           </div>
-          <p className="text-xs text-muted text-center">The car's play/pause, next and previous buttons may work too: try them, they are logged.</p>
+          <p className="text-xs text-muted text-center">
+            The car's play/pause (pause/resume), next (next verse) and previous (again) buttons may work too: every press is logged. On Android
+            they only reach the page for verses longer than 5 s.
+          </p>
         </div>
       )}
 
-      {state.logCount > 0 && (
+      {(state.logCount > 0 || state.runs > 0) && (
         <div className="bg-card border border-edge rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-ink">Log</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-ink">Log</h2>
+              {state.runs > 0 && (
+                <p className="text-xs text-muted">
+                  {state.runs} run{state.runs > 1 ? "s" : ""} kept · Copy includes them all ·{" "}
+                  <button onClick={() => lab.clearRuns()} className="underline hover:text-ink">
+                    clear
+                  </button>
+                </p>
+              )}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => void copyLog()} className="bg-primary text-on-primary rounded-lg px-3 py-1.5 text-xs font-semibold">
                 {copied ? "Copied" : "Copy log"}
