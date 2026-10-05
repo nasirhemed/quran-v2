@@ -181,6 +181,11 @@ export class MemorizeLab {
   /** the speech model, loaded on the first Start that wants it and kept for the page's life */
   private recognizer: LabRecognizer | null = null;
   private recognizerLoad: Promise<boolean> | null = null;
+  /** the recognizer while it loads (so dispose() can free it), and whether the page has gone */
+  private loadingRec: LabRecognizer | null = null;
+  private disposed = false;
+  /** a turn already waited for the model this run: later turns don't wait again */
+  private waitedForModel = false;
   /** the verse being listened for with the model, and when (turn time, ms) it was heard to the end */
   private listeningFor: string | null = null;
   private verseDoneAt: number | null = null;
@@ -226,6 +231,7 @@ export class MemorizeLab {
   async start(cfg: LabConfig, verses: Verse[], reciter: Reciter, wordCount?: (ayah: string) => number) {
     if (this.state.phase === "running" || this.state.phase === "starting" || this.state.phase === "paused" || !verses.length) return;
     this.reset();
+    this.waitedForModel = false;
     this.cfg = cfg;
     this.verses = verses;
     this.reciter = reciter;
@@ -315,18 +321,29 @@ export class MemorizeLab {
       ayahComplete: (ayah) => this.onAyahComplete(ayah),
       note: (text) => this.note(text),
     });
+    this.loadingRec = rec;
     this.recognizerLoad = rec.load().then(
       () => {
+        this.loadingRec = null;
+        if (this.disposed) {
+          rec.dispose();
+          return false;
+        }
         this.recognizer = rec;
-        this.set({ model: "ready" });
-        this.note(`speech model ready in ${rec.loadMs.toFixed(0)} ms`);
+        // a run started since without the model keeps saying so
+        if (this.cfg?.useModel) {
+          this.set({ model: "ready" });
+          this.note(`speech model ready in ${rec.loadMs.toFixed(0)} ms`);
+        }
         return true;
       },
       (e) => {
+        this.loadingRec = null;
         rec.dispose();
         this.recognizerLoad = null;
+        if (this.disposed) return false;
         this.set({ model: "failed" });
-        this.note(`speech model couldn't load: ${errorText(e)}; turns end on silence`);
+        this.note(`speech model couldn't load: ${errorText(e)}; turns end on quiet`);
         return false;
       },
     );
@@ -348,9 +365,12 @@ export class MemorizeLab {
 
   /** Stops everything and frees the speech model (when the page closes). */
   dispose() {
+    this.disposed = true;
     this.stop();
     this.recognizer?.dispose();
+    this.loadingRec?.dispose();
     this.recognizer = null;
+    this.loadingRec = null;
     this.recognizerLoad = null;
   }
 
@@ -759,7 +779,8 @@ export class MemorizeLab {
 
   private async yourTurn(step: Step, gen: number): Promise<boolean> {
     // the model loads while the first verse plays; if it's still loading, wait for it a little (before the beep)
-    if (this.cfg.useModel && this.state.model === "loading" && this.recognizerLoad) {
+    if (this.cfg.useModel && this.state.model === "loading" && this.recognizerLoad && !this.waitedForModel) {
+      this.waitedForModel = true;
       this.set({ activity: "loading" });
       this.note("waiting for the speech model…");
       await Promise.race([this.recognizerLoad, sleep(MODEL_WAIT_MS)]);
@@ -788,7 +809,7 @@ export class MemorizeLab {
         withModel = false;
         this.listeningFor = null;
         this.recognizer?.end();
-        this.note(`speech model couldn't listen: ${errorText(e)}; this turn ends on quiet`);
+        if (gen === this.gen) this.note(`speech model couldn't listen: ${errorText(e)}; this turn ends on quiet`);
       }
       if (gen !== this.gen) {
         this.listeningFor = null;

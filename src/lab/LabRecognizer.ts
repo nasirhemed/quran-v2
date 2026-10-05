@@ -32,23 +32,45 @@ export interface RecognizerHandlers {
 }
 
 const STEP_S = 0.48;
+const LOAD_TIMEOUT_MS = 60000;
+const IDLE_TIMEOUT_MS = 5000;
+
+function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} took more than ${ms / 1000} s`)), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
 
 export class LabRecognizer {
   private source: BrowserSource | null = null;
   private engine: Worker | null = null;
   private active = false;
+  /** bumped by every begin() and end(): a begin() overtaken by an end() (pause, skip) gives up */
+  private turn = 0;
+  /** the source starting up, if it is: end() waits for it before stopping */
+  private starting: Promise<unknown> | null = null;
   /** resolves when the last turn's listening has fully stopped (its final audio flushed) */
   private idle: Promise<void> = Promise.resolve();
   loadMs = NaN;
 
   constructor(private handlers: RecognizerHandlers) {}
 
-  /** Loads the model and the Quran index (a few seconds). Rejects if it can't. */
+  /** Loads the model and the Quran index (a few seconds). Rejects if it can't, or if it takes over a minute. */
   async load(): Promise<void> {
     const t0 = performance.now();
     const src = new BrowserSource();
     this.source = src;
-    const loaded = await src.load(selectedPack(), 2);
+    // BrowserSource.load() only settles on success or a missing model: any other failure (out of memory, the
+    // runtime's files not loading) arrives as an error event, so listen for it too
+    let off = () => {};
+    const failed = new Promise<never>((_, reject) => {
+      off = src.on("error", (e) => {
+        if (e.code !== "model_missing") reject(new Error(e.message));
+      });
+    });
+    const loaded = await within(Promise.race([src.load(selectedPack(), 2), failed]), LOAD_TIMEOUT_MS, "loading the speech model").finally(() => off());
     if (!loaded) throw new Error("the speech model isn't downloaded");
     src.on("chunk", (c: ChunkEvent) => {
       if (this.active) this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), time: (c.chunk + 1) * STEP_S });
@@ -59,7 +81,7 @@ export class LabRecognizer {
     });
     const engine = new Worker(new URL("../recitation/workers/engine.worker.ts", import.meta.url), { type: "module", name: "itqan-lab-engine" });
     this.engine = engine;
-    await new Promise<void>((resolve, reject) => {
+    const ready = new Promise<void>((resolve, reject) => {
       engine.onmessage = (e: MessageEvent<FromEngine>) => {
         const m = e.data;
         if (m.type === "ready") resolve();
@@ -69,6 +91,7 @@ export class LabRecognizer {
       engine.onerror = (e) => reject(new Error(e.message || "the engine worker failed to start"));
       engine.postMessage({ type: "init", symbols: loaded.symbols });
     });
+    await within(ready, LOAD_TIMEOUT_MS, "loading the Quran index");
     engine.onmessage = (e: MessageEvent<FromEngine>) => {
       const m = e.data;
       if (m.type === "events" && this.active) this.onEvents(m.events);
@@ -77,21 +100,36 @@ export class LabRecognizer {
     this.loadMs = performance.now() - t0;
   }
 
-  /** Starts listening to `stream` for ayah "s:a". */
-  async begin(stream: MediaStream, ayah: string): Promise<void> {
+  /** Starts listening to `stream` for ayah "s:a". False if end() came first (the turn was abandoned). */
+  async begin(stream: MediaStream, ayah: string): Promise<boolean> {
     const src = this.source;
-    if (!src || !this.engine) return;
-    await this.idle;
+    if (!src || !this.engine) return false;
+    const turn = ++this.turn;
+    await within(this.idle, IDLE_TIMEOUT_MS, "the last turn's listening to stop");
+    if (turn !== this.turn) return false;
     this.engine.postMessage({ type: "expect", ayah });
     this.active = true;
-    await src.start(stream);
+    const starting = src.start(stream);
+    this.starting = starting;
+    try {
+      await starting;
+    } finally {
+      if (this.starting === starting) this.starting = null;
+    }
+    return turn === this.turn;
   }
 
-  /** Stops listening. Events from the audio still being flushed are dropped. */
+  /** Stops listening (after the source has finished starting, if it was). Audio still being flushed is ignored. */
   end() {
-    if (!this.active) return;
+    this.turn++;
+    if (!this.active && !this.starting) return;
     this.active = false;
-    this.idle = this.source?.stop().catch(() => undefined) ?? Promise.resolve();
+    const src = this.source;
+    const started = this.starting ?? Promise.resolve();
+    this.idle = started
+      .catch(() => undefined)
+      .then(() => src?.stop())
+      .catch(() => undefined);
   }
 
   dispose() {

@@ -12,6 +12,7 @@
  */
 import type { RecitationWords } from "./data";
 import { Follower } from "./follow";
+import { ratio } from "./fuzzy";
 import type { Reference } from "./reference";
 import { skeleton } from "./skeleton";
 
@@ -44,12 +45,18 @@ export class FollowSession {
   private completedAyat = new Set<string>();
   private lettersSinceLock = 0;
   private lastCandidates = "";
+  /** set by expect(): the verse being recited, and the skeleton of its ending (see checkEnding) */
+  private expected: { ayah: string; first: number; last: number; ending: string; short: boolean; twins: Set<number> } | null = null;
+  /** first word idx of each word's ayah */
+  private ayahFirst: Int32Array;
 
-  constructor(private ref: Reference, words: RecitationWords, private symbols: string[]) {
+  constructor(private ref: Reference, private words: RecitationWords, private symbols: string[]) {
     this.follower = new Follower(ref);
+    this.ayahFirst = new Int32Array(words.ph.length);
     for (const [key, [first, n]] of Object.entries(words.ayat)) {
       this.lastAyahWord.set(first + n - 1, key);
       this.ayahStarts.add(first);
+      this.ayahFirst.fill(first, first, first + n);
     }
   }
 
@@ -63,8 +70,57 @@ export class FollowSession {
    */
   expect(word: number) {
     this.follower.startAt(word);
-    this.highWater = word - 1;
+    // nothing counts as recited yet: a slip back into the verse before also completes it (and is reported)
+    this.highWater = -1;
     this.lettersSinceLock = 0;
+    this.completedAyat.clear();
+    this.lastCandidates = "";
+    let last = word;
+    while (!this.lastAyahWord.has(last) && last < this.words.ph.length - 1) last++;
+    const whole = skeleton(this.words.ph.slice(word, last + 1).join(""));
+    const short = whole.length < 8;
+    // the last two words' skeleton, joined first so a letter shared across the boundary is collapsed as in what is
+    // heard (غفور رحيم → غفرحم); a verse too short to track is matched whole
+    const ending = short ? whole : skeleton(this.words.ph.slice(Math.max(word, last - 1), last + 1).join(""));
+    // verses with the same words (Ar-Rahman's refrain, 31 times): after losing its place the tracker may pick up
+    // another copy, which is the same recitation; their words and completion count as the expected verse's
+    const twins = new Set<number>();
+    const n = last - word + 1;
+    for (const [first, count] of Object.values(this.words.ayat)) {
+      if (count !== n || first === word) continue;
+      let same = true;
+      for (let i = 0; i < n && same; i++) same = this.words.ph[first + i] === this.words.ph[word + i];
+      if (same) twins.add(first);
+    }
+    this.expected = { ayah: this.lastAyahWord.get(last)!, first: word, last, ending, short, twins };
+  }
+
+  /** expect() mode: a word of a twin verse (same words as the expected one) as the expected verse's word. */
+  private asExpected(idx: number): number {
+    const x = this.expected;
+    if (!x || !x.twins.size) return idx;
+    const first = this.ayahFirst[idx];
+    return x.twins.has(first) ? x.first + (idx - first) : idx;
+  }
+
+  /**
+   * expect() mode: the tracker can stop ON the verse's last word, one letter short of passing it (a letter shared
+   * with the word before), and a verse under 8 letters is never tracked at all. In Follow mode the next verse's
+   * letters settle both; here nothing follows, the reciter stops. So compare the latest heard letters with the
+   * verse's ending directly, and complete the verse when they match.
+   */
+  private checkEnding(step: number): EngineEvent[] {
+    const x = this.expected;
+    if (!x || this.completedAyat.has(x.ayah) || this.follower.state !== "TRACKING") return [];
+    const c = this.follower.cursor!;
+    if (x.short ? c < x.first || c > x.last : c !== x.last) return [];
+    const tail = this.follower.heardTail;
+    if (tail.length < x.ending.length * 0.8 || ratio(tail.slice(-x.ending.length), x.ending) < 85) return [];
+    const passed: number[] = [];
+    for (let w = x.short ? c : x.last; w <= x.last; w++) passed.push(w);
+    this.completedAyat.add(x.ayah);
+    this.follower.passTo(x.last);
+    return [this.heard(passed, step), { type: "ayahComplete", ayah: x.ayah, afterWord: x.last, step }, { type: "cursor", word: x.last + 1, step }];
   }
 
   /** One model step's new units (ids). `time` is the step's time in seconds (for the follower's events). */
@@ -125,7 +181,23 @@ export class FollowSession {
       this.lastCandidates = "[]";
       out.push({ type: "candidates", places: [], step });
     }
-    return out.filter((e) => e.type !== "heard" || e.words.length > 0);
+    out.push(...this.checkEnding(step));
+    const x = this.expected;
+    let events = out;
+    if (x?.twins.size) {
+      events = [];
+      for (const e of out) {
+        if (e.type === "heard") events.push({ ...e, words: e.words.map((w) => ({ ...w, idx: this.asExpected(w.idx) })) });
+        else if (e.type === "ayahComplete" && x.twins.has(this.ayahFirst[e.afterWord])) {
+          // a twin was recited to its end: the expected verse was (reported once)
+          if (!this.completedAyat.has(x.ayah)) {
+            this.completedAyat.add(x.ayah);
+            events.push({ ...e, ayah: x.ayah, afterWord: x.last });
+          }
+        } else events.push(e);
+      }
+    }
+    return events.filter((e) => e.type !== "heard" || e.words.length > 0);
   }
 
   /**

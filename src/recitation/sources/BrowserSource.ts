@@ -32,6 +32,7 @@ export class BrowserSource extends Emitter implements RecognizerSource {
   private stream: MediaStream | null = null;
   /** false when the caller passed its own stream to start(): then the caller stops it, not us */
   private ownsStream = true;
+  private onTrackEnded: (() => void) | null = null;
   private nodes: AudioNode[] = [];
   private waiters = new Map<string, ((m: FromWorker) => void)[]>();
   private stepListeners = new Set<(s: StepStats) => void>();
@@ -103,10 +104,14 @@ export class BrowserSource extends Emitter implements RecognizerSource {
       this.emit("error", { code: denied ? "mic_denied" : "mic_unavailable", message: denied ? "Microphone permission needed" : "No microphone available" });
       throw e;
     }
-    this.stream.getAudioTracks()[0]?.addEventListener("ended", () => {
-      this.emit("error", { code: "mic_ended", message: "The microphone was disconnected" });
-      void this.stop();
-    });
+    // a caller's own stream is the caller's to watch (it may be reused across many starts)
+    if (this.ownsStream) {
+      this.onTrackEnded = () => {
+        this.emit("error", { code: "mic_ended", message: "The microphone was disconnected" });
+        void this.stop();
+      };
+      this.stream.getAudioTracks()[0]?.addEventListener("ended", this.onTrackEnded);
+    }
     await ctx.resume();
     await ctx.audioWorklet.addModule(workletUrl);
     const ring = createRing();
@@ -143,6 +148,8 @@ export class BrowserSource extends Emitter implements RecognizerSource {
   }
 
   private async teardown() {
+    if (this.onTrackEnded) this.stream?.getAudioTracks()[0]?.removeEventListener("ended", this.onTrackEnded);
+    this.onTrackEnded = null;
     if (this.ownsStream) this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.nodes.forEach((n) => n.disconnect());

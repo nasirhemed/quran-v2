@@ -41,6 +41,12 @@ export class Follower {
   readonly events: FollowEvent[] = [];
   /** While locating: the best distinct places found by the last search (voice search, spec §8.1). */
   candidates: { word: number; score: number }[] = [];
+  /**
+   * After startAt(): the tracking window never reaches back before this word (the verse's first). Without it, a
+   * verse whose opening also ends the verse before (Ar-Rahman's refrain, 109:5) is matched to the earlier copy.
+   * Cleared once the follower is lost or locates on its own.
+   */
+  private floor: number | null = null;
 
   constructor(private readonly ref: Reference) {}
 
@@ -57,6 +63,20 @@ export class Follower {
     this.sinceMove = "";
     this.misses = 0;
     this.candidates = [];
+    this.floor = word;
+  }
+
+  /** The skeleton letters heard most recently (up to 36). */
+  get heardTail(): string {
+    return this.heard;
+  }
+
+  /** Moves the cursor past `word`: the caller has confirmed it was recited (see FollowSession.expect). */
+  passTo(word: number) {
+    this.cursor = word + 1;
+    this.lastGood = word;
+    this.misses = 0;
+    this.sinceMove = "";
   }
 
   /** Feed one model step's newly heard phonemes (possibly empty) at time `now` (seconds). */
@@ -79,6 +99,7 @@ export class Follower {
     this.heard = this.heard.slice(-FOLLOW.TAIL);
     this.sinceMove = "";
     this.candidates = [];
+    this.floor = null;
     this.events.push({ type: "located", word, at: now });
   }
 
@@ -126,7 +147,7 @@ export class Follower {
   private track(now: number) {
     const cursor = this.cursor!;
     const tail = this.heard.slice(-FOLLOW.TAIL);
-    const w = this.ref.window(cursor - 12, cursor + 14);
+    const w = this.ref.window(this.floor !== null ? Math.max(cursor - 12, this.floor) : cursor - 12, cursor + 14);
     let al = tail.length >= 8 ? partialRatioAlignment(tail.slice(-16), w.text) : null;
     // Restart / repeat (waqf and ibtida', spec §7.3): right after going back, the tail mixes the end of the old
     // position with the start of the repeat and matches nowhere well. The letters heard since the cursor last
@@ -148,6 +169,7 @@ export class Follower {
     } else if (tail.length >= 8 && ++this.misses >= FOLLOW.LOST_AFTER) {
       // (too few letters to compare is not a miss: right after startAt() nothing has been heard yet)
       this.state = "LOCATING";
+      this.floor = null;
       this.events.push({ type: "lost", word: cursor, at: now });
     }
     this.heard = this.heard.slice(-FOLLOW.LOCATE_TAIL);

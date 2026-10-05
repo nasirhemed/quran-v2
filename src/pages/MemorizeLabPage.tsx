@@ -41,7 +41,10 @@ const DEFAULTS: Settings = {
 
 function loadSettings(): Settings {
   try {
-    return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Settings>) };
+    const saved = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Settings>;
+    // saved before turns could end on the speech model: the old 2 s default cut people off mid-breath
+    if (saved.giveUpQuietMs === undefined) delete saved.endSilenceMs;
+    return { ...DEFAULTS, ...saved };
   } catch {
     return DEFAULTS;
   }
@@ -181,6 +184,9 @@ export default function MemorizeLabPage() {
         for (const a of g.ayahs) m.set(`${a.surah}:${a.ayah}`, a.words.map((w) => ({ key: `${a.surah}:${a.ayah}:${w.position}`, text: w.text })));
     return m;
   }, [pages]);
+  // read at each turn, so the log's word totals work even if the pages arrive after Start
+  const verseWordsRef = useRef(verseWords);
+  verseWordsRef.current = verseWords;
   const names = useMemo(() => surahs?.map((s) => s.tname) ?? [], [surahs]);
   const ayas = useMemo(() => surahs?.map((s) => s.ayas) ?? [], [surahs]);
   const verses = useMemo(() => (ayas.length ? versesInRange(ayas, settings.from, settings.to) : []), [ayas, settings.from, settings.to]);
@@ -188,8 +194,8 @@ export default function MemorizeLabPage() {
   const savedMicMissing = settings.deviceId !== "" && !mics.some((m) => m.id === settings.deviceId);
   const deviceLabel = mics.find((m) => m.id === settings.deviceId)?.label ?? (settings.deviceId ? "a saved mic" : "");
   const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
-  const modelReady = availability?.state === "ready";
-  const useModel = settings.useModel && modelReady;
+  // still checking counts as available: the session falls back to quiet by itself if the model can't load
+  const useModel = settings.useModel && availability?.state !== "no-model" && availability?.state !== "unsupported";
 
   const findMics = async () => {
     setMicError(null);
@@ -383,7 +389,7 @@ export default function MemorizeLabPage() {
           </details>
           <button
             disabled={!verses.length}
-            onClick={() => void lab.start({ ...settings, deviceLabel, useModel }, verses, reciter, (ayah) => verseWords.get(ayah)?.length ?? NaN)}
+            onClick={() => void lab.start({ ...settings, deviceLabel, useModel }, verses, reciter, (ayah) => verseWordsRef.current.get(ayah)?.length ?? NaN)}
             className="w-full bg-primary text-on-primary rounded-lg px-4 py-3 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Start
