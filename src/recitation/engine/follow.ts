@@ -44,6 +44,21 @@ export class Follower {
 
   constructor(private readonly ref: Reference) {}
 
+  /**
+   * Starts tracking at `word` without locating it first, for when the screen knows what comes next (the
+   * memorisation loop: the verse you are about to recite). The search is skipped, so a verse that opens like
+   * another one is followed from its first word.
+   */
+  startAt(word: number) {
+    this.state = "TRACKING";
+    this.cursor = word;
+    this.lastGood = word > 0 ? word - 1 : null;
+    this.heard = "";
+    this.sinceMove = "";
+    this.misses = 0;
+    this.candidates = [];
+  }
+
   /** Feed one model step's newly heard phonemes (possibly empty) at time `now` (seconds). */
   push(phonemes: string, now: number): FollowEvent[] {
     const added = skeleton(phonemes);
@@ -130,7 +145,8 @@ export class Follower {
       this.cursor = word + 1;
       this.lastGood = word;
       this.misses = 0;
-    } else if (++this.misses >= FOLLOW.LOST_AFTER) {
+    } else if (tail.length >= 8 && ++this.misses >= FOLLOW.LOST_AFTER) {
+      // (too few letters to compare is not a miss: right after startAt() nothing has been heard yet)
       this.state = "LOCATING";
       this.events.push({ type: "lost", word: cursor, at: now });
     }

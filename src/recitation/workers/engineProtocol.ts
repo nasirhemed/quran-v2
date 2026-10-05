@@ -4,6 +4,8 @@ import type { EngineEvent } from "../engine/session";
 export type ToEngine =
   | { type: "init"; symbols: string[] }
   | { type: "reset" }
+  /** a fresh session that follows from the first word of ayah "s:a" (no voice search) */
+  | { type: "expect"; ayah: string }
   /** one model step's new units; `time` is the step's audio time in seconds */
   | { type: "step"; step: number; units: number[]; time: number };
 

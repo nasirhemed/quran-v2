@@ -108,3 +108,51 @@ describe("follow session", () => {
     expect(heard).toContain("33:50:6");
   });
 });
+
+describe("follow session told the verse (memorisation loop)", () => {
+  function runExpecting(fx: Fixture, ayah: string) {
+    const { words, ref, table } = quran();
+    const s = new FollowSession(ref, words, table.symbols);
+    s.expect(words.ayat[ayah][0]);
+    const byStep = new Map<number, number[]>();
+    for (const [u, frame] of fx.units) {
+      const step = Math.floor(frame / fx.stepFrames);
+      byStep.set(step, [...(byStep.get(step) ?? []), u]);
+    }
+    const events: EngineEvent[] = [];
+    const steps = Math.ceil(fx.frames / fx.stepFrames);
+    for (let step = 0; step < steps; step++) events.push(...s.push(byStep.get(step) ?? [], step, ((step + 1) * fx.stepFrames * fx.frameMs) / 1000));
+    const key = wordIndex(words).key;
+    return { events, key };
+  }
+  const completeAt = (events: EngineEvent[], ayah: string) =>
+    events.find((e): e is Extract<EngineEvent, { type: "ayahComplete" }> => e.type === "ayahComplete" && e.ayah === ayah)?.step;
+
+  it("clean 2:255: no voice search (the opening shared with 3:2 is not in doubt), and the verse completes", () => {
+    const { fx } = loadFixture(FIXTURES, "husary-2-255-clean");
+    const { events, key } = runExpecting(fx, "2:255");
+    expect(events.some((e) => e.type === "candidates" && e.places.length > 0)).toBe(false);
+    expect(events.some((e) => e.type === "located")).toBe(false);
+    const heard = events.flatMap((e) => (e.type === "heard" ? e.words.map((w) => key[w.idx]) : []));
+    expect(heard[0]).toBe("2:255:1");
+    expect(heard.every((k) => k.startsWith("2:255:"))).toBe(true);
+    // completes no later than when the tracker has to find the verse by itself
+    const told = completeAt(events, "2:255");
+    const searched = completeAt(run(fx).events, "2:255");
+    expect(told).toBeDefined();
+    expect(told!).toBeLessThanOrEqual(searched!);
+  });
+
+  it("skip inside 2:255: the verse still completes", () => {
+    const { fx } = loadFixture(FIXTURES, "husary-2-255-skip");
+    expect(completeAt(runExpecting(fx, "2:255").events, "2:255")).toBeDefined();
+  });
+
+  it("slip into 3:3 and back: 2:255 still completes, after the slip", () => {
+    const { fx } = loadFixture(FIXTURES, "husary-2-255-slip");
+    const { events, key } = runExpecting(fx, "2:255");
+    const heard = events.flatMap((e) => (e.type === "heard" ? e.words.map((w) => key[w.idx]) : []));
+    expect(heard.some((k) => k.startsWith("3:3:"))).toBe(true);
+    expect(completeAt(events, "2:255")).toBeDefined();
+  });
+});

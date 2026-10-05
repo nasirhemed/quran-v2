@@ -9,10 +9,14 @@
  *
  * Everything that happens is logged with its timing (mic open, first sound, playback start, how far the mic hears
  * the reciter, the mic's bandwidth, route and device changes, how your turns ended), and each of your turns is
- * recorded so you can hear what the mic heard. No speech model: your turn ends after a stretch of quiet
- * (TurnGate), a tap on "I'm done", or a timeout. The car's play/pause button pauses and resumes.
+ * recorded so you can hear what the mic heard.
+ *
+ * Your turn ends when you have recited the verse to its last word (with the speech model, LabRecognizer), after a
+ * stretch of quiet (TurnGate: the only signal without the model, a fallback with it), a tap on "I'm done", or a
+ * timeout. The car's play/pause button pauses and resumes.
  */
 import workletUrl from "./level.worklet.ts?worker&url";
+import { LabRecognizer } from "./LabRecognizer";
 import { gateOptions, nextStep, NOT_A_ROOM_DB, skipVerse, TurnGate, verseAudioUrl, verseKey, type GateEnd, type Reciter, type Step, type Verse } from "./memorize";
 
 export type MicMode = "always" | "turn";
@@ -34,7 +38,13 @@ export interface LabConfig {
   gapMs: number;
   /** Safari only: set navigator.audioSession.type for each turn */
   audioSessionHints: boolean;
+  /** listen with the speech model: your turn ends when you reach the verse's last word */
+  useModel: boolean;
+  /** with the model: this much quiet still moves on (you stopped, or the model missed the end) */
+  giveUpQuietMs: number;
 }
+
+export type ModelState = "off" | "loading" | "ready" | "failed";
 
 export type Phase = "idle" | "starting" | "running" | "paused" | "done" | "error";
 export type Activity = "loading" | "gap" | "playing" | "mic-opening" | "listening" | null;
@@ -72,6 +82,11 @@ export interface LabState {
   logCount: number;
   /** finished runs kept for "Copy log" */
   runs: number;
+  model: ModelState;
+  /** words the model heard in this turn ("s:a:w") */
+  heard: string[];
+  /** the model heard the verse to its last word */
+  verseDone: boolean;
 }
 
 export interface Summary {
@@ -83,9 +98,15 @@ export interface Summary {
   reciterHeard: string[];
   audibleStart: number[];
   bandwidth: string[];
+  model: string[];
 }
 
-type TurnEnd = GateEnd | "tap" | "no-frames" | "aborted";
+type TurnEnd = GateEnd | "verse complete" | "tap" | "no-frames" | "aborted";
+/** With the model: after the verse's last word, this much quiet ends the turn (or this long, if you carry on). */
+const VERSE_DONE_QUIET_MS = 500;
+const VERSE_DONE_MAX_MS = 2500;
+/** How long your first turn waits for the speech model to finish loading before it falls back to quiet. */
+const MODEL_WAIT_MS = 10000;
 
 const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 const MAX_RECORDINGS = 40;
@@ -117,7 +138,7 @@ export class MemorizeLab {
   readonly log: LogLine[] = [];
   readonly summary: Summary = emptySummary();
   readonly runs: string[] = loadRuns();
-  state: LabState = { phase: "idle", step: null, activity: null, level: -120, speaking: false, floorDb: -90, speechMs: 0, micLabel: null, message: null, recordings: [], logCount: 0, runs: this.runs.length };
+  state: LabState = { phase: "idle", step: null, activity: null, level: -120, speaking: false, floorDb: -90, speechMs: 0, micLabel: null, message: null, recordings: [], logCount: 0, runs: this.runs.length, model: "off", heard: [], verseDone: false };
   header: string[] = [];
 
   private listeners = new Set<() => void>();
@@ -157,6 +178,13 @@ export class MemorizeLab {
   /** the spectrum's band powers through your turn, with the level of each moment, for the bandwidth line */
   private bandSamples: ({ db: number } & Record<Band, number>)[] = [];
   private cleanup: (() => void)[] = [];
+  /** the speech model, loaded on the first Start that wants it and kept for the page's life */
+  private recognizer: LabRecognizer | null = null;
+  private recognizerLoad: Promise<boolean> | null = null;
+  /** the verse being listened for with the model, and when (turn time, ms) it was heard to the end */
+  private listeningFor: string | null = null;
+  private verseDoneAt: number | null = null;
+  private wordCount: (ayah: string) => number = () => NaN;
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -195,12 +223,13 @@ export class MemorizeLab {
   }
 
   /** Starts the session. Call from a tap: the audio context, the player and the wake lock are unlocked inside it. */
-  async start(cfg: LabConfig, verses: Verse[], reciter: Reciter) {
+  async start(cfg: LabConfig, verses: Verse[], reciter: Reciter, wordCount?: (ayah: string) => number) {
     if (this.state.phase === "running" || this.state.phase === "starting" || this.state.phase === "paused" || !verses.length) return;
     this.reset();
     this.cfg = cfg;
     this.verses = verses;
     this.reciter = reciter;
+    if (wordCount) this.wordCount = wordCount;
     this.t0 = performance.now();
     const gen = ++this.gen;
 
@@ -224,9 +253,12 @@ export class MemorizeLab {
       `mode: mic ${cfg.micMode === "always" ? "on the whole time" : "on for my turn only"} · mic: ${cfg.deviceId ? cfg.deviceLabel || "chosen" : "system default"} · voice processing ${cfg.voiceProcessing ? "on" : "off"}`,
       `turn ends after ${cfg.endSilenceMs} ms quiet · threshold ${cfg.thresholdDb} dB · pause before reciter ${cfg.gapMs} ms · beep ${cfg.cue ? "on" : "off"} · audioSession ${session ? `hints ${cfg.audioSessionHints ? "on" : "off"}, type at start ${session.type}` : "not supported"}`,
       `plan: ${verseKey(verses[0])}–${verseKey(verses[verses.length - 1])} (${verses.length} verses) × ${cfg.reps} · reciter ${reciter.name}`,
+      `turn end: ${cfg.useModel ? `speech model (the verse's last word), or ${cfg.giveUpQuietMs} ms quiet` : `${cfg.endSilenceMs} ms quiet (no speech model)`}`,
     ];
     this.note(`start · audio context ${ctx.sampleRate} Hz, base latency ${ms(ctx.baseLatency)}, output latency ${ms(ctx.outputLatency)}`);
     this.watch(audio, ctx);
+    if (cfg.useModel) void this.loadModel();
+    else this.set({ model: "off" });
     void wake?.then(
       (w) => this.holdWakeLock(w),
       (e) => this.note(`wake lock refused: ${errorText(e)} (the screen may lock and stop the mic)`),
@@ -267,6 +299,59 @@ export class MemorizeLab {
     if (gen !== this.gen) return;
     this.set({ phase: "running" });
     void this.run({ verse: 0, rep: 1, turn: "reciter" }, gen);
+  }
+
+  /** Loads the speech model in the background (once per page); the reciter's first verse plays meanwhile. */
+  private loadModel(): Promise<boolean> {
+    if (this.recognizer) {
+      this.set({ model: "ready" });
+      return Promise.resolve(true);
+    }
+    if (this.recognizerLoad) return this.recognizerLoad;
+    this.set({ model: "loading" });
+    this.note("speech model loading…");
+    const rec = new LabRecognizer({
+      heard: (keys) => this.onHeard(keys),
+      ayahComplete: (ayah) => this.onAyahComplete(ayah),
+      note: (text) => this.note(text),
+    });
+    this.recognizerLoad = rec.load().then(
+      () => {
+        this.recognizer = rec;
+        this.set({ model: "ready" });
+        this.note(`speech model ready in ${rec.loadMs.toFixed(0)} ms`);
+        return true;
+      },
+      (e) => {
+        rec.dispose();
+        this.recognizerLoad = null;
+        this.set({ model: "failed" });
+        this.note(`speech model couldn't load: ${errorText(e)}; turns end on silence`);
+        return false;
+      },
+    );
+    return this.recognizerLoad;
+  }
+
+  private onHeard(keys: string[]) {
+    if (!this.listeningFor || this.state.activity !== "listening") return;
+    this.set({ heard: [...this.state.heard, ...keys] });
+  }
+
+  private onAyahComplete(ayah: string) {
+    if (!this.listeningFor || this.state.activity !== "listening" || !this.gate) return;
+    if (ayah !== this.listeningFor) return this.note(`speech model: recited to the end of ${ayah} (not ${this.listeningFor})`);
+    if (this.verseDoneAt !== null) return;
+    this.verseDoneAt = this.gate.elapsedMs;
+    this.set({ verseDone: true });
+  }
+
+  /** Stops everything and frees the speech model (when the page closes). */
+  dispose() {
+    this.stop();
+    this.recognizer?.dispose();
+    this.recognizer = null;
+    this.recognizerLoad = null;
   }
 
   /** Pause: the verse (or your turn) starts again from the beginning on resume. */
@@ -673,6 +758,13 @@ export class MemorizeLab {
   }
 
   private async yourTurn(step: Step, gen: number): Promise<boolean> {
+    // the model loads while the first verse plays; if it's still loading, wait for it a little (before the beep)
+    if (this.cfg.useModel && this.state.model === "loading" && this.recognizerLoad) {
+      this.set({ activity: "loading" });
+      this.note("waiting for the speech model…");
+      await Promise.race([this.recognizerLoad, sleep(MODEL_WAIT_MS)]);
+      if (gen !== this.gen) return false;
+    }
     if (this.stream?.getAudioTracks()[0]?.readyState === "ended") this.closeMic("its track had ended");
     if (!this.stream) {
       this.set({ activity: "mic-opening" });
@@ -681,11 +773,36 @@ export class MemorizeLab {
     }
     const stream = this.stream;
     if (!stream) throw new Error("the microphone is not open");
+    const ayah = verseKey(this.verses[step.verse]);
+    this.verseDoneAt = null;
+    this.listeningFor = null;
+    this.set({ heard: [], verseDone: false });
+    // the model starts listening before the beep, so it hears your first word
+    let withModel = this.cfg.useModel && this.state.model === "ready" && !!this.recognizer;
+    if (this.cfg.useModel && !withModel) this.note(`speech model ${this.state.model === "loading" ? "still loading" : "unavailable"}: this turn ends on quiet`);
+    if (withModel) {
+      try {
+        this.listeningFor = ayah;
+        await this.recognizer!.begin(stream, ayah);
+      } catch (e) {
+        withModel = false;
+        this.listeningFor = null;
+        this.recognizer?.end();
+        this.note(`speech model couldn't listen: ${errorText(e)}; this turn ends on quiet`);
+      }
+      if (gen !== this.gen) {
+        this.listeningFor = null;
+        this.recognizer?.end();
+        return false;
+      }
+    }
     if (this.cfg.cue) this.beep();
     const ctx = this.ctx;
     // the beep travels out through the car and back in through the mic: ignore it
     const guard = this.cfg.cue && ctx ? Math.max(800, 330 + 1000 * ((ctx.baseLatency || 0) + (ctx.outputLatency || 0.3))) : 400;
-    const opts = gateOptions(this.reciterMs.get(step.verse) ?? NaN, this.cfg.endSilenceMs, this.cfg.thresholdDb, guard, this.lastNoise);
+    // with the model, quiet is only the fallback (you stopped, or it missed the end): a breath never ends the turn
+    const opts = gateOptions(this.reciterMs.get(step.verse) ?? NaN, withModel ? this.cfg.giveUpQuietMs : this.cfg.endSilenceMs, this.cfg.thresholdDb, guard, this.lastNoise);
+    if (withModel) opts.expectSpeechMs = 0;
     const gate = new TurnGate(opts);
     this.gate = gate;
     this.bandSamples = [];
@@ -707,6 +824,9 @@ export class MemorizeLab {
       };
       this.endTurn = finish;
     });
+    const listened = this.listeningFor;
+    this.listeningFor = null;
+    this.recognizer?.end();
     if (gen !== this.gen || end === "aborted") return false;
     this.gate = null;
     const room = gate.roomDb();
@@ -718,6 +838,15 @@ export class MemorizeLab {
         ` · speech ${fmtS(st.speechMs / 1000)}${st.firstSpeechAt !== null ? `, first at ${fmtS(st.firstSpeechAt / 1000)}` : ""}` +
         ` · room ${Number.isFinite(room) ? `${room.toFixed(0)} dB` : "?"} · guard ${guard.toFixed(0)} ms`,
     );
+    if (listened) {
+      const words = new Set(this.state.heard.filter((k) => k.startsWith(`${listened}:`))).size;
+      const total = this.wordCount(listened);
+      this.summary.model.push(this.verseDoneAt !== null ? "complete" : `${words}/${Number.isFinite(total) ? total : "?"}`);
+      this.note(
+        `speech model: heard ${words}${Number.isFinite(total) ? ` of ${total}` : ""} words` +
+          (this.verseDoneAt !== null ? ` · verse complete at ${fmtS(this.verseDoneAt / 1000)}` : " · didn't hear the verse to its end"),
+      );
+    }
     this.reportBandwidth(st.floorDb);
     this.stopRecording(`${verseKey(this.verses[step.verse])} r${step.rep} · ${end}`);
     if (this.cfg.micMode === "turn") this.closeMic(this.where(step));
@@ -727,6 +856,8 @@ export class MemorizeLab {
 
   private abortTurn() {
     this.gate = null;
+    this.listeningFor = null;
+    this.recognizer?.end();
     this.endTurn?.("aborted");
     this.endTurn = null;
     this.stopRecording(null);
@@ -855,6 +986,7 @@ export class MemorizeLab {
       if (g.elapsedMs > g.opts.guardMs && block > NOT_A_ROOM_DB) this.sampleBands(block);
       this.set({ level, speaking: st.speaking, floorDb: st.floorDb, speechMs: st.speechMs });
       if (st.end) this.endTurn?.(st.end);
+      else if (this.verseDoneAt !== null && (st.quietMs >= VERSE_DONE_QUIET_MS || g.elapsedMs - this.verseDoneAt >= VERSE_DONE_MAX_MS)) this.endTurn?.("verse complete");
     } else {
       this.set({ level });
     }
@@ -885,15 +1017,20 @@ export class MemorizeLab {
     const quiet = this.bandSamples.filter((x) => x.db <= floorDb + 3);
     const nyquist = (this.ctx?.sampleRate ?? 48000) / 2;
     if (speech.length < 10 || quiet.length < 5) return this.note("mic bandwidth: not enough speech and quiet to tell");
-    const mean = (xs: typeof speech, b: Band) => xs.reduce((a, x) => a + x[b], 0) / xs.length;
+    // the loudest tenth of moments are dropped: a click or a bump has energy everywhere and would fake a band
+    const mean = (xs: typeof speech, b: Band) => {
+      const v = xs.map((x) => x[b]).sort((p, q) => p - q);
+      const kept = v.slice(0, Math.max(1, Math.ceil(v.length * 0.9)));
+      return kept.reduce((a, x) => a + x, 0) / kept.length;
+    };
     const rise = (b: Band) => 10 * Math.log10(mean(speech, b) / Math.max(mean(quiet, b), 1e-20));
     const low = rise("low");
     const mid = rise("mid");
     const high = nyquist >= BANDS.high[1] ? rise("high") : NaN;
     let verdict: string;
     if (low < 6) verdict = "can't tell (speech barely above the room)";
-    else if (mid < 3) verdict = "narrowband: nothing above ~4 kHz, Bluetooth call audio (CVSD)";
-    else if (Number.isFinite(high) && high < 3) verdict = "wideband: nothing above ~8 kHz, Bluetooth call audio (mSBC)";
+    else if (mid < 3) verdict = "narrowband: nothing above ~4 kHz, like Bluetooth call audio (CVSD)";
+    else if (Number.isFinite(high) && high < 3) verdict = "wideband: nothing above ~8 kHz, like Bluetooth call audio (mSBC)";
     else if (Number.isFinite(high)) verdict = "full band: the phone's own mic (or LC3 Bluetooth)";
     else verdict = `at least wideband (can't see above ${(nyquist / 1000).toFixed(0)} kHz)`;
     this.summary.bandwidth.push(verdict.split(":")[0]);
@@ -968,6 +1105,7 @@ export class MemorizeLab {
       `  ${stat("mic heard the reciter start after 'playing' (always mode)", s.audibleStart)}`,
       `  ${list("mic heard the reciter, dB above the room, median/loud (always mode)", s.reciterHeard)}`,
       `  ${list("mic bandwidth per turn", s.bandwidth)}`,
+      `  ${list("speech model per turn (complete, or words heard)", s.model)}`,
       `  your turns ended by: ${Object.entries(s.ends).map(([k, v]) => `${k} ${v}`).join(", ") || "–"}`,
       "",
       ...this.log.map((l) => `${l.t.toFixed(2).padStart(7)}  ${l.text}`),
@@ -976,7 +1114,7 @@ export class MemorizeLab {
 }
 
 function emptySummary(): Summary {
-  return { playLatency: [], sinceRelease: [], micOpen: [], firstSound: [], ends: {}, reciterHeard: [], audibleStart: [], bandwidth: [] };
+  return { playLatency: [], sinceRelease: [], micOpen: [], firstSound: [], ends: {}, reciterHeard: [], audibleStart: [], bandwidth: [], model: [] };
 }
 
 function errorText(e: unknown): string {

@@ -178,6 +178,23 @@ describe("TurnGate", () => {
     expect(seeded.roomDb()).toBeCloseTo(-50, 0);
   });
 
+  it("the first turn (no room level measured yet) still hears you if you start at once", () => {
+    const g = new TurnGate({ ...gateOptions(5000, 3000, 10, 400), expectSpeechMs: 0 });
+    for (let i = 0; i < 7; i++) {
+      feed(g, -28, 450); // words…
+      feed(g, -62, 100); // …with the short gaps between them
+    }
+    expect(g.status.speechMs).toBeGreaterThan(2500);
+    feed(g, -62, 3100);
+    expect(g.status.end).toBe("silence");
+    expect(g.roomDb()).toBeCloseTo(-62, 0);
+  });
+
+  it("a bad room estimate (recited without a pause) never hides your voice next turn", () => {
+    expect(gateOptions(5000, 3000, 10, 400, -30).seedFloorDb).toBe(-48);
+    expect(gateOptions(5000, 3000, 10, 400, -65).seedFloorDb).toBe(-65);
+  });
+
   it("a louder car than last turn is not taken for speech", () => {
     const g = new TurnGate({ ...OPTS, seedFloorDb: -60, noSpeechMs: 60000 });
     feed(g, -48, 10000); // 12 dB louder than the seed
@@ -196,6 +213,28 @@ describe("TurnGate", () => {
     expect(g.status.end).toBe("silence"); // after recitation that long, 2 s of quiet is enough
   });
 
+  it("a breath early in the verse doesn't end the turn (silence only)", () => {
+    const g = new TurnGate(gateOptions(8000, 3000, 10)); // the reciter took 8 s: 3.2 s of speech expected
+    feed(g, -50, 1000);
+    feed(g, -25, 1500); // the first words
+    feed(g, -50, 4000); // a long breath: more than the 3 s end silence
+    expect(g.status.end).toBeNull();
+    feed(g, -25, 2500);
+    feed(g, -50, 3100);
+    expect(g.status.end).toBe("silence");
+  });
+
+  it("counts the quiet since you last spoke", () => {
+    const g = new TurnGate(OPTS);
+    feed(g, -50, 1000);
+    expect(g.status.quietMs).toBe(0); // nothing said yet
+    feed(g, -25, 1000);
+    expect(g.status.quietMs).toBe(0);
+    feed(g, -50, 700);
+    expect(g.status.quietMs).toBeGreaterThanOrEqual(600);
+    expect(g.status.quietMs).toBeLessThanOrEqual(750);
+  });
+
   it("scales its limits with the reciter's verse", () => {
     const o = gateOptions(20000, 2000, 10, 800);
     expect(o.guardMs).toBe(800);
@@ -203,6 +242,7 @@ describe("TurnGate", () => {
     expect(o.noSpeechMs).toBe(10000);
     expect(o.expectSpeechMs).toBe(8000);
     expect(gateOptions(3000, 2000, 10).expectSpeechMs).toBe(0);
+    expect(gateOptions(6000, 2000, 10).expectSpeechMs).toBe(2400);
     expect(gateOptions(NaN, 2000, 10).maxMs).toBe(29000);
   });
 });

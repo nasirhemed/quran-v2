@@ -57,6 +57,16 @@ export class FollowSession {
     return this.follower.state;
   }
 
+  /**
+   * The reciter is about to recite from `word` (the first word of a verse): follow from there, no voice search.
+   * `ayahComplete` then comes for that verse once its last word is passed.
+   */
+  expect(word: number) {
+    this.follower.startAt(word);
+    this.highWater = word - 1;
+    this.lettersSinceLock = 0;
+  }
+
   /** One model step's new units (ids). `time` is the step's time in seconds (for the follower's events). */
   push(units: number[], step: number, time: number): EngineEvent[] {
     const phonemes = units.map((u) => this.symbols[u] ?? "").join("");

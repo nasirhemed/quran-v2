@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSurahs } from "@/lib/data";
+import { Link } from "wouter";
+import { fetchQuranPages, fetchSurahs } from "@/lib/data";
 import { RECITERS, versesInRange, type Verse } from "@/lab/memorize";
 import { MemorizeLab, type LabConfig, type Mic, type MicMode } from "@/lab/MemorizeLab";
+import { modelAvailability, type ModelAvailability } from "@/lab/LabRecognizer";
 
 /**
  * `/lab/memorize`: a prototype of the memorisation loop (the reciter recites a verse, you recite it back, N times,
@@ -14,6 +16,8 @@ interface Settings extends LabConfig {
   from: Verse;
   to: Verse;
   reciterId: string;
+  /** hide the verse on your turn; its words appear as the model hears them */
+  hideOnMyTurn: boolean;
 }
 
 const KEY = "memorizeLab";
@@ -25,11 +29,14 @@ const DEFAULTS: Settings = {
   micMode: "always",
   deviceId: "",
   voiceProcessing: false,
-  endSilenceMs: 2000,
+  endSilenceMs: 3000,
   thresholdDb: 10,
   cue: true,
   gapMs: 0,
   audioSessionHints: true,
+  useModel: true,
+  giveUpQuietMs: 6000,
+  hideOnMyTurn: false,
 };
 
 function loadSettings(): Settings {
@@ -95,6 +102,26 @@ function VersePicker({ value, onChange, names, ayas }: { value: Verse; onChange:
   );
 }
 
+/**
+ * The verse being memorised. On your turn the words the speech model has heard are marked; with "hide", the
+ * others are blank until heard (tap to see them all).
+ */
+function VerseView({ words, heard, hide, onPeek }: { words: { key: string; text: string }[]; heard: Set<string>; hide: boolean; onPeek: () => void }) {
+  if (!words.length) return null;
+  return (
+    <p dir="rtl" lang="ar" onClick={onPeek} className="font-arabic text-2xl leading-[2.2] text-ink text-center max-h-64 overflow-auto cursor-pointer select-none">
+      {words.map((w) => {
+        const got = heard.has(w.key);
+        return (
+          <span key={w.key} className={`transition-colors ${got ? "text-primary" : hide ? "text-transparent border-b border-edge-strong" : ""}`}>
+            {w.text}{" "}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
 const ACTIVITY: Record<string, string> = {
   loading: "Loading…",
   gap: "…",
@@ -107,6 +134,9 @@ export default function MemorizeLabPage() {
   const [lab] = useState(() => new MemorizeLab());
   const state = useSyncExternalStore(lab.subscribe, lab.getState);
   const { data: surahs } = useQuery({ queryKey: ["surahs"], queryFn: fetchSurahs });
+  const { data: pages } = useQuery({ queryKey: ["quran-pages"], queryFn: fetchQuranPages });
+  const [availability, setAvailability] = useState<ModelAvailability | null>(null);
+  const [peek, setPeek] = useState(false);
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [mics, setMics] = useState<Mic[]>([]);
   const [micError, setMicError] = useState<string | null>(null);
@@ -114,7 +144,7 @@ export default function MemorizeLabPage() {
   const logRef = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => {
-    return () => lab.stop();
+    return () => lab.dispose();
   }, [lab]);
   useEffect(() => {
     try {
@@ -138,6 +168,19 @@ export default function MemorizeLabPage() {
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    void modelAvailability()
+      .then(setAvailability)
+      .catch(() => setAvailability({ state: "unsupported", missing: ["on-device file storage"] }));
+  }, []);
+  /** each verse's words, "s:a" → [{ key "s:a:w", text }] */
+  const verseWords = useMemo(() => {
+    const m = new Map<string, { key: string; text: string }[]>();
+    for (const p of pages ?? [])
+      for (const g of p.surahGroups)
+        for (const a of g.ayahs) m.set(`${a.surah}:${a.ayah}`, a.words.map((w) => ({ key: `${a.surah}:${a.ayah}:${w.position}`, text: w.text })));
+    return m;
+  }, [pages]);
   const names = useMemo(() => surahs?.map((s) => s.tname) ?? [], [surahs]);
   const ayas = useMemo(() => surahs?.map((s) => s.ayas) ?? [], [surahs]);
   const verses = useMemo(() => (ayas.length ? versesInRange(ayas, settings.from, settings.to) : []), [ayas, settings.from, settings.to]);
@@ -145,6 +188,8 @@ export default function MemorizeLabPage() {
   const savedMicMissing = settings.deviceId !== "" && !mics.some((m) => m.id === settings.deviceId);
   const deviceLabel = mics.find((m) => m.id === settings.deviceId)?.label ?? (settings.deviceId ? "a saved mic" : "");
   const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
+  const modelReady = availability?.state === "ready";
+  const useModel = settings.useModel && modelReady;
 
   const findMics = async () => {
     setMicError(null);
@@ -178,6 +223,12 @@ export default function MemorizeLabPage() {
   const step = state.step;
   const verse = step ? verses[step.verse] : null;
   const yourTurn = step?.turn === "you";
+  const shownWords = verse ? (verseWords.get(`${verse.s}:${verse.a}`) ?? []) : [];
+  const heardSet = useMemo(() => new Set(yourTurn ? state.heard : []), [yourTurn, state.heard]);
+  // a new verse or turn hides it again
+  useEffect(() => {
+    setPeek(false);
+  }, [step?.verse, step?.rep, step?.turn]);
   const levelPct = Math.max(0, Math.min(100, ((state.level + 70) / 70) * 100));
 
   return (
@@ -248,14 +299,57 @@ export default function MemorizeLabPage() {
             </div>
             {micError && <p className="text-xs text-red-400 mt-1">{micError}</p>}
           </Field>
-          <Field label="My turn ends after">
-            <Segmented
-              label="Quiet that ends your turn"
-              value={settings.endSilenceMs}
-              onChange={(endSilenceMs) => set({ endSilenceMs })}
-              options={[1000, 1500, 2000, 3000, 4000].map((v) => ({ value: v, label: `${v / 1000} s quiet` }))}
-            />
+          <Field label="When my turn ends">
+            {availability?.state === "ready" && (
+              <label className="flex items-start gap-2 text-sm text-ink mb-3">
+                <input type="checkbox" className="mt-1" checked={settings.useModel} onChange={(e) => set({ useModel: e.target.checked })} />
+                <span>
+                  When I finish the verse (speech model)
+                  <span className="block text-xs text-muted">It listens on your turn and moves on once you reach the verse's last word, so a breath never ends your turn.</span>
+                </span>
+              </label>
+            )}
+            {availability?.state === "no-model" && (
+              <p className="text-xs text-muted mb-3">
+                To move on when you finish the verse, download the speech model (73 MB) in{" "}
+                <Link href="/voice" className="underline hover:text-ink">
+                  voice settings
+                </Link>
+                . Until then, your turn ends on quiet.
+              </p>
+            )}
+            {availability?.state === "unsupported" && (
+              <p className="text-xs text-muted mb-3">This browser can't run the speech model (it needs {availability.missing.join(", ")}), so your turn ends on quiet.</p>
+            )}
+            {useModel ? (
+              <>
+                <div className="text-xs text-muted mb-1.5">…or if I stop for</div>
+                <Segmented
+                  label="Quiet that moves on"
+                  value={settings.giveUpQuietMs}
+                  onChange={(giveUpQuietMs) => set({ giveUpQuietMs })}
+                  options={[4000, 6000, 8000, 10000].map((v) => ({ value: v, label: `${v / 1000} s` }))}
+                />
+              </>
+            ) : (
+              <>
+                <div className="text-xs text-muted mb-1.5">After this much quiet (longer early in the verse, for a breath)</div>
+                <Segmented
+                  label="Quiet that ends your turn"
+                  value={settings.endSilenceMs}
+                  onChange={(endSilenceMs) => set({ endSilenceMs })}
+                  options={[2000, 3000, 4000, 5000, 6000].map((v) => ({ value: v, label: `${v / 1000} s` }))}
+                />
+              </>
+            )}
           </Field>
+          <label className="flex items-start gap-2 text-sm text-ink">
+            <input type="checkbox" className="mt-1" checked={settings.hideOnMyTurn} onChange={(e) => set({ hideOnMyTurn: e.target.checked })} />
+            <span>
+              Hide the verse on my turn
+              <span className="block text-xs text-muted">{useModel ? "Its words appear as you recite them. Tap the verse to see it all." : "Tap the verse to see it."}</span>
+            </span>
+          </label>
           <label className="flex items-center gap-2 text-sm text-ink">
             <input type="checkbox" checked={settings.cue} onChange={(e) => set({ cue: e.target.checked })} />
             Beep when it's my turn
@@ -289,7 +383,7 @@ export default function MemorizeLabPage() {
           </details>
           <button
             disabled={!verses.length}
-            onClick={() => void lab.start({ ...settings, deviceLabel }, verses, reciter)}
+            onClick={() => void lab.start({ ...settings, deviceLabel, useModel }, verses, reciter, (ayah) => verseWords.get(ayah)?.length ?? NaN)}
             className="w-full bg-primary text-on-primary rounded-lg px-4 py-3 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Start
@@ -318,6 +412,8 @@ export default function MemorizeLabPage() {
             )}
           </div>
 
+          <VerseView words={shownWords} heard={heardSet} hide={settings.hideOnMyTurn && yourTurn && !peek} onPeek={() => setPeek(true)} />
+
           <div>
             <div className="h-2 rounded-full bg-card2 overflow-hidden">
               <div className={`h-full transition-[width] duration-75 ${state.speaking ? "bg-primary" : "bg-muted"}`} style={{ width: `${levelPct}%` }} />
@@ -325,6 +421,12 @@ export default function MemorizeLabPage() {
             <div className="flex justify-between text-xs text-muted mt-1">
               <span>{state.micLabel ? `Mic: ${state.micLabel}` : "Mic off"}</span>
               <span>{state.activity === "listening" ? (state.speaking ? "hearing you" : `quiet · floor ${state.floorDb.toFixed(0)} dB`) : ""}</span>
+            </div>
+            <div className="text-xs text-muted mt-1 text-center">
+              {state.model === "ready" && (state.verseDone && yourTurn ? "✓ verse complete" : "Speech model: moves on when you finish the verse")}
+              {state.model === "loading" && "Speech model loading… (ends on quiet until it's ready)"}
+              {state.model === "failed" && "Speech model unavailable: ends on quiet"}
+              {state.model === "off" && "Ends on quiet"}
             </div>
           </div>
 

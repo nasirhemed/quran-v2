@@ -39,6 +39,7 @@ export const RECITERS: Reciter[] = [
   { id: "minshawi", name: "Muhammad Siddiq al-Minshawi", folder: "Minshawy_Murattal_128kbps" },
   { id: "abdulbasit", name: "Abdul Basit (murattal)", folder: "Abdul_Basit_Murattal_192kbps" },
   { id: "alafasy", name: "Mishary al-Afasy", folder: "Alafasy_128kbps" },
+  { id: "ali-jaber", name: "Ali Jaber", folder: "Ali_Jaber_64kbps" },
 ];
 
 const pad3 = (n: number) => String(n).padStart(3, "0");
@@ -80,7 +81,7 @@ export interface GateOptions {
   endSilenceMs: number;
   /** you must have spoken at least this long before quiet can end the turn as "silence" */
   minSpeechMs: number;
-  /** until you have spoken this long, the quiet needed is longer (long verses: a pause to remember a word) */
+  /** until you have spoken this long, the quiet needed is longer (a breath, or a pause to remember a word) */
   expectSpeechMs: number;
   /** with less speech than minSpeechMs, quiet ends the turn as "no-speech" once the turn is this old */
   noSpeechMs: number;
@@ -99,6 +100,8 @@ export interface GateStatus {
   loud: boolean;
   /** total time judged as speech (ms) */
   speechMs: number;
+  /** how long it has been quiet since the last speech (0 while speaking, or before any speech) */
+  quietMs: number;
   floorDb: number;
   /** set once the turn is over */
   end: GateEnd | null;
@@ -115,13 +118,19 @@ const FLOOR_PERCENTILE = 0.1;
 const FLOOR_RISE_DB_PER_S = 2;
 /** Speech needs this many blocks in a row above the threshold: syllables last longer, road bumps don't. */
 const SPEECH_RUN = 3;
-/** Long verses: the quiet that ends a turn is this much longer until you have recited for a while. */
+/** The quiet that ends a turn is this much longer until you have recited for a while (a breath mid-verse). */
 const LONG_QUIET_FACTOR = 1.75;
 /**
  * Quieter than any real room on a phone or car mic: exact zeros (reported as -120) or near-silence from a mic
  * still starting up (Bluetooth sends this for a moment). Says nothing about the noise floor, so it is skipped.
  */
 export const NOT_A_ROOM_DB = -85;
+/**
+ * The room's level to assume when no turn has measured it yet (the first turn): the floor then starts no higher
+ * than 6 dB above this, so a turn you start reciting into at once still hears you. Quieter than any voice on a
+ * phone or car mic (≈ -35..-15 dBFS), louder than most rooms; a louder car is learned within a few seconds.
+ */
+export const ROOM_PRIOR_DB = -48;
 
 const percentile = (xs: number[], p: number) => {
   const s = [...xs].sort((a, b) => a - b);
@@ -146,7 +155,7 @@ export class TurnGate {
   private history: number[] = [];
   private run = 0;
   private lastSpeechAt = -1;
-  readonly status: GateStatus = { speaking: false, loud: false, speechMs: 0, floorDb: -90, end: null, firstSpeechAt: null };
+  readonly status: GateStatus = { speaking: false, loud: false, speechMs: 0, quietMs: 0, floorDb: -90, end: null, firstSpeechAt: null };
 
   constructor(readonly opts: GateOptions, readonly frameMs = 10) {}
 
@@ -172,6 +181,7 @@ export class TurnGate {
     }
     const o = this.opts;
     const need = st.speechMs < o.expectSpeechMs ? o.endSilenceMs * LONG_QUIET_FACTOR : o.endSilenceMs;
+    st.quietMs = st.speaking || this.lastSpeechAt < 0 ? 0 : this.t - this.lastSpeechAt;
     const quiet = !st.speaking && this.t - this.lastSpeechAt >= need;
     if (this.t >= o.maxMs) st.end = "timeout";
     else if (quiet && st.speechMs >= o.minSpeechMs) st.end = "silence";
@@ -212,9 +222,10 @@ export function gateOptions(reciterMs: number, endSilenceMs: number, thresholdDb
     minSpeechDb: -60,
     endSilenceMs,
     minSpeechMs: Math.min(1000, r * 0.2),
-    expectSpeechMs: r > 12000 ? r * 0.4 : 0,
+    expectSpeechMs: r > 4000 ? r * 0.4 : 0,
     noSpeechMs: 10000,
     maxMs: Math.max(15000, r * 3 + 5000),
-    seedFloorDb,
+    // never above the prior: one turn's bad estimate (reciting without a pause) must not hide your voice next turn
+    seedFloorDb: Math.min(Number.isFinite(seedFloorDb) ? seedFloorDb : ROOM_PRIOR_DB, ROOM_PRIOR_DB),
   };
 }
