@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MemorizeSession, MemorizeState } from "@/memorize/session";
 import type { Verse } from "@/lib/memorize";
 
@@ -23,12 +23,51 @@ interface Props {
   hide: boolean;
 }
 
-/** Larger text for shorter verses; long ones scroll. */
-function verseSize(n: number) {
-  if (n <= 8) return "text-4xl sm:text-5xl leading-[2]";
-  if (n <= 16) return "text-3xl sm:text-4xl leading-[2.1]";
-  if (n <= 30) return "text-2xl sm:text-3xl leading-[2.2]";
-  return "text-xl sm:text-2xl leading-[2.2]";
+/** The verse is as large as fits its space, between these (px); a verse too long at the smallest scrolls. */
+const MIN_PX = 28;
+const MAX_PX = 88;
+
+/**
+ * Fits `text` inside `box`: the largest font size (px) at which it neither overflows the box's height nor its
+ * width. Re-fits when the box changes size (rotation, the browser bars) and once the Arabic font has loaded.
+ */
+function useFitText(box: React.RefObject<HTMLElement | null>, text: React.RefObject<HTMLElement | null>, key: string) {
+  const [px, setPx] = useState(MIN_PX);
+  useLayoutEffect(() => {
+    const b = box.current;
+    const t = text.current;
+    if (!b || !t) return;
+    const fit = () => {
+      const style = getComputedStyle(b);
+      const h = b.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      const w = b.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const fits = (size: number) => {
+        t.style.fontSize = `${size}px`;
+        return t.scrollHeight <= h && t.scrollWidth <= w;
+      };
+      let lo = MIN_PX;
+      let hi = MAX_PX;
+      if (fits(hi)) lo = hi;
+      else
+        while (hi - lo > 1) {
+          const mid = Math.floor((lo + hi) / 2);
+          if (fits(mid)) lo = mid;
+          else hi = mid;
+        }
+      t.style.fontSize = `${lo}px`;
+      setPx(lo);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(b);
+    let live = true;
+    void document.fonts?.ready.then(() => live && fit());
+    return () => {
+      live = false;
+      ro.disconnect();
+    };
+  }, [box, text, key]);
+  return px;
 }
 
 export default function FocusView({ session, state, verses, surahName, words, reps, listen, hide }: Props) {
@@ -40,6 +79,8 @@ export default function FocusView({ session, state, verses, surahName, words, re
   const heard = useMemo(() => new Set(yourTurn ? state.heard : []), [yourTurn, state.heard]);
   const [peek, setPeek] = useState(false);
   const scroller = useRef<HTMLDivElement | null>(null);
+  const verseText = useRef<HTMLParagraphElement | null>(null);
+  const fontPx = useFitText(scroller, verseText, `${ayah}:${list.length}`);
 
   // a new verse or turn hides it again
   useEffect(() => {
@@ -95,7 +136,14 @@ export default function FocusView({ session, state, verses, surahName, words, re
       </div>
 
       <div ref={scroller} className="flex-1 min-h-0 overflow-auto px-5 py-4 flex">
-        <p dir="rtl" lang="ar" onClick={() => setPeek(true)} className={`m-auto font-arabic text-ink text-center select-none ${verseSize(list.length)}`}>
+        <p
+          ref={verseText}
+          dir="rtl"
+          lang="ar"
+          onClick={() => setPeek(true)}
+          style={{ fontSize: fontPx }}
+          className="m-auto font-arabic text-ink text-center select-none leading-[1.9]"
+        >
           {list.map((w, i) => {
             const got = heard.has(w.key);
             const hinted = !got && yourTurn && i < state.hintTo;
