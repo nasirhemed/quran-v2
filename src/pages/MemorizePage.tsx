@@ -142,10 +142,10 @@ export default function MemorizePage() {
     if (typeof location !== "undefined" && new URLSearchParams(location.search).has("debug")) (window as unknown as Record<string, unknown>).__memorize = session;
   }, [session]);
 
-  /** each verse's words, "s:a" → [{ key "s:a:w", text }] */
+  /** each verse's words, "s:a" → [{ key "s:a:w", text }], the text in the QPC Hafs script (`font-quran`) */
   const verseWords = useMemo(() => {
     const m = new Map<string, { key: string; text: string }[]>();
-    for (const p of pages ?? []) for (const g of p.surahGroups) for (const a of g.ayahs) m.set(`${a.surah}:${a.ayah}`, a.words.map((w) => ({ key: `${a.surah}:${a.ayah}:${w.position}`, text: w.text })));
+    for (const p of pages ?? []) for (const g of p.surahGroups) for (const a of g.ayahs) m.set(`${a.surah}:${a.ayah}`, a.words.map((w) => ({ key: `${a.surah}:${a.ayah}:${w.position}`, text: w.hafs })));
     return m;
   }, [pages]);
   // read when needed, so a session started before the pages arrived still gets them

@@ -142,7 +142,7 @@ export default function FocusView({ session, state, verses, surahName, words, re
           lang="ar"
           onClick={() => setPeek(true)}
           style={{ fontSize: fontPx }}
-          className="m-auto font-arabic text-ink text-center select-none leading-[1.9]"
+          className="m-auto font-quran text-ink text-center select-none leading-[1.9]"
         >
           {list.map((w, i) => {
             const got = heard.has(w.key);
