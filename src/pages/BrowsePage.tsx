@@ -105,7 +105,7 @@ function SearchResults({ query, surahs, index }: { query: string; surahs: SurahM
                 <span className="text-xs text-faint shrink-0">
                   {p.occurrences.length} verses · {p.surahCount} {p.surahCount === 1 ? "surah" : "surahs"}
                 </span>
-                <span dir="rtl" lang="ar" className="ml-auto font-arabic text-lg text-ink text-right">
+                <span dir="rtl" lang="ar" className="ml-auto font-quran text-lg text-ink text-right">
                   {p.text}
                 </span>
               </BrowseLink>

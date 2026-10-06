@@ -1,7 +1,10 @@
 // ─── Page data ──────────────────────────────────────────────────
 
 export interface QuranWord {
+  /** Uthmani text (quran.com's text_uthmani): what search, comparison and voice work on */
   text: string;
+  /** the same word in the QPC Hafs script, for display: draw it with the QPC Hafs font (`font-quran`) */
+  hafs: string;
   /** QCF V2 glyph codes: they draw this word with its page's font (src/lib/mushaf/pack.ts) */
   glyph: string;
   lineNumber: number; // printed line of the 1421H Madinah mushaf (QCF V2), 1-15

@@ -28,6 +28,8 @@ export interface PracticeVerse {
   tname: string;
   /** word texts, in the page data's segmentation */
   words: string[];
+  /** the same words in the QPC Hafs script, for display (`font-quran`) */
+  hafs: string[];
 }
 
 export interface LookAlike {
@@ -144,6 +146,7 @@ export function buildPracticeIndex(
           juz: page.juz,
           tname: group.tname,
           words: a.words.map((w) => w.text),
+          hafs: a.words.map((w) => w.hafs),
         });
       }
     }

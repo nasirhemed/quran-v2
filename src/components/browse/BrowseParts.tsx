@@ -65,11 +65,11 @@ export interface WordMarks {
   color: string;
 }
 
-/** A verse with some word ranges coloured (the first mark wins); a run of words is one highlight. */
+/** A verse (its words in the QPC Hafs script) with some word ranges coloured (the first mark wins); a run of words is one highlight. */
 export function VerseText({
   words,
   marks = [],
-  className = "font-arabic text-xl leading-loose text-ink",
+  className = "font-quran text-xl leading-loose text-ink",
 }: {
   words: string[];
   marks?: WordMarks[];
@@ -149,7 +149,7 @@ export function VerseCard({
           <Counts verse={verse} />
         </span>
       </div>
-      <VerseText words={verse.words} marks={marks} />
+      <VerseText words={verse.hafs} marks={marks} />
     </BrowseLink>
   );
 }
@@ -175,7 +175,7 @@ export function OccurrenceRow({
         <span className="font-semibold text-primary">{label}</span>
         {badge && <span className="ml-auto">{badge}</span>}
       </div>
-      <VerseText words={verse.words} marks={marks} className="font-arabic text-lg leading-loose text-ink-soft" />
+      <VerseText words={verse.hafs} marks={marks} className="font-quran text-lg leading-loose text-ink-soft" />
     </BrowseLink>
   );
 }

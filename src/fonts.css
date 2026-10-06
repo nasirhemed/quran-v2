@@ -1,5 +1,17 @@
 /*
- * Bundled fonts (from @fontsource), so the app works offline and under cross-origin isolation.
+ * The King Fahd Complex's QPC Hafs font (KFGQPC HAFS Uthmanic Script v2.2, from QUL: qul.tarteel.ai/resources/font/245,
+ * unmodified, as its licence requires), for verse text outside the mushaf pages. It is made for the QPC Hafs script,
+ * so it draws `QuranWord.hafs`, never the Uthmani `text`; Arabic-Indic digits come out as ayah-number ornaments.
+ */
+@font-face {
+  font-family: "QPC Hafs";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("./assets/fonts/UthmanicHafs_V22.woff2") format("woff2");
+}
+/*
+ * Other bundled fonts (from @fontsource), so the app works offline and under cross-origin isolation.
  * The unicode-range of each subset matches Google Fonts, which the app used before: without it the browser shapes
  * Quranic marks that follow a space (waqf signs) with a different subset and places them differently.
  */

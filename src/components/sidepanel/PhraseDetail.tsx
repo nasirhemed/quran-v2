@@ -15,7 +15,7 @@ export default function PhraseDetail({ phrase, onNavigate }: PhraseDetailProps) 
     <div className="space-y-4">
       <div className="text-center">
         <div
-          className="font-arabic text-2xl text-amber-200 leading-loose"
+          className="font-quran text-2xl text-amber-200 leading-loose"
           dir="rtl"
         >
           {phrase.phraseText}
@@ -44,7 +44,7 @@ export default function PhraseDetail({ phrase, onNavigate }: PhraseDetailProps) 
                   {occ.ayahKey}
                 </div>
                 <div
-                  className="font-arabic text-lg leading-loose"
+                  className="font-quran text-lg leading-loose"
                   dir="rtl"
                 >
                   {words.map((word, i) => {

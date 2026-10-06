@@ -14,6 +14,8 @@ export default {
     extend: {
       fontFamily: {
         arabic: ["Amiri", "serif"],
+        // Verse text in the QPC Hafs script (`QuranWord.hafs`); Amiri only covers what the font lacks.
+        quran: ['"QPC Hafs"', "Amiri", "serif"],
         sans: ["Inter", "system-ui", "sans-serif"],
       },
       colors: {

@@ -144,8 +144,8 @@ export default function PracticePage() {
                       <div className="text-xs font-semibold text-primary">
                         {v.tname} {v.key} · page {v.page}
                       </div>
-                      <div dir="rtl" lang="ar" className="font-arabic text-base text-ink truncate">
-                        {v.words.slice(0, q.promptWords).join(" ")} …
+                      <div dir="rtl" lang="ar" className="font-quran text-base text-ink truncate">
+                        {v.hafs.slice(0, q.promptWords).join(" ")} …
                       </div>
                     </div>
                     <Link href={readerHref(v.key)} className="shrink-0 text-xs text-muted hover:text-primary underline">
@@ -411,8 +411,8 @@ function Question({
         <div className="text-xs text-muted mb-3">
           {start.tname} {start.key} · page {start.page}
         </div>
-        <p dir="rtl" lang="ar" className="font-arabic text-3xl leading-loose text-ink">
-          {start.words.slice(0, q.promptWords).join(" ")} <span className="text-faint">…</span>
+        <p dir="rtl" lang="ar" className="font-quran text-3xl leading-loose text-ink">
+          {start.hafs.slice(0, q.promptWords).join(" ")} <span className="text-faint">…</span>
         </p>
         <div className="text-sm text-ink-soft mt-3">Recite on to {to}.</div>
       </div>
@@ -490,10 +490,10 @@ function Passage({ index, question: q }: { index: PracticeIndex; question: Pract
             {block.trap ? (
               <TrapVerse index={index} i={block.verses[0]} />
             ) : (
-              <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink">
+              <p dir="rtl" lang="ar" className="font-quran text-xl leading-loose text-ink">
                 {block.verses.map((i) => (
                   <Fragment key={i}>
-                    {index.verses[i].words.join(" ")} <AyahNumber n={index.verses[i].ayah} />{" "}
+                    {index.verses[i].hafs.join(" ")}{"\u00a0"}<AyahNumber n={index.verses[i].ayah} />{" "}
                   </Fragment>
                 ))}
               </p>
@@ -505,8 +505,9 @@ function Passage({ index, question: q }: { index: PracticeIndex; question: Pract
   );
 }
 
+/** The QPC Hafs font draws the number in an ayah ornament, as the mushaf does; a no-break space keeps it on its verse's last line. */
 function AyahNumber({ n }: { n: number }) {
-  return <span className="text-faint text-lg">﴿{arabicNumber(n)}﴾</span>;
+  return <span className="text-muted">{arabicNumber(n)}</span>;
 }
 
 function TrapVerse({ index, i }: { index: PracticeIndex; i: number }) {
@@ -516,8 +517,8 @@ function TrapVerse({ index, i }: { index: PracticeIndex; i: number }) {
   const own = useMemo(() => compareVerses(index, i, closest).a, [index, i, closest]);
   return (
     <div className="rounded-lg bg-card2 px-3 py-2">
-      <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink">
-        <MarkedWords words={v.words} marks={own} /> <AyahNumber n={v.ayah} />
+      <p dir="rtl" lang="ar" className="font-quran text-xl leading-loose text-ink">
+        <MarkedWords words={v.hafs} marks={own} />{"\u00a0"}<AyahNumber n={v.ayah} />
       </p>
       {lookAlikes.map((l) => (
         <LookAlikeNote key={l.other} index={index} i={i} other={l.other} />
@@ -542,14 +543,14 @@ function LookAlikeNote({ index, i, other }: { index: PracticeIndex; i: number; o
       </div>
       {identical ? (
         next && (
-          <p dir="rtl" lang="ar" className="font-arabic text-lg leading-loose text-ink-soft">
-            {next.words.slice(0, 8).join(" ")}
+          <p dir="rtl" lang="ar" className="font-quran text-lg leading-loose text-ink-soft">
+            {next.hafs.slice(0, 8).join(" ")}
             {next.words.length > 8 && " …"}
           </p>
         )
       ) : (
-        <p dir="rtl" lang="ar" className="font-arabic text-lg leading-loose text-ink-soft">
-          <MarkedWords words={o.words} marks={marks.b} trim />
+        <p dir="rtl" lang="ar" className="font-quran text-lg leading-loose text-ink-soft">
+          <MarkedWords words={o.hafs} marks={marks.b} trim />
         </p>
       )}
     </div>
@@ -639,8 +640,8 @@ function ReadAlongPassage({
                     <TrapVerse index={index} i={i} />
                   </div>
                 ) : (
-                  <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink px-5 py-1">
-                    {v.words.join(" ")} <AyahNumber n={v.ayah} />
+                  <p dir="rtl" lang="ar" className="font-quran text-xl leading-loose text-ink px-5 py-1">
+                    {v.hafs.join(" ")}{"\u00a0"}<AyahNumber n={v.ayah} />
                     {trap && !showLookAlikes && (
                       <span className="ml-2 align-middle rounded-full bg-gold/15 px-2 py-px font-sans text-[10.5px] font-semibold text-gold-text">look-alike</span>
                     )}
@@ -666,12 +667,12 @@ function ReadAlongPassage({
                     Peek next word
                   </button>
                 </div>
-                <p dir="rtl" lang="ar" className="font-arabic text-xl leading-loose text-ink min-h-[2em]">
-                  {v.words.slice(0, heard).join(" ")}
+                <p dir="rtl" lang="ar" className="font-quran text-xl leading-loose text-ink min-h-[2em]">
+                  {v.hafs.slice(0, heard).join(" ")}
                   {shown > heard && (
                     <>
                       {heard > 0 && " "}
-                      <span className="text-gold-text">{v.words.slice(heard, shown).join(" ")}</span>
+                      <span className="text-gold-text">{v.hafs.slice(heard, shown).join(" ")}</span>
                     </>
                   )}{" "}
                   <span className="text-faint">…</span>

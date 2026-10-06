@@ -104,7 +104,7 @@ export default defineConfig({
         globPatterns: ["**/*.{html,js,css,woff2,png,ico}", "data/*.json"],
         // Voice data is only needed once voice is used: cached on first use instead.
         globIgnores: ["data/recitation-words.json"],
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // quran-pages.json is 6.2 MB with the mushaf glyphs
+        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024, // quran-pages.json is 8.3 MB with the mushaf glyphs and QPC Hafs text
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/models\//],
         cleanupOutdatedCaches: true,
