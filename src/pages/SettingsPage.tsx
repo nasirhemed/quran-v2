@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
+import { Link } from "wouter";
 import OfflineMushaf from "@/components/mushaf/OfflineMushaf";
 import { getVoiceSupport } from "@/recitation/support";
 
@@ -49,6 +50,9 @@ export default function SettingsPage() {
           <Suspense fallback={<div className="text-sm text-muted">Loading…</div>}>
             <VoiceModels embedded />
           </Suspense>
+          <Link href="/transcribe" className="block text-sm text-primary hover:underline">
+            Live transcription →
+          </Link>
         </Section>
       )}
     </div>

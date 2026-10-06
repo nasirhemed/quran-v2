@@ -45,6 +45,13 @@ scope.onmessage = async (ev: MessageEvent<ToEngine>) => {
       if (!ready) return;
       const { words, ref } = await ready;
       session = new FollowSession(ref, words, symbols);
+    } else if (m.type === "expect") {
+      if (!ready) return;
+      const { words, ref } = await ready;
+      session = new FollowSession(ref, words, symbols);
+      const first = words.ayat[m.ayah]?.[0];
+      if (first === undefined) throw new Error(`Unknown ayah ${m.ayah}`);
+      session.expect(first);
     } else if (m.type === "step") {
       if (!ready) return;
       const { key } = await ready; // steps sent while the index is still building wait here, in order
