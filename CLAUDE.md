@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Itqān (quran-v2) unifies three previously separate apps into one Qur'an study
-app with three tabs sharing one shell, one theme, and one data folder:
+app, with four tabs sharing one shell, one theme, and one data folder:
 
 - **Read** (`/`, `/read`) — mushaf reader with word-level Mutashabihat
   highlighting, ported from `nasirhemed/quran-reader`.
@@ -14,6 +14,9 @@ app with three tabs sharing one shell, one theme, and one data folder:
 - **Practice** (`/practice`) — a competition-style recitation test, rebuilt
   from `nasirhemed/memorization`: the opening words of a verse, recite on to
   the end of the next page; questions start where verses have look-alikes.
+- **Memorize** (`/memorize`) — learn new verses by turns: the reciter recites a
+  verse, you recite it back, N times, verse by verse; the speech model knows
+  when you have finished and shows the next words when you get stuck.
 
 ## Commands
 
@@ -21,7 +24,7 @@ app with three tabs sharing one shell, one theme, and one data folder:
 npm run dev      # Vite dev server
 npm run build    # tsc -b && vite build
 npm run check    # TypeScript type checking (app, then tests)
-npm test         # Vitest: the recitation engine, browse, practice and mushaf libs (tests/)
+npm test         # Vitest: the recitation engine, browse, practice, memorize and mushaf libs (tests/)
 npm run preview  # Preview production build
 ```
 
@@ -152,6 +155,31 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   so importing that hook costs almost nothing. The reader's `components/recitation/FollowControl.tsx` adds
   the Follow button, turns pages, and marks the word just recited by toggling `.voice-current` on the
   `[data-w="s:a:w"]` span directly (QuranPage never re-renders per step). Follow mode never marks mistakes.
+- **Memorize** (`pages/MemorizePage.tsx` setup + summary, `components/memorize/FocusView.tsx` the full-screen
+  session view, `memorize/session.ts` MemorizeSession, `memorize/recognizer.ts`, `lib/memorize.ts` plain TS,
+  tested in `tests/memorize`). Each verse: listen ×X, then your turn, then reciter → you for the remaining
+  repetitions (`nextStep`). Reciter audio is everyayah.com's per-verse MP3s (CORS `*`, so COEP allows them; fetched
+  into blob URLs, next 4 prefetched); Ali Jaber is the default; speed 1–2× (`playbackRate`, pitch kept). Built from
+  a car test (prototype logs): the mic opens once at Start and stays open (opening it per turn gained nothing and
+  flips Bluetooth between call and media modes); Chrome on Android suspends the AudioContext when the reciter
+  starts, so it is resumed on `statechange`. Your turn with the speech model (`ModelTurn`): the engine is told the
+  verse (`FollowSession.expect`, below) and the session listens only during your turn, on its own mic stream
+  (`BrowserSource.start(stream)`). Quiet counts only once the model has heard the verse begin (a car's Bluetooth
+  delay keeps the reciter audible for 2–3 s after `ended`); after `hintAfterMs` (3 s) without progress and 1.2 s of
+  quiet the next 2 words are shown in gold (6 s before you start); the turn ends at the verse's last word + 0.5 s of
+  quiet, on Done, after `giveUpMs` (20 s; or never) of quiet once started, or 30 s without starting. Without the
+  model (not downloaded, or unsupported, e.g. iOS < 26 for OPFS), `TurnGate` ends the turn on quiet (3 s, ×1.75
+  until 40% of the reciter's time is recited; noise floor = 10th percentile of 5 s, rising ≤ 2 dB/s, seeded from
+  the last turn but never above -48 dBFS). `?debug` exposes the session as `window.__memorize`; the summary's
+  "Copy the session log" gives the turn-by-turn log for bug reports. On phones the header hides the theme and voice
+  buttons (both are in Settings) so the four tabs fit at 320 px.
+- **Expect mode** (`FollowSession.expect(word)` / `Follower.startAt`, worker message `{type: "expect", ayah}`):
+  follow a known verse from its first word, no voice search. Only Memorize uses it, and every change it brought is
+  scoped to it (Follow mode, `/transcribe` and read-along are unchanged): the tracking window doesn't reach back
+  before the verse (refrains like Ar-Rahman's), the last two words are matched directly (a letter shared across
+  the boundary, غفور رحيم; verses under 8 letters matched whole), and a verse with the same words elsewhere counts
+  as the expected one. `RECITATION_SWEEP=1 npx vitest run tests/recitation/expect-sweep.test.ts` runs every verse
+  (ideal model output, 2 chunkings): 4 of 12,472 runs never complete, none completes early.
 - **Hidden words** (recite from memory): the reader's Hide button (`components/recitation/HideWords.tsx`,
   `hooks/useHiddenWords.ts`, remembered in localStorage "hideWords") masks every word (`.words-hidden` in
   `index.css`: transparent text over a faint baseline, highlights suppressed). Words come back one by one as
@@ -180,3 +208,6 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
    slips across sessions and bring them back (spaced review); recite a question
    in the Reader with hidden words and voice Follow mode.
 3. Browse → Reader deep links could pre-open the side panel on the phrase.
+4. Memorize: audio hints (the reciter saying the next words, for the car) from word timings worked out on the
+   device (the model over the reciter's verse audio; quran.com's timings don't cover Ali Jaber); phrase-by-phrase
+   drilling of long verses at the waqf marks; remember memorised verses for review.

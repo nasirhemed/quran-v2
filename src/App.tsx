@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback } from "react";
-import { Route, Switch, useLocation } from "wouter";
+import { Redirect, Route, Switch, useLocation } from "wouter";
 import AppShell from "@/components/layout/AppShell";
 import ErrorBoundary from "@/components/layout/ErrorBoundary";
 import HomePage from "@/pages/HomePage";
@@ -14,6 +14,8 @@ import SettingsPage from "@/pages/SettingsPage";
 // Voice settings load on demand, so the reader stays as small as before.
 const VoicePage = lazy(() => import("@/pages/VoicePage"));
 const TranscribePage = lazy(() => import("@/pages/TranscribePage"));
+// Memorize uses the voice engine: loaded on demand, like the voice pages.
+const MemorizePage = lazy(() => import("@/pages/MemorizePage"));
 
 export default function App() {
   const [location, setLocation] = useLocation();
@@ -55,6 +57,15 @@ export default function App() {
           </Route>
           <Route path="/settings">
             <SettingsPage />
+          </Route>
+          <Route path="/memorize">
+            <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>
+              <MemorizePage />
+            </Suspense>
+          </Route>
+          {/* the prototype's old address */}
+          <Route path="/lab/memorize">
+            <Redirect to="/memorize" />
           </Route>
           <Route path="/voice">
             <Suspense fallback={<div className="py-24 text-center text-muted">Loading…</div>}>

@@ -10,6 +10,7 @@ const TABS = [
   { href: "/", label: "Read", match: (path: string) => path === "/" || path.startsWith("/read") },
   { href: "/browse", label: "Browse", match: (path: string) => path.startsWith("/browse") },
   { href: "/practice", label: "Practice", match: (path: string) => path.startsWith("/practice") },
+  { href: "/memorize", label: "Memorize", match: (path: string) => path.startsWith("/memorize") },
 ];
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -19,7 +20,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header data-sticky-top className="sticky top-0 z-40 h-14 bg-surface-light/95 backdrop-blur border-b border-edge">
-        <div className="max-w-7xl mx-auto h-full px-4 flex items-center gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto h-full px-3 sm:px-4 flex items-center gap-1.5 sm:gap-4">
           <Link href="/" className="flex items-baseline gap-2 shrink-0">
             <span className="font-arabic text-2xl text-primary leading-none">إتقان</span>
             <span className="hidden sm:inline text-xs font-semibold tracking-[0.08em] text-muted">
@@ -27,14 +28,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          <nav className="flex gap-1 mx-auto">
+          {/* on the smallest phones the tabs scroll rather than push the buttons off screen */}
+          <nav className="flex gap-0.5 sm:gap-1 mx-auto min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TABS.map((tab) => {
               const active = tab.match(location);
               return (
                 <Link
                   key={tab.href}
                   href={tab.href}
-                  className={`px-3 sm:px-4 py-1.5 rounded-full text-sm transition-colors ${
+                  className={`shrink-0 px-2 sm:px-4 py-1.5 rounded-full text-[13px] sm:text-sm transition-colors ${
                     active
                       ? "bg-primary text-on-primary font-semibold"
                       : "text-muted hover:text-ink hover:bg-card2 font-medium"
@@ -46,11 +48,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
+          {/* on phones, live transcription is in Settings (four tabs leave no room) */}
           {voiceSupported && (
             <Link
               href="/transcribe"
               title="Voice"
-              className={`shrink-0 w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+              className={`hidden shrink-0 w-8 h-8 rounded-lg border sm:flex items-center justify-center transition-colors ${
                 (location.startsWith("/voice") || location.startsWith("/transcribe"))
                   ? "border-primary bg-primary-soft text-primary"
                   : "border-edge bg-card2 text-muted hover:text-ink"
@@ -87,10 +90,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </svg>
           </Link>
 
+          {/* on phones the theme is switched in Settings: four tabs leave no room */}
           <button
             onClick={toggle}
             title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            className="shrink-0 w-8 h-8 rounded-lg border border-edge bg-card2 text-muted hover:text-ink flex items-center justify-center transition-colors"
+            className="hidden shrink-0 w-8 h-8 rounded-lg border border-edge bg-card2 text-muted hover:text-ink sm:flex items-center justify-center transition-colors"
           >
             {theme === "dark" ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
