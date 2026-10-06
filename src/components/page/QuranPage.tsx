@@ -134,7 +134,7 @@ export default function QuranPage({
             <span className="sr-only">{item.word.text} </span>
           </>
         ) : (
-          item.word.text
+          item.word.hafs
         )}
       </span>
     );
@@ -179,7 +179,7 @@ export default function QuranPage({
           })}
         </div>
       ) : (
-        <div lang="ar" className="font-arabic text-lg sm:text-2xl space-y-1">
+        <div lang="ar" className="font-quran text-lg sm:text-2xl space-y-1">
           {lines.map((line) => {
             if (line.kind === "surah") {
               const meta = surahMeta(line.surah);

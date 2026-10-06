@@ -73,3 +73,22 @@ export function useMushafFonts(page: number, opts: { headers: boolean; bismillah
   if (state.key !== key) return allReady() ? "ready" : "loading";
   return state.state;
 }
+
+/**
+ * The mushaf's surah-name font, for names drawn outside a page (surah lists, titles): true once it can draw.
+ * It is the same pinned file the page headers use, so it is fetched once and then comes from the device.
+ */
+export function useSurahNamesFont(): boolean {
+  const fonts = mushafFonts();
+  const [ready, setReady] = useState(() => fonts.isReady(SURAH_NAMES_FAMILY));
+  useEffect(() => {
+    if (ready) return;
+    let live = true;
+    void fonts.load(SURAH_NAMES_FILE, SURAH_NAMES_FAMILY, { pin: true }).then((ok) => live && ok && setReady(true));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return ready;
+}

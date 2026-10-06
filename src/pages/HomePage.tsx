@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSurahs } from "@/lib/data";
 import type { SurahMeta } from "@/types";
 import OfflineMushaf from "@/components/mushaf/OfflineMushaf";
+import SurahName from "@/components/SurahName";
 
 const OFFLINE_DISMISSED_KEY = "offlineMushafDismissed";
 
@@ -33,7 +34,7 @@ function SurahCard({ surah, onSelect }: SurahCardProps) {
           </p>
         </div>
         <div className="flex-shrink-0" dir="rtl">
-          <div className="font-arabic text-xl text-slate-200">{surah.name}</div>
+          <SurahName surah={surah.index} name={surah.name} className="text-xl text-slate-200" />
         </div>
       </div>
     </button>

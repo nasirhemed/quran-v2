@@ -8,6 +8,9 @@ words glyphs of the wrong page's font, e.g. pages 121-123, 144, 599.)
 
 Rewrites public/data/quran-pages.json (minified) on the 1421H pages, keeping each ayah's words and text as they
 are (joined on (surah, ayah) and word position, failing loudly on any mismatch), and adds:
+  word.hafs         the word in the QPC Hafs script (King Fahd Complex's Unicode encoding), drawn with the QPC Hafs
+                    font (src/fonts.css) wherever verses are shown as text; `text` (Uthmani) stays for search and
+                    comparison
   word.glyph        glyph codes: draw them with the page's font (src/lib/mushaf/pack.ts)
   word.lineNumber   the word's printed line
   ayah.end          {glyph, lineNumber}: the ayah-number ornament, which can open the next line
@@ -43,7 +46,7 @@ PACK_ID, PACK_VERSION = "qcf-v2", "1"
 PAGE_COUNT, LINES = 604, 15
 API = (
     "https://api.qurancdn.com/api/qdc/verses/by_page/{page}?words=true&per_page=all&filter_page_words=true"
-    "&mushaf=1&word_fields=verse_key,position,char_type_name,code_v2,line_number,v2_page,page_number,text_uthmani"
+    "&mushaf=1&word_fields=verse_key,position,char_type_name,code_v2,line_number,v2_page,page_number,text_uthmani,qpc_uthmani_hafs"
 )
 FONT_HOST = "https://verses.quran.foundation/fonts/quran"
 PAGE_FONT = FONT_HOST + "/hafs/v2/woff2/p{page}.woff2"
@@ -179,7 +182,7 @@ def main():
                 if w["position"] != o["position"]:
                     problems.append(f"{s}:{a}:{o['position']}: position mismatch")
                 text_diffs += w["text_uthmani"] != o["text"]
-                out.append({"text": o["text"], "glyph": w["code_v2"], "lineNumber": line_of(w), "position": o["position"]})
+                out.append({"text": o["text"], "hafs": w["qpc_uthmani_hafs"], "glyph": w["code_v2"], "lineNumber": line_of(w), "position": o["position"]})
                 placed.append((w["code_v2"], line_of(w)))
             end = ends[0]
             placed.append((end["code_v2"], line_of(end)))

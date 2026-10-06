@@ -67,7 +67,15 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   column width / `LINE_WIDTH_EM`, so lines never wrap; highlights must only colour a word (no padding, margin or
   border). Glyph codes are meaningless outside their font, so each word carries `sr-only` text for screen readers,
   and copying swaps in the selected words' Unicode text (`data-copy`, `onCopy`). Without fonts (not hosted, or offline on a page never opened) the page falls back to Unicode text.
-  Everything else (Browse, Practice, voice) uses the Unicode `text`.
+  Elsewhere verses are shown as Unicode text in the King Fahd Complex's QPC Hafs font (`font-quran`; KFGQPC HAFS
+  Uthmanic Script v2.2 from QUL, qul.tarteel.ai/resources/font/245, bundled unmodified as its licence requires). That
+  font is made for its own encoding, so each word also carries `hafs` (quran.com's `qpc_uthmani_hafs`, written by
+  `build-mushaf-data.py`); never draw the Uthmani `text` with it (dotted circles). QUL's mutashabihat phrase and
+  ayah texts are already QPC Hafs; similar-ayah texts and local phrases are Uthmani and stay in Amiri (`font-arabic`).
+  `text` stays what search, comparison (Browse, Practice) and voice work on. Arabic-Indic digits in the font are
+  ayah-number ornaments.
+  Surah names in lists and titles (`components/SurahName.tsx`) are drawn like the page headers, from the pack's
+  surah-name font (`useSurahNamesFont`, fetched once and pinned), and as QPC Hafs text until it is there.
 - **Mushaf font pack** (`lib/mushaf/pack.ts`, `fontStore.ts`, `hooks/useMushafFonts.ts`): `qcf-v2`, 604 page fonts
   + `surah-names.woff2`, 98 MB, hosted with the model packs at `$VITE_MODEL_BASE_URL/qcf-v2/1/<file>` (never
   bundled or precached) with a `manifest.json` (sizes, SHA-256) so other clients (a native app) use the same
@@ -180,7 +188,7 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   Follow mode hears them (`useFollowMode`'s `onHeard`) or when tapped (a hint); `.word-revealed` goes on the span
   directly and QuranPage also reads the revealed set when it renders.
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
-  shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). The mushaf's
+  shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use; quran-pages.json is 8.3 MB, limit 12 MB). The mushaf's
   page fonts are not precached (98 MB): see Mushaf font pack. Updates
   wait for the user (`components/layout/UpdatePrompt.tsx`) and never reload by themselves. Any new data file
   over 8 MB needs `maximumFileSizeToCacheInBytes` raised.
