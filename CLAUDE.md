@@ -74,6 +74,8 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   ayah texts are already QPC Hafs; similar-ayah texts and local phrases are Uthmani and stay in Amiri (`font-arabic`).
   `text` stays what search, comparison (Browse, Practice) and voice work on. Arabic-Indic digits in the font are
   ayah-number ornaments.
+  Surah names in lists and titles (`components/SurahName.tsx`) are drawn like the page headers, from the pack's
+  surah-name font (`useSurahNamesFont`, fetched once and pinned), and as QPC Hafs text until it is there.
 - **Mushaf font pack** (`lib/mushaf/pack.ts`, `fontStore.ts`, `hooks/useMushafFonts.ts`): `qcf-v2`, 604 page fonts
   + `surah-names.woff2`, 98 MB, hosted with the model packs at `$VITE_MODEL_BASE_URL/qcf-v2/1/<file>` (never
   bundled or precached) with a `manifest.json` (sizes, SHA-256) so other clients (a native app) use the same

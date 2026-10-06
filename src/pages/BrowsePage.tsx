@@ -15,6 +15,7 @@ import {
   useRestoreScroll,
 } from "@/components/browse/BrowseParts";
 import type { SurahMeta } from "@/types";
+import SurahName from "@/components/SurahName";
 
 const PAGE = 30;
 
@@ -34,9 +35,7 @@ function SurahGrid({ surahs, index }: { surahs: SurahMeta[]; index?: BrowseIndex
                 {index ? (count ? `${count} of ${s.ayas} verses` : "none recorded") : "…"}
               </span>
             </span>
-            <span dir="rtl" lang="ar" className="font-arabic text-lg text-ink-soft">
-              {s.name}
-            </span>
+            <SurahName surah={s.index} name={s.name} className="text-lg text-ink-soft" />
           </>
         );
         const cls = "flex items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2";

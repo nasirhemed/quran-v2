@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import { fetchSurahs } from "@/lib/data";
 import { useBrowseIndex } from "@/hooks/useBrowseIndex";
+import SurahName from "@/components/SurahName";
 import {
   Breadcrumbs,
   BrowseLink,
@@ -45,8 +46,8 @@ export default function BrowseSurahPage({ surah }: { surah: number }) {
       <Breadcrumbs items={[{ label: "Browse", href: "/browse" }, { label: `${meta.index} · ${meta.tname}` }]} />
 
       <div className="text-center mb-6">
-        <div dir="rtl" lang="ar" className="font-arabic text-4xl text-ink leading-loose">
-          {meta.name}
+        <div className="leading-loose">
+          <SurahName surah={meta.index} name={meta.name} className="text-4xl text-ink" />
         </div>
         <div className="text-sm text-muted">
           {meta.index} · {meta.tname} · {meta.ename}
