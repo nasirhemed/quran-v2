@@ -5,6 +5,8 @@ import type { MistakeKind } from "../engine/verify";
 export type ToEngine =
   | { type: "init"; symbols: string[] }
   | { type: "reset" }
+  /** a fresh session that follows from the first word of ayah "s:a" (no voice search) */
+  | { type: "expect"; ayah: string }
   /** one model step's new units with their output frames; `time` is the step's audio time in seconds */
   | { type: "step"; step: number; units: number[]; frames: number[]; time: number }
   /** verify mode, after stop: check the whole recording against the recited passage */

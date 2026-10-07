@@ -14,6 +14,8 @@ export default {
     extend: {
       fontFamily: {
         arabic: ["Amiri", "serif"],
+        // Verse text in the QPC Hafs script (`QuranWord.hafs`); Amiri only covers what the font lacks.
+        quran: ['"QPC Hafs"', "Amiri", "serif"],
         sans: ["Inter", "system-ui", "sans-serif"],
       },
       colors: {
@@ -34,6 +36,7 @@ export default {
         gold: {
           DEFAULT: "var(--gold)",
           text: "var(--gold-text)",
+          soft: "rgb(var(--gold-rgb) / 0.16)",
         },
 
         // quran-reader compatibility aliases

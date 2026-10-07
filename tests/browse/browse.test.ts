@@ -39,6 +39,14 @@ describe("buildBrowseIndex", () => {
     }
   });
 
+  it("shows each verse in the QPC Hafs script, word for word as its Uthmani words", () => {
+    for (const v of index.verses.values()) {
+      expect(v.hafs, v.key).toHaveLength(v.words.length);
+      // the same letters; only the marks' encoding differs (27:26's Uthmani text carries a right-to-left mark)
+      v.words.forEach((w, i) => expect(foldArabic(v.hafs[i]), `${v.key}:${i + 1}`).toBe(foldArabic(w.replace(/‏/g, ""))));
+    }
+  });
+
   it("lists similar verses from both sides of a pair", () => {
     expect(index.verses.get("1:1")!.similar.some((s) => s.key === "27:30")).toBe(true);
     expect(index.verses.get("27:30")!.similar.some((s) => s.key === "1:1")).toBe(true);

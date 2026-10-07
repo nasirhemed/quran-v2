@@ -5,15 +5,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Itqān (quran-v2) unifies three previously separate apps into one Qur'an study
-app with three tabs sharing one shell, one theme, and one data folder:
+app, with four tabs sharing one shell, one theme, and one data folder:
 
 - **Read** (`/`, `/read`) — mushaf reader with word-level Mutashabihat
   highlighting, ported from `nasirhemed/quran-reader`.
 - **Browse** (`/browse`) — similar phrases & similar verses by surah and
   verse, with harakat-insensitive search; rebuilt from `nasirhemed/Quran-Practice`.
-- **Practice** (`/practice`) — recall quiz rebuilt from
-  `nasirhemed/memorization`, now driven by the curated Mutashabihat data
-  instead of the old first-3-words prefix heuristic.
+- **Practice** (`/practice`) — a competition-style recitation test, rebuilt
+  from `nasirhemed/memorization`: the opening words of a verse, recite on to
+  the end of the next page; questions start where verses have look-alikes.
+- **Memorize** (`/memorize`) — learn new verses by turns: the reciter recites a
+  verse, you recite it back, N times, verse by verse; the speech model knows
+  when you have finished and shows the next words when you get stuck.
 
 ## Commands
 
@@ -21,7 +24,7 @@ app with three tabs sharing one shell, one theme, and one data folder:
 npm run dev      # Vite dev server
 npm run build    # tsc -b && vite build
 npm run check    # TypeScript type checking (app, then tests)
-npm test         # Vitest: the recitation engine (tests/recitation)
+npm test         # Vitest: the recitation engine, browse, practice, memorize and mushaf libs (tests/)
 npm run preview  # Preview production build
 ```
 
@@ -64,7 +67,15 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   column width / `LINE_WIDTH_EM`, so lines never wrap; highlights must only colour a word (no padding, margin or
   border). Glyph codes are meaningless outside their font, so each word carries `sr-only` text for screen readers,
   and copying swaps in the selected words' Unicode text (`data-copy`, `onCopy`). Without fonts (not hosted, or offline on a page never opened) the page falls back to Unicode text.
-  Everything else (Browse, Practice, voice) uses the Unicode `text`.
+  Elsewhere verses are shown as Unicode text in the King Fahd Complex's QPC Hafs font (`font-quran`; KFGQPC HAFS
+  Uthmanic Script v2.2 from QUL, qul.tarteel.ai/resources/font/245, bundled unmodified as its licence requires). That
+  font is made for its own encoding, so each word also carries `hafs` (quran.com's `qpc_uthmani_hafs`, written by
+  `build-mushaf-data.py`); never draw the Uthmani `text` with it (dotted circles). QUL's mutashabihat phrase and
+  ayah texts are already QPC Hafs; similar-ayah texts and local phrases are Uthmani and stay in Amiri (`font-arabic`).
+  `text` stays what search, comparison (Browse, Practice) and voice work on. Arabic-Indic digits in the font are
+  ayah-number ornaments.
+  Surah names in lists and titles (`components/SurahName.tsx`) are drawn like the page headers, from the pack's
+  surah-name font (`useSurahNamesFont`, fetched once and pinned), and as QPC Hafs text until it is there.
 - **Mushaf font pack** (`lib/mushaf/pack.ts`, `fontStore.ts`, `hooks/useMushafFonts.ts`): `qcf-v2`, 604 page fonts
   + `surah-names.woff2`, 98 MB, hosted with the model packs at `$VITE_MODEL_BASE_URL/qcf-v2/1/<file>` (never
   bundled or precached) with a `manifest.json` (sizes, SHA-256) so other clients (a native app) use the same
@@ -78,21 +89,33 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   some wrong glyphs), the fonts, the manifest (also `public/data/mushaf-fonts.json`) and `LINE_WIDTH_EM`; it fails
   on any line wider than the print allows (source errors go in its `LINE_FIXES`); `npm run upload-models -- <pack dir>/qcf-v2/1 qcf-v2`
   uploads it. Local testing: put the pack under `MODELS_DIR` (`<dir>/qcf-v2/1/…`).
-- **Practice engine**: `src/lib/practice.ts` — builds an ayah index from
-  quran-pages.json and unifies both similarity datasets into `PracticeGroup`s
-  (sources are user-selectable: Mutashabihat phrases and/or similar ayahs).
-  Groups with identical occurrence sets are merged (`dedupeGroups`) — the QUL
-  data has orthographic-variant duplicates. Range is by Juz or by Surah.
-  Quality gates: `skipSameSurah` (surahCount < 2) and `skipHugeGroups`
-  (drills skip groups with > HUGE_GROUP_LIMIT in-range verses). Three modes:
-  `drill` (default; walks every in-range occurrence of a group back to back,
-  group badges, no twin spoilers — the original memorization app's "Similar
-  Verses" mode), `similar` (one verse per group, twins revealed at once),
-  `random`. Prompts show the shared phrase as a "Watch for" chip; reveals
-  highlight the shared/matched words inline via
-  `components/HighlightedAyah.tsx` (word ranges are 1-indexed and align with
-  the page data's word segmentation). The setup screen must never block on
-  data loading — the Start button disables instead.
+- **Practice** (`src/lib/practice.ts`, plain TS, tested; `pages/PracticePage.tsx`): modelled on how competitions
+  test hifz — the judge reads a verse's opening words (5–7, or as many as tell it from look-alikes), the contestant
+  recites on (5–7 lines to a page), judges like to start inside look-alikes, and drifting into one is the classic
+  slip. A question is a start verse + the passage to the end of the NEXT page (1–2 pages), clipped to the range.
+  The only settings are the range (juz or surah) and 3/5/10 questions, remembered in localStorage "practice".
+  `buildPracticeIndex` (once per session, `hooks/usePracticeIndex`, ~250 ms) rates verse pairs from their words, not
+  the similar-ayah scores (which rate a one-word الٓمٓ a perfect match): candidates are the QUL pairs plus verses
+  sharing a rare three-word run (finds what QUL misses, e.g. 20:10/28:29); strength = logistic of the rarity-weighted
+  words shared in order (word LCS over `foldWord`, which merges spellings that sound alike: dagger alef/alef, ة/ت)
+  + half the weight of a shared opening + a share-of-verse term. Verses that open alike count on their own
+  (`openingStrength`: the same first 2–6 words, a leading و/ف aside, in few verses — قَالَ ٱلَّذِينَ ٱسۡتَكۡبَرُواْ in
+  7:76/34:32/40:48), and more so the same opening words in another order (28:20/36:20). Identical verses count
+  where a run of matching verses ends (the slip is in what follows: Ash-Shu'ara's stories); refrains repeated
+  through a surah are discounted. A verse's `trap` = its strongest look-alike + 0.15 × the next three.
+  `generateQuestions` weights starts (trap ≥ 0.4) by passage difficulty², never reuses a page, spreads across
+  surahs, and skips starts its surah repeats word for word (`promptLength` null). The prompt stops where the start
+  verse parts from a look-alike that opens the same way (وَإِذَا بُشِّرَ أَحَدُهُم in 43:17, as 16:58), as teachers'
+  questions do; otherwise 5 words, or as many as tell it apart in its surah. Checking shows the passage; verses
+  with a look-alike ≥ `SHOW_STRENGTH` stand out with up to two look-alikes beneath, both marked by `compareVerses`
+  ("diff" = where they part), and for an identical look-alike, how the other place goes on. The setup screen must
+  never block on data loading — Start disables instead.
+  Validated against two outside sources (tests/practice): a teacher's 95 recitation questions with the look-alikes
+  her notes warn about (`tests/fixtures/practice/sard-questions.json`, verse references only): 72% of her start
+  verses are traps (47% of all verses), 73% of her look-alikes shown; and Aswaatul Qurraa's per-juz look-alike
+  lists (aswaatulqurraa.com/mutashabihat, not committed): 88% of pairs rated ≥ 0.8 are on their list, page ranks
+  correlate 0.6. What neither catches: questions on a unique wording (ضَرَبَ لَكُم مَّثَلٗا vs the usual ضَرَبَ ٱللَّهُ
+  مَثَلٗا) and one-word variants (وَلَهُۥ مَن فِي / وَلَهُۥ مَا فِي).
 - **Browse**: verse-centred. `/browse` lists the 114 surahs and searches (`?q=`); `/browse/surah/:s` lists
   that surah's verses that share a phrase or have a similar verse; `/browse/surah/:s/:a` shows one verse with
   each of its phrases (and the other verses they occur in) and its similar verses; `/browse/phrase/:id` lists a
@@ -140,13 +163,38 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
   (`VerifyResult` in `workers/engineProtocol.ts`) show in `components/recitation/VerifyResults.tsx` (lazy in
   the reader) and are marked on the mushaf with `.voice-skipped / -wrong / -slip / -slip-from` on `[data-w]`.
   Verify recordings stop at `VERIFY_MAX_MINUTES` (15). Only log-prob-confirmed findings are ever shown.
+- **Memorize** (`pages/MemorizePage.tsx` setup + summary, `components/memorize/FocusView.tsx` the full-screen
+  session view, `memorize/session.ts` MemorizeSession, `memorize/recognizer.ts`, `lib/memorize.ts` plain TS,
+  tested in `tests/memorize`). Each verse: listen ×X, then your turn, then reciter → you for the remaining
+  repetitions (`nextStep`). Reciter audio is everyayah.com's per-verse MP3s (CORS `*`, so COEP allows them; fetched
+  into blob URLs, next 4 prefetched); Ali Jaber is the default; speed 1–2× (`playbackRate`, pitch kept). Built from
+  a car test (prototype logs): the mic opens once at Start and stays open (opening it per turn gained nothing and
+  flips Bluetooth between call and media modes); Chrome on Android suspends the AudioContext when the reciter
+  starts, so it is resumed on `statechange`. Your turn with the speech model (`ModelTurn`): the engine is told the
+  verse (`FollowSession.expect`, below) and the session listens only during your turn, on its own mic stream
+  (`BrowserSource.start(stream)`). Quiet counts only once the model has heard the verse begin (a car's Bluetooth
+  delay keeps the reciter audible for 2–3 s after `ended`); after `hintAfterMs` (3 s) without progress and 1.2 s of
+  quiet the next 2 words are shown in gold (6 s before you start); the turn ends at the verse's last word + 0.5 s of
+  quiet, on Done, after `giveUpMs` (20 s; or never) of quiet once started, or 30 s without starting. Without the
+  model (not downloaded, or unsupported, e.g. iOS < 26 for OPFS), `TurnGate` ends the turn on quiet (3 s, ×1.75
+  until 40% of the reciter's time is recited; noise floor = 10th percentile of 5 s, rising ≤ 2 dB/s, seeded from
+  the last turn but never above -48 dBFS). `?debug` exposes the session as `window.__memorize`; the summary's
+  "Copy the session log" gives the turn-by-turn log for bug reports. On phones the header hides the theme and voice
+  buttons (both are in Settings) so the four tabs fit at 320 px.
+- **Expect mode** (`FollowSession.expect(word)` / `Follower.startAt`, worker message `{type: "expect", ayah}`):
+  follow a known verse from its first word, no voice search. Only Memorize uses it, and every change it brought is
+  scoped to it (Follow mode, `/transcribe` and read-along are unchanged): the tracking window doesn't reach back
+  before the verse (refrains like Ar-Rahman's), the last two words are matched directly (a letter shared across
+  the boundary, غفور رحيم; verses under 8 letters matched whole), and a verse with the same words elsewhere counts
+  as the expected one. `RECITATION_SWEEP=1 npx vitest run tests/recitation/expect-sweep.test.ts` runs every verse
+  (ideal model output, 2 chunkings): 4 of 12,472 runs never complete, none completes early.
 - **Hidden words** (recite from memory): the reader's Hide button (`components/recitation/HideWords.tsx`,
   `hooks/useHiddenWords.ts`, remembered in localStorage "hideWords") masks every word (`.words-hidden` in
   `index.css`: transparent text over a faint baseline, highlights suppressed). Words come back one by one as
   Follow mode hears them (`useFollowMode`'s `onHeard`) or when tapped (a hint); `.word-revealed` goes on the span
   directly and QuranPage also reads the revealed set when it renders.
 - **Offline / PWA** (`vite-plugin-pwa`, config in `vite.config.ts`): the service worker precaches the app
-  shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use). The mushaf's
+  shell, fonts and every `public/data/*.json` except `recitation-words.json` (cached on first use; quran-pages.json is 8.3 MB, limit 12 MB). The mushaf's
   page fonts are not precached (98 MB): see Mushaf font pack. Updates
   wait for the user (`components/layout/UpdatePrompt.tsx`) and never reload by themselves. Any new data file
   over 8 MB needs `maximumFileSizeToCacheInBytes` raised.
@@ -164,7 +212,10 @@ from `tests/fixtures/recitation/`; the owner's private recordings are picked up 
    (kills the sibling-repo coupling both legacy scripts have). The legacy
    scripts reference `../memorization` and `../mutashabihat` paths and do NOT
    run from this repo — they are references only.
-2. Practice: "Practice these" entry point from the reader side panel;
-   min-similarity-score gate using similar-ayah data; diff-marked twins
-   (word ranges exist in mutashabihat-details.json).
+2. Practice: "Practice these" entry point from the reader side panel; keep
+   slips across sessions and bring them back (spaced review); recite a question
+   in the Reader with hidden words and voice Follow mode.
 3. Browse → Reader deep links could pre-open the side panel on the phrase.
+4. Memorize: audio hints (the reciter saying the next words, for the car) from word timings worked out on the
+   device (the model over the reciter's verse audio; quran.com's timings don't cover Ali Jaber); phrase-by-phrase
+   drilling of long verses at the waqf marks; remember memorised verses for review.

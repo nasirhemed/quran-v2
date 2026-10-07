@@ -31,7 +31,7 @@ export default function BrowsePhrasePage({ id }: { id: string }) {
       <Breadcrumbs items={[{ label: "Browse", href: "/browse" }, { label: "Phrase" }]} />
 
       <div className="text-center mb-8">
-        <div dir="rtl" lang="ar" className="font-arabic text-3xl leading-loose text-ink">
+        <div dir="rtl" lang="ar" className="font-quran text-3xl leading-loose text-ink">
           <span className="rounded-sm px-1" style={{ background: phraseColor(0) }}>
             {phrase.text}
           </span>

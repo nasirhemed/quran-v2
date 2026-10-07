@@ -92,3 +92,19 @@ export function golden(name: string) {
   return { meta, audio, f32 };
 }
 
+/** A word's reference phonemes as model B unit ids (greedy longest match, 4 symbols at most): ideal model output. */
+export function referenceUnits(ph: string): number[] {
+  const { table } = quran();
+  const unitOf = new Map(table.symbols.map((sym, i) => [sym, i]));
+  const out: number[] = [];
+  for (let i = 0; i < ph.length; ) {
+    let n = Math.min(4, ph.length - i);
+    while (n > 0 && !unitOf.has(ph.slice(i, i + n))) n--;
+    if (n === 0) i++;
+    else {
+      out.push(unitOf.get(ph.slice(i, i + n))!);
+      i += n;
+    }
+  }
+  return out;
+}

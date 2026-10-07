@@ -31,6 +31,8 @@ export interface BrowseVerse {
   juz: number;
   /** word texts, in the segmentation the word ranges use */
   words: string[];
+  /** the same words in the QPC Hafs script, for display (`font-quran`) */
+  hafs: string[];
   /** Mutashabihat phrases in this verse (duplicates merged) */
   phrases: VersePhrase[];
   /** similar verses, best match first */
@@ -39,6 +41,7 @@ export interface BrowseVerse {
 
 export interface BrowsePhrase {
   id: string;
+  /** in the QPC Hafs script, as QUL gives it (`font-quran`) */
   text: string;
   surahCount: number;
   /** in mushaf order */
@@ -63,7 +66,7 @@ export interface BrowseIndex {
 
 // Harakat, Qur'anic annotation marks (small high letters, waqf signs, the
 // dagger alef), tatweel and the extended-Arabic marks some scripts use.
-const MARKS = /[ؐ-ًؚ-ٰٟۖ-ۭـ࣓-ࣿ]/g;
+export const MARKS = /[ؐ-ًؚ-ٰٟۖ-ۭـ࣓-ࣿ]/g;
 
 /**
  * Folds Arabic text so a search typed on a normal keyboard, without harakat,
@@ -130,6 +133,7 @@ export function buildBrowseIndex(
           ayah: a.ayah,
           juz: page.juz,
           words: a.words.map((w) => w.text),
+          hafs: a.words.map((w) => w.hafs),
           phrases: [],
           similar: [],
         });

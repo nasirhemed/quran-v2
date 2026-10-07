@@ -52,7 +52,7 @@ function PhraseBlock({
         <BrowseLink href={phraseHref(phrase.id)} className="text-xs text-muted hover:text-primary">
           All occurrences ›
         </BrowseLink>
-        <span dir="rtl" lang="ar" className="ml-auto font-arabic text-xl text-ink">
+        <span dir="rtl" lang="ar" className="ml-auto font-quran text-xl text-ink">
           <span className="rounded-sm px-1" style={{ background: phraseColor(n) }}>
             {phrase.text}
           </span>
@@ -121,9 +121,9 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
           </Link>
         </div>
         <VerseText
-          words={verse.words}
+          words={verse.hafs}
           marks={phraseMarks(verse)}
-          className="font-arabic text-2xl leading-[2.2] text-ink"
+          className="font-quran text-2xl leading-[2.2] text-ink"
         />
         <div className="flex items-center justify-between mt-4 text-sm">
           {prev ? (
