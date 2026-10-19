@@ -12,6 +12,7 @@ const post = (m: FromEngine) => scope.postMessage(m);
 
 let ready: Promise<{ ref: Reference; words: Awaited<ReturnType<typeof loadRecitationWords>>; key: string[] }> | null = null;
 let symbols: string[] = [];
+let units: "phoneme" | "bpe" = "phoneme";
 let session: FollowSession | null = null;
 
 function withKeys(e: KeyedEvent, key: string[]): KeyedEvent {
@@ -36,19 +37,20 @@ scope.onmessage = async (ev: MessageEvent<ToEngine>) => {
   try {
     if (m.type === "init") {
       symbols = m.symbols;
+      units = m.units;
       const t0 = performance.now();
       ready ??= loadRecitationWords().then((words) => ({ words, ref: new Reference(words), key: wordIndex(words).key }));
       const { words, ref } = await ready;
-      session = new FollowSession(ref, words, symbols);
+      session = new FollowSession(ref, words, symbols, units);
       post({ type: "ready", ms: performance.now() - t0, words: ref.wordCount });
     } else if (m.type === "reset") {
       if (!ready) return;
       const { words, ref } = await ready;
-      session = new FollowSession(ref, words, symbols);
+      session = new FollowSession(ref, words, symbols, units);
     } else if (m.type === "expect") {
       if (!ready) return;
       const { words, ref } = await ready;
-      session = new FollowSession(ref, words, symbols);
+      session = new FollowSession(ref, words, symbols, units);
       const first = words.ayat[m.ayah]?.[0];
       if (first === undefined) throw new Error(`Unknown ayah ${m.ayah}`);
       session.expect(first);

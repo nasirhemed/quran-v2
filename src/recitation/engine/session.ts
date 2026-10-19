@@ -13,6 +13,7 @@
 import type { RecitationWords } from "./data";
 import { Follower } from "./follow";
 import { ratio } from "./fuzzy";
+import { HeardText } from "./heardText";
 import type { Reference } from "./reference";
 import { skeleton } from "./skeleton";
 
@@ -50,8 +51,13 @@ export class FollowSession {
   /** first word idx of each word's ayah */
   private ayahFirst: Int32Array;
 
-  constructor(private ref: Reference, private words: RecitationWords, private symbols: string[]) {
+  /** model A: its words, turned into the skeleton letters the tracker matches on */
+  private text: HeardText | null;
+
+  /** `units`: what the model's symbols are, model B's phonemes or model A's word pieces (a space starts a word). */
+  constructor(private ref: Reference, private words: RecitationWords, private symbols: string[], units: "phoneme" | "bpe" = "phoneme") {
     this.follower = new Follower(ref);
+    this.text = units === "bpe" ? new HeardText() : null;
     this.ayahFirst = new Int32Array(words.ph.length);
     for (const [key, [first, n]] of Object.entries(words.ayat)) {
       this.lastAyahWord.set(first + n - 1, key);
@@ -70,6 +76,7 @@ export class FollowSession {
    */
   expect(word: number) {
     this.follower.startAt(word);
+    this.text?.reset();
     // nothing counts as recited yet: a slip back into the verse before also completes it (and is reported)
     this.highWater = -1;
     this.lettersSinceLock = 0;
@@ -125,7 +132,8 @@ export class FollowSession {
 
   /** One model step's new units (ids). `time` is the step's time in seconds (for the follower's events). */
   push(units: number[], step: number, time: number): EngineEvent[] {
-    const phonemes = units.map((u) => this.symbols[u] ?? "").join("");
+    const pieces = units.map((u) => this.symbols[u] ?? "");
+    const phonemes = this.text ? this.text.push(pieces) : pieces.join("");
     const letters = skeleton(phonemes).length;
     const before = this.follower.cursor;
     const wasTracking = this.follower.state === "TRACKING";

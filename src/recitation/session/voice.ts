@@ -70,8 +70,8 @@ export interface VoiceStats {
   engineLoadMs: number;
 }
 
-const LINE_GAP_FRAMES = 15;
-const STEP_S = 0.48;
+/** a pause this long starts a new line in the raw transcript */
+const LINE_GAP_MS = 600;
 
 const emptyStats = (): VoiceStats => ({
   infer: [],
@@ -161,8 +161,20 @@ export class VoiceSession {
     return this.pending ? { ...this.state, ...this.pending } : this.state;
   }
 
-  /** Loads the model and the Quran index once. Safe to call repeatedly. */
+  /**
+   * Loads the model and the Quran index once. Safe to call repeatedly. If another model was chosen in voice
+   * settings since, and nothing is listening, swaps to it.
+   */
   init(): Promise<void> {
+    const { loaded, phase } = this.state;
+    if (loaded && phase === "ready" && loaded.packId !== selectedPack().id) {
+      this.source?.dispose();
+      this.engine?.terminate();
+      this.source = null;
+      this.engine = null;
+      this.initPromise = null;
+      this.set({ loaded: null, engineReady: false, tracking: false, cursor: null, candidates: [], pendingLetters: 0 }, true);
+    }
     return (this.initPromise ??= this.doInit().catch((e) => {
       this.initPromise = null;
       this.set({ phase: "error", message: e instanceof Error ? e.message : String(e) }, true);
@@ -186,12 +198,12 @@ export class VoiceSession {
     this.wireSource(src, loaded);
     this.engine = new Worker(new URL("../workers/engine.worker.ts", import.meta.url), { type: "module", name: "itqan-engine" });
     this.engine.onmessage = (e: MessageEvent<FromEngine>) => this.onEngine(e.data);
-    this.engine.postMessage({ type: "init", symbols: loaded.symbols });
+    this.engine.postMessage({ type: "init", symbols: loaded.symbols, units: loaded.units });
     this.set({ loaded, phase: "ready" }, true);
   }
 
   private wireSource(src: BrowserSource, loaded: Loaded) {
-    src.on("chunk", (c: ChunkEvent) => this.onChunk(c, loaded.symbols));
+    src.on("chunk", (c: ChunkEvent) => this.onChunk(c, loaded));
     src.onStep((st) => {
       const s = this.stats;
       s.infer.push(st.inferMs);
@@ -211,20 +223,20 @@ export class VoiceSession {
     });
   }
 
-  private onChunk(c: ChunkEvent, symbols: string[]) {
+  private onChunk(c: ChunkEvent, { symbols, stepSeconds, frameMs }: Loaded) {
     const s = this.stats;
     const arrival = performance.timeOrigin + performance.now();
     if (s.lastChunk >= 0 && c.chunk !== s.lastChunk + 1) s.gaps++;
     s.lastChunk = c.chunk;
     s.steps++;
     if (c.captureAtMs < c.emittedAtMs) s.latency.push(arrival - c.captureAtMs);
-    this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), time: (c.chunk + 1) * STEP_S });
+    this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), time: (c.chunk + 1) * stepSeconds });
     if (c.units.length) {
       const raw = this.s.raw.slice();
       for (const u of c.units) {
         const last = raw[raw.length - 1];
         const lastFrame = last?.units[last.units.length - 1]?.frame;
-        if (!last || lastFrame === undefined || u.frame - lastFrame > LINE_GAP_FRAMES) raw.push({ units: [u], text: symbols[u.id] ?? "" });
+        if (!last || lastFrame === undefined || (u.frame - lastFrame) * frameMs > LINE_GAP_MS) raw.push({ units: [u], text: symbols[u.id] ?? "" });
         else raw[raw.length - 1] = { units: [...last.units, u], text: last.text + (symbols[u.id] ?? "") };
       }
       this.set({ raw });
@@ -320,6 +332,7 @@ export class VoiceSession {
     if (!src || this.state.phase !== "listening") return;
     this.set({ phase: "stopping" }, true);
     await src.stop();
+    this.endOfAudio();
     await this.wakeLock?.release().catch(() => undefined);
     this.wakeLock = null;
     this.set({ phase: "ready", level: 0 }, true);
@@ -341,11 +354,21 @@ export class VoiceSession {
         for (let i = 0; i < ch.length; i++) mono[i] += ch[i] / audio.numberOfChannels;
       }
       await src.transcribe(mono, audio.sampleRate);
+      this.endOfAudio();
       await this.engineIdle();
     } catch (e) {
       this.set({ message: `Couldn't read that file: ${e instanceof Error ? e.message : e}` });
     }
     this.set({ phase: "ready" }, true);
+  }
+
+  /** End of audio: one empty step, so the engine lets go of what it holds back (model A's last word). */
+  private endOfAudio() {
+    const s = this.stats;
+    const loaded = this.state.loaded;
+    if (s.lastChunk < 0 || !loaded) return;
+    s.steps++;
+    this.engine?.postMessage({ type: "step", step: s.lastChunk + 1, units: [], time: (s.lastChunk + 2) * loaded.stepSeconds });
   }
 
   /** Resolves when the engine has answered every step sent so far. */

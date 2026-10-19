@@ -13,7 +13,7 @@ export type ToWorker =
   | { type: "logProbs" };
 
 export type FromWorker =
-  | { type: "loaded"; symbols: string[]; loadMs: number; threads: number; packId: string }
+  | { type: "loaded"; symbols: string[]; units: "phoneme" | "bpe"; stepSeconds: number; frameMs: number; loadMs: number; threads: number; packId: string }
   | { type: "event"; name: keyof SourceEvents; payload: SourceEvents[keyof SourceEvents] }
   /** per-step timing; `unitCaptureAtMs` is empty for fed audio (no capture clock) */
   | { type: "step"; inferMs: number; stepAudioMs: number; backlogMs: number; unitCaptureAtMs: number[]; clockDriftMs: number }

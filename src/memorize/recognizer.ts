@@ -31,7 +31,6 @@ export interface RecognizerHandlers {
   note(text: string): void;
 }
 
-const STEP_S = 0.48;
 const LOAD_TIMEOUT_MS = 60000;
 const IDLE_TIMEOUT_MS = 5000;
 
@@ -73,7 +72,7 @@ export class Recognizer {
     const loaded = await within(Promise.race([src.load(selectedPack(), 2), failed]), LOAD_TIMEOUT_MS, "loading the speech model").finally(() => off());
     if (!loaded) throw new Error("the speech model isn't downloaded");
     src.on("chunk", (c: ChunkEvent) => {
-      if (this.active) this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), time: (c.chunk + 1) * STEP_S });
+      if (this.active) this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), time: (c.chunk + 1) * loaded.stepSeconds });
     });
     src.on("error", (e) => this.handlers.note(`speech model: ${e.message}`));
     src.on("state", (e) => {
@@ -89,7 +88,7 @@ export class Recognizer {
         else if (m.type === "events" && this.active) this.onEvents(m.events);
       };
       engine.onerror = (e) => reject(new Error(e.message || "the engine worker failed to start"));
-      engine.postMessage({ type: "init", symbols: loaded.symbols });
+      engine.postMessage({ type: "init", symbols: loaded.symbols, units: loaded.units });
     });
     await within(ready, LOAD_TIMEOUT_MS, "loading the Quran index");
     engine.onmessage = (e: MessageEvent<FromEngine>) => {
