@@ -31,6 +31,7 @@ npm run preview  # Preview production build
 Tests live in `tests/` (their own `tsconfig.test.json`). The recitation tests replay recorded model output
 from `tests/fixtures/recitation/`; the owner's private recordings are picked up from
 `$RECITATION_PRIVATE_FIXTURES` (default `../../recordings`) and skipped when absent — never commit them.
+CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR and on pushes to main.
 
 ## Architecture
 
