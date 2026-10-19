@@ -29,7 +29,7 @@ verses that are easiest to confuse when reciting from memory.
 ## Voice
 
 Recitation is recognised on your device; your voice is never uploaded.
-Download a speech model once from **Settings → Voice** (it then works
+Download a speech model once from **Settings → Voice models** (it then works
 offline). Recent Chrome on Android or desktop works best.
 
 - **Follow mode** — in Read, recite and the page follows you, marking the
