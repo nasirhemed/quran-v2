@@ -48,7 +48,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          {/* on phones, live transcription is in Settings (four tabs leave no room) */}
+          {/* on phones the mic floats at the bottom right instead (four tabs leave no room) */}
           {voiceSupported && (
             <Link
               href="/transcribe"
@@ -120,6 +120,26 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex-1">{children}</div>
+
+      {/* Phones: the mic floats at the bottom right. Not on the mushaf, where Follow is in the navigation bar and
+          its strip (and the phrase editor's bar) take the bottom of the screen, nor on the voice pages themselves. */}
+      {voiceSupported && !/^\/(read|transcribe|voice|settings|lab)\b/.test(location) && (
+        <Link
+          href="/transcribe"
+          title="Live transcription"
+          aria-label="Live transcription"
+          className="sm:hidden fixed z-30 right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] w-14 h-14 rounded-full bg-primary text-on-primary shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm6-3a6 6 0 01-12 0m6 6v3m-3 0h6"
+            />
+          </svg>
+        </Link>
+      )}
       <UpdatePrompt />
     </div>
   );

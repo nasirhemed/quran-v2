@@ -175,7 +175,8 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   until 40% of the reciter's time is recited; noise floor = 10th percentile of 5 s, rising ≤ 2 dB/s, seeded from
   the last turn but never above -48 dBFS). `?debug` exposes the session as `window.__memorize`; the summary's
   "Copy the session log" gives the turn-by-turn log for bug reports. On phones the header hides the theme and voice
-  buttons (both are in Settings) so the four tabs fit at 320 px.
+  buttons so the four tabs fit at 320 px: the theme is in Settings, and the mic (to `/transcribe`) floats at the
+  bottom right (`AppShell`), except on the mushaf (`/read`, where Follow is in the navigation bar) and the voice pages.
 - **Expect mode** (`FollowSession.expect(word)` / `Follower.startAt`, worker message `{type: "expect", ayah}`):
   follow a known verse from its first word, no voice search. Only Memorize uses it, and every change it brought is
   scoped to it (Follow mode, `/transcribe` and read-along are unchanged): the tracking window doesn't reach back
