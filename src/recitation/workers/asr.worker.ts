@@ -9,7 +9,9 @@
 import * as ort from "onnxruntime-web/wasm";
 import { MODEL_PACKS, type ModelPack } from "../asr/modelPack";
 import { ModelStore, OpfsFileStore } from "../asr/modelStore";
-import { AsrPipeline, ZipformerStepper } from "../asr/pipeline";
+import { readNpz, type Cmvn } from "../asr/features/nemoMel";
+import { AsrPipeline, createStepper } from "../asr/pipeline";
+import { bpeSymbols } from "../asr/sentencepiece";
 import { RingReader } from "../asr/ring";
 import { EnergyVad } from "../asr/vad";
 import type { SourceEvents } from "../sources/RecognizerSource";
@@ -21,7 +23,6 @@ const emit = <E extends keyof SourceEvents>(name: E, payload: SourceEvents[E]) =
 const now = () => performance.timeOrigin + performance.now();
 
 const FEATURE_RATE = 16000;
-const OUTPUT_FRAME_SAMPLES = 640; // 40 ms at 16 kHz
 const LEVEL_EVERY_MS = 100;
 const POLL_MS = 20;
 const BEHIND_MS = 1500;
@@ -30,6 +31,7 @@ const CAUGHT_UP_MS = 500;
 let pack: ModelPack | null = null;
 let session: ort.InferenceSession | null = null;
 let symbols: string[] = [];
+let cmvn: Cmvn | undefined;
 
 interface Run {
   id: string;
@@ -76,14 +78,24 @@ async function load(packId: string, threads: number) {
   const bytes = new Uint8Array(await (await store.file(p, p.files[0].name)).arrayBuffer());
   session?.release();
   session = await ort.InferenceSession.create(bytes, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-  const tokens = await (await store.file(p, p.units.tokensFile)).text();
+  const tokens = await store.file(p, p.units.tokensFile);
   symbols = [];
-  for (const line of tokens.split("\n")) {
-    const m = /^(.*) (\d+)$/.exec(line.trimEnd());
-    if (m) symbols[Number(m[2])] = m[1];
+  if (p.units.kind === "bpe") symbols = bpeSymbols(new Uint8Array(await tokens.arrayBuffer()), p.units.blank);
+  else {
+    for (const line of (await tokens.text()).split("\n")) {
+      const m = /^(.*) (\d+)$/.exec(line.trimEnd());
+      if (m) symbols[Number(m[2])] = m[1];
+    }
+  }
+  cmvn = undefined;
+  if (p.features.kind === "nemo-mel") {
+    const npz = readNpz(new Uint8Array(await (await store.file(p, p.features.cmvnFile)).arrayBuffer()));
+    const profile = p.features.cmvnProfile;
+    cmvn = { mean: npz[`${profile}_mean`], std: npz[`${profile}_std`] };
   }
   pack = p;
-  post({ type: "loaded", symbols, loadMs: performance.now() - t0, threads: ort.env.wasm.numThreads as number, packId });
+  const stepSeconds = (p.streaming.chunkHopFrames * 10) / 1000;
+  post({ type: "loaded", symbols, units: p.units.kind, stepSeconds, frameMs: p.streaming.frameMs, loadMs: performance.now() - t0, threads: ort.env.wasm.numThreads as number, packId });
   emit("state", { state: "idle" });
 }
 
@@ -92,7 +104,7 @@ function begin(id: string, rate: number): Run {
   return {
     id,
     rate,
-    pipe: new AsrPipeline(new ZipformerStepper(ort, session, pack, symbols.length), pack, rate),
+    pipe: new AsrPipeline(createStepper(ort, session, pack, symbols.length), pack, rate, cmvn),
     vad: new EnergyVad(),
     chunk: 0,
     logprobs: [],
@@ -142,7 +154,7 @@ function captureTime(r: Run, s: number): number | null {
 
 async function process(r: Run, x: Float32Array) {
   const y = r.pipe.push(x);
-  for (const c of r.vad.push(y)) emit("vad", { speech: c.speech, atFrame: Math.floor(c.atSample / OUTPUT_FRAME_SAMPLES) });
+  for (const c of r.vad.push(y)) emit("vad", { speech: c.speech, atFrame: Math.floor(c.atSample / (pack!.streaming.frameMs * 16)) });
   if (now() - r.lastLevel >= LEVEL_EVERY_MS) {
     r.lastLevel = now();
     emit("level", { rms: r.vad.takeLevel() });

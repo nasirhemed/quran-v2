@@ -2,7 +2,8 @@
 import type { EngineEvent } from "../engine/session";
 
 export type ToEngine =
-  | { type: "init"; symbols: string[] }
+  /** `units`: the model's symbols are phonemes (model B) or word pieces (model A) */
+  | { type: "init"; symbols: string[]; units: "phoneme" | "bpe" }
   | { type: "reset" }
   /** a fresh session that follows from the first word of ayah "s:a" (no voice search) */
   | { type: "expect"; ayah: string }

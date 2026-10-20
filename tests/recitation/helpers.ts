@@ -92,6 +92,19 @@ export function golden(name: string) {
   return { meta, audio, f32 };
 }
 
+/** Model A's golden files: the same clips (read from GOLDEN), its own expected output. */
+export const GOLDEN_A = path.join(root, "tests/golden/fastconformer-quran-streaming");
+
+export function goldenA(name: string) {
+  const { audio } = golden(name);
+  const meta: Golden & { text: string } = JSON.parse(fs.readFileSync(path.join(GOLDEN_A, `${name}.json`), "utf8"));
+  const f32 = (ext: string) => {
+    const b = fs.readFileSync(path.join(GOLDEN_A, `${name}.${ext}`));
+    return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  };
+  return { meta, audio, f32 };
+}
+
 /** A word's reference phonemes as model B unit ids (greedy longest match, 4 symbols at most): ideal model output. */
 export function referenceUnits(ph: string): number[] {
   const { table } = quran();

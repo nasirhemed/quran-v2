@@ -27,13 +27,14 @@ export interface ModelPack {
   files: PackFile[];
   features:
     | { kind: "kaldi-fbank"; bins: 80; frameShiftMs: 10; frameLengthMs: 25; window: "povey"; dither: 0; snipEdges: false; lowFreq: 20; highFreq: -400; preemph: 0.97; removeDc: true }
-    | { kind: "nemo-mel"; bins: 80; nFft: 512; winLength: 400; hop: 160; preemph: 0.97; logGuard: number; cmvnFile: string };
+    /** cmvnProfile: which constants of the CMVN file to use: tlog (phone recordings) or clean (studio) */
+    | { kind: "nemo-mel"; bins: 80; nFft: 512; winLength: 400; hop: 160; preemph: 0.97; logGuard: number; cmvnFile: string; cmvnProfile: "tlog" | "clean" };
   streaming: {
     featureLayout: "BTF" | "BFT";
     chunkInputFrames: number; // feature frames per call
     chunkHopFrames: number; // feature frames advanced per call
     chunkOutputFrames: number;
-    frameMs: number; // one output frame
+    frameMs: number; // one output frame (audio per step / output frames per step)
     lengthInput?: string;
     logProbsOutput: string;
     states: StateSpec[] | "from-graph"; // B's 98 states are read from the ONNX graph at load time
@@ -71,14 +72,15 @@ export const ZIPFORMER_P_ARABIC_V3: ModelPack = {
 };
 
 /**
- * Model A, the alternative (spec §5.1). Listed so packs stay interchangeable; its feature pipeline and word
- * mapping are not built yet, so the app can download it but not run it.
+ * Model A, the alternative (spec §5.1): hears words (imlaei spelling with harakat), which the engine turns into
+ * the same consonant skeleton it tracks model B's phonemes on (engine/heardText.ts). Each 1.12 s step gives 13
+ * output frames.
  */
 export const FASTCONFORMER_QURAN_STREAMING: ModelPack = {
   id: "fastconformer-quran-streaming",
   version: "enc-q8",
   label: "Word model (experimental)",
-  description: "FastConformer streaming, int8. Hears whole words with harakat. Larger, and missed more words in our tests.",
+  description: "FastConformer streaming, int8. Hears whole words, and shows them as you recite. Larger, follows a second or two behind you, and missed more words in our tests.",
   license: "NPL-1.1",
   files: [
     { name: "model_streaming_with_encoder.q8.onnx", bytes: 131_948_464, sha256: "4168c51a47cd99dea930e7c6ed2d96c8595e242b9139fb814f51645822462dac" },
@@ -86,13 +88,13 @@ export const FASTCONFORMER_QURAN_STREAMING: ModelPack = {
     { name: "streaming_global_cmvn.npz", bytes: 2_302, sha256: "e5083c4cdefc16d574eef9c16094b03bf8876ae70b40975a3c66caf995558d2e" },
     { name: "LICENSE", bytes: 5_852, sha256: "8ee6366f4b3ccb70dd2e9265d8a02505b402c088065a72b2251e1b89e8476b34" },
   ],
-  features: { kind: "nemo-mel", bins: 80, nFft: 512, winLength: 400, hop: 160, preemph: 0.97, logGuard: 2 ** -24, cmvnFile: "streaming_global_cmvn.npz" },
+  features: { kind: "nemo-mel", bins: 80, nFft: 512, winLength: 400, hop: 160, preemph: 0.97, logGuard: 2 ** -24, cmvnFile: "streaming_global_cmvn.npz", cmvnProfile: "tlog" },
   streaming: {
     featureLayout: "BFT",
     chunkInputFrames: 112,
     chunkHopFrames: 112,
     chunkOutputFrames: 13,
-    frameMs: 80,
+    frameMs: 1120 / 13,
     lengthInput: "length",
     logProbsOutput: "logprobs",
     states: [
@@ -103,7 +105,6 @@ export const FASTCONFORMER_QURAN_STREAMING: ModelPack = {
     flush: { kind: "shortChunk" },
   },
   units: { kind: "bpe", tokensFile: "tokenizer.model", blank: 1024 },
-  runnable: false,
 };
 
 export const MODEL_PACKS: ModelPack[] = [ZIPFORMER_P_ARABIC_V3, FASTCONFORMER_QURAN_STREAMING];

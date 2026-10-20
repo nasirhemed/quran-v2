@@ -20,7 +20,13 @@ export interface StepStats {
 }
 
 export interface Loaded {
+  /** the model's output symbols by unit id: phonemes (model B) or word pieces, a space starting a word (model A) */
   symbols: string[];
+  units: "phoneme" | "bpe";
+  /** audio per model step, in seconds */
+  stepSeconds: number;
+  /** one model output frame, in ms */
+  frameMs: number;
   loadMs: number;
   threads: number;
   packId: string;

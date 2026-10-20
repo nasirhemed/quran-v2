@@ -151,6 +151,17 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   is served from `/ort/` (copied at build, never a CDN) and cached on first voice use. Golden parity files are in
   `tests/golden/`; `asr-parity.test.ts` needs model B's ONNX (`RECITATION_MODELS_DIR`, default `../../models`)
   and is skipped without it. Parity rule: identical unit sequence; start frames may differ by one (WASM int8).
+- **Model A, the word model** (FastConformer streaming, `FASTCONFORMER_QURAN_STREAMING`): selectable in voice
+  settings next to model B (the default); switching takes effect the next time voice starts, without a reload.
+  `features/nemoMel.ts` (= NeMo's FilterbankFeatures, then the pack's tlog CMVN from `streaming_global_cmvn.npz`),
+  `sentencepiece.ts` (piece table from `tokenizer.model`; a word-start piece's "▁" becomes a space),
+  `pipeline.ts`'s `CacheAwareStepper` (112-frame windows end to end, the last one shorter, three cache tensors).
+  Its words reach the engine as the same consonant skeleton as B's phonemes (`engine/heardText.ts`: sun letters,
+  long vowels, tanween, idgham/iqlab, disjoined letters; a word is held until the next starts or a step brings
+  nothing), so Follow mode, voice search and Memorize work unchanged. Verify mode (`engine/verify.ts`) still
+  needs B's phoneme units. Golden files: `tests/golden/fastconformer-quran-streaming/` from
+  `scripts/export-fastconformer-golden.py`; `asr-fastconformer.test.ts` needs model A's files in
+  `RECITATION_MODELS_DIR`.
 - **Follow mode (M4)**: `engine/session.ts` (FollowSession) turns each step's units into engine events
   (heard words, cursor, located/lost, ayahComplete, candidates, pending); `workers/engine.worker.ts` hosts it
   with the whole-Quran index. `session/voice.ts` is the one voice session per tab (ASR worker + engine worker +

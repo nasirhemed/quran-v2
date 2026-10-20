@@ -56,6 +56,9 @@ export default function VoicePage({ embedded = false }: { embedded?: boolean }) 
     if (!(await navigator.storage.persisted())) await navigator.storage.persist().catch(() => false);
     try {
       await store.current.download(pack, (p) => patch(pack.id, { progress: p.bytes / p.total }), ctl.signal);
+      // the first model downloaded is the one used, without having to tick it too
+      const chosen = MODEL_PACKS.find((p) => p.id === selected);
+      if (chosen !== pack && (!chosen || (await store.current.status(chosen)).state !== "ready")) choose(pack.id);
     } catch (e) {
       const aborted = (e as Error).name === "AbortError";
       patch(pack.id, { error: aborted ? "Paused. Download again to resume." : (e as Error).message });
