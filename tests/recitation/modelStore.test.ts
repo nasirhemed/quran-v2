@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ModelPack } from "@/recitation/asr/modelPack";
-import { DEFAULT_PACK, MODEL_PACKS } from "@/recitation/asr/modelPack";
+import { DEFAULT_PACK, FASTCONFORMER_QURAN_STREAMING, MODEL_PACKS } from "@/recitation/asr/modelPack";
 import { ChecksumError, MemoryFileStore, ModelStore } from "@/recitation/asr/modelStore";
 
 const bytes = (n: number, seed: number) => Uint8Array.from({ length: n }, (_, i) => (i * 31 + seed) & 255);
@@ -166,6 +166,17 @@ describe("ModelStore", () => {
     await ms.remove(pack);
     expect(await ms.status(pack)).toEqual({ state: "absent" });
     expect(store.files.size).toBe(0);
+  });
+
+  it("runs a downloaded model when the chosen one isn't downloaded", async () => {
+    const ms = new ModelStore(new MemoryFileStore());
+    const downloaded = new Set<ModelPack>();
+    vi.spyOn(ms, "status").mockImplementation(async (p) => (downloaded.has(p) ? { state: "ready", total: 1 } : { state: "absent" }));
+    expect(await ms.usablePack()).toEqual({ pack: DEFAULT_PACK, ready: false }); // nothing chosen, nothing downloaded
+    downloaded.add(FASTCONFORMER_QURAN_STREAMING); // only the word model, never ticked in voice settings
+    expect(await ms.usablePack()).toEqual({ pack: FASTCONFORMER_QURAN_STREAMING, ready: true });
+    downloaded.add(DEFAULT_PACK);
+    expect(await ms.usablePack()).toEqual({ pack: DEFAULT_PACK, ready: true }); // the chosen one, once it's there
   });
 
   it("every pack has files with sizes and checksums", () => {

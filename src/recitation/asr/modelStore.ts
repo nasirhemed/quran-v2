@@ -11,7 +11,7 @@
  */
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex } from "@noble/hashes/utils";
-import type { ModelPack, PackFile } from "./modelPack";
+import { MODEL_PACKS, selectedPack, type ModelPack, type PackFile } from "./modelPack";
 
 export interface FileStore {
   /** bytes stored for `path` (0 when absent) */
@@ -68,6 +68,18 @@ export class ModelStore {
   private async verified(pack: ModelPack): Promise<Record<string, string>> {
     const text = await this.store.readText(verifiedPath(pack));
     return text ? JSON.parse(text) : {};
+  }
+
+  /**
+   * The pack voice features run: the one chosen in voice settings if it is downloaded, else the first runnable one
+   * that is (a model downloaded without being ticked still works), else the chosen one, not ready.
+   */
+  async usablePack(): Promise<{ pack: ModelPack; ready: boolean }> {
+    const chosen = selectedPack();
+    for (const pack of [chosen, ...MODEL_PACKS.filter((p) => p !== chosen && p.runnable !== false)]) {
+      if ((await this.status(pack)).state === "ready") return { pack, ready: true };
+    }
+    return { pack: chosen, ready: false };
   }
 
   async status(pack: ModelPack): Promise<PackStatus> {

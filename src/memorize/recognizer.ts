@@ -5,7 +5,6 @@
  * are about to recite (the engine follows it from its first word: no voice search, so a verse that opens like
  * another is no problem). The reciter is never listened to: listening starts with your turn and stops with it.
  */
-import { selectedPack } from "@/recitation/asr/modelPack";
 import { ModelStore, OpfsFileStore } from "@/recitation/asr/modelStore";
 import { BrowserSource } from "@/recitation/sources/BrowserSource";
 import type { ChunkEvent } from "@/recitation/sources/RecognizerSource";
@@ -18,8 +17,8 @@ export type ModelAvailability = { state: "ready" } | { state: "no-model" } | { s
 export async function modelAvailability(): Promise<ModelAvailability> {
   const support = getVoiceSupport();
   if (!support.supported) return { state: "unsupported", missing: support.missing };
-  const status = await new ModelStore(new OpfsFileStore()).status(selectedPack());
-  return status.state === "ready" ? { state: "ready" } : { state: "no-model" };
+  const { ready } = await new ModelStore(new OpfsFileStore()).usablePack();
+  return ready ? { state: "ready" } : { state: "no-model" };
 }
 
 export interface RecognizerHandlers {
@@ -69,7 +68,8 @@ export class Recognizer {
         if (e.code !== "model_missing") reject(new Error(e.message));
       });
     });
-    const loaded = await within(Promise.race([src.load(selectedPack(), 2), failed]), LOAD_TIMEOUT_MS, "loading the speech model").finally(() => off());
+    const { pack } = await new ModelStore(new OpfsFileStore()).usablePack();
+    const loaded = await within(Promise.race([src.load(pack, 2), failed]), LOAD_TIMEOUT_MS, "loading the speech model").finally(() => off());
     if (!loaded) throw new Error("the speech model isn't downloaded");
     src.on("chunk", (c: ChunkEvent) => {
       if (this.active) this.engine?.postMessage({ type: "step", step: c.chunk, units: c.units.map((u) => u.id), time: (c.chunk + 1) * loaded.stepSeconds });

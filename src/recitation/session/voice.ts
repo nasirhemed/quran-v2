@@ -156,6 +156,9 @@ export class VoiceSession {
     this.listeners.forEach((fn) => fn());
   }
 
+  /** the pack chosen in voice settings when the loaded model was picked */
+  private chosenAtLoad: string | null = null;
+
   /** The latest state including changes not yet published (for building the next change). */
   private get s(): VoiceState {
     return this.pending ? { ...this.state, ...this.pending } : this.state;
@@ -167,7 +170,7 @@ export class VoiceSession {
    */
   init(): Promise<void> {
     const { loaded, phase } = this.state;
-    if (loaded && phase === "ready" && loaded.packId !== selectedPack().id) {
+    if (loaded && phase === "ready" && this.chosenAtLoad !== selectedPack().id) {
       this.source?.dispose();
       this.engine?.terminate();
       this.source = null;
@@ -182,8 +185,10 @@ export class VoiceSession {
   }
 
   private async doInit() {
-    const pack = selectedPack();
-    if ((await new ModelStore(new OpfsFileStore()).status(pack)).state !== "ready") {
+    // the chosen pack, or a downloaded one if it isn't (remembered so a fallback isn't reloaded on every init)
+    this.chosenAtLoad = selectedPack().id;
+    const { pack, ready } = await new ModelStore(new OpfsFileStore()).usablePack();
+    if (!ready) {
       this.initPromise = null; // try again after the model is downloaded
       return this.set({ phase: "no-model" }, true);
     }
