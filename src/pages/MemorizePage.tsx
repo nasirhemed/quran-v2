@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchQuranPages, fetchSurahs } from "@/lib/data";
-import { DEFAULT_RECITER, RECITERS, versesInRange, type Verse } from "@/lib/memorize";
+import { DEFAULT_RECITER, recitations, RECITERS, versesInRange, type Verse } from "@/lib/memorize";
 import { MemorizeSession, type MemorizeConfig } from "@/memorize/session";
 import { modelAvailability, type ModelAvailability } from "@/memorize/recognizer";
 import FocusView, { SPEEDS } from "@/components/memorize/FocusView";
 
 /**
- * Memorize: pick verses, how many times to listen first and to recite each, and a reciter; then the session runs
+ * Memorize: pick verses, how many times to listen first and to recite each (and how many times in a row), and a reciter; then the session runs
  * full screen (FocusView). The session itself is src/memorize/session.ts; this page is setup and the summary.
  */
 
@@ -26,6 +26,7 @@ const DEFAULTS: Settings = {
   from: { s: 112, a: 1 },
   to: { s: 112, a: 4 },
   reps: 3,
+  inRow: 1,
   listen: 0,
   reciterId: DEFAULT_RECITER.id,
   speed: 1,
@@ -224,8 +225,18 @@ export default function MemorizePage() {
           <Field label="Listen first" hint={settings.listen ? `The reciter recites each verse ${settings.listen} time${settings.listen > 1 ? "s" : ""} before your first turn.` : "Straight into listen, recite, listen, recite."}>
             <Segmented label="Listen first" value={settings.listen} onChange={(listen) => set({ listen })} options={[0, 1, 2, 3, 5].map((n) => ({ value: n, label: n ? `${n}×` : "No" }))} />
           </Field>
-          <Field label="Recite each verse">
-            <Segmented label="Recite each verse" value={settings.reps} onChange={(reps) => set({ reps })} options={[1, 2, 3, 5, 7, 10].map((n) => ({ value: n, label: `${n}×` }))} />
+          <Field label={settings.inRow > 1 ? "Rounds" : "Recite each verse"}>
+            <Segmented label={settings.inRow > 1 ? "Rounds" : "Recite each verse"} value={settings.reps} onChange={(reps) => set({ reps })} options={[1, 2, 3, 5, 7, 10].map((n) => ({ value: n, label: `${n}×` }))} />
+          </Field>
+          <Field
+            label="Recite in a row"
+            hint={
+              settings.inRow > 1
+                ? `The reciter recites, then you recite it ${settings.inRow} times, then the reciter again: ${settings.reps} round${settings.reps > 1 ? "s" : ""}, ${recitations(settings)} recitations of each verse.`
+                : "Once, then the reciter recites it again."
+            }
+          >
+            <Segmented label="Recite in a row" value={settings.inRow} onChange={(inRow) => set({ inRow })} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n}×` }))} />
           </Field>
           <Field label="Reciter">
             <div className="flex gap-2">
@@ -308,6 +319,7 @@ export default function MemorizePage() {
           surahName={(s) => names[s - 1] ?? `Surah ${s}`}
           words={words}
           reps={settings.reps}
+          inRow={settings.inRow}
           listen={settings.listen}
           hide={settings.hideOnMyTurn}
         />
