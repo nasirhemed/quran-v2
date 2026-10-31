@@ -185,7 +185,10 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   model (not downloaded, or unsupported, e.g. iOS < 26 for OPFS), `TurnGate` ends the turn on quiet (3 s, ×1.75
   until 40% of the reciter's time is recited; noise floor = 10th percentile of 5 s, rising ≤ 2 dB/s, seeded from
   the last turn but never above -48 dBFS). `?debug` exposes the session as `window.__memorize`; the summary's
-  "Copy the session log" gives the turn-by-turn log for bug reports. On phones the header hides the theme button
+  "Copy the session log" gives the turn-by-turn log for bug reports. The session view keeps the verse's space fixed while it
+  runs (one-line state, the dots' row always there, refit only when the box really changes): turned sideways
+  (Tailwind's `short` screen) the verse goes beside the controls, and in full screen the orientation held at Start is
+  locked, as a car mount's auto-rotate swapped the layout (and the verse between a 32 px strip and full size). On phones the header hides the theme button
   so the four tabs fit at 320 px (it is in Settings). The mic (to `/transcribe`) is never in the header: it floats at
   the bottom right at every width (`AppShell`), except on the mushaf (`/read`, where Follow is in the navigation bar)
   and the voice pages.

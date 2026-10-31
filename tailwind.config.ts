@@ -12,6 +12,10 @@ export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      screens: {
+        // a phone turned sideways: too short for the stacked layout (the Memorize session goes side by side)
+        short: { raw: "(orientation: landscape) and (max-height: 520px)" },
+      },
       fontFamily: {
         arabic: ["Amiri", "serif"],
         // Verse text in the QPC Hafs script (`QuranWord.hafs`); Amiri only covers what the font lacks.

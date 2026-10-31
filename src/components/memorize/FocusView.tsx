@@ -8,6 +8,10 @@ import type { Verse } from "@/lib/memorize";
  *
  * On your turn the words the speech model has heard turn green; hinted words (after a pause) show in gold; with
  * "hide", the others are blank until heard or hinted (tap the verse to see it all).
+ *
+ * The verse's space must not change while a session runs, or the verse jumps between sizes: the state line is one
+ * line, the dots' row is always there, and a phone turned sideways (`short`) puts the verse beside the controls
+ * instead of in the sliver left between them.
  */
 
 export const SPEEDS = [1, 1.25, 1.5, 1.75, 2];
@@ -58,13 +62,29 @@ function useFitText(box: React.RefObject<HTMLElement | null>, text: React.RefObj
       setPx(lo);
     };
     fit();
-    const ro = new ResizeObserver(fit);
+    // refit once per frame at most, and only when the box really changed size
+    let last = `${b.clientWidth}x${b.clientHeight}`;
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const now = `${b.clientWidth}x${b.clientHeight}`;
+        if (now === last) return;
+        last = now;
+        fit();
+      });
+    });
     ro.observe(b);
+    // the verse's font can arrive after the first fit (and after fonts.ready, if it hadn't started loading yet)
     let live = true;
     void document.fonts?.ready.then(() => live && fit());
+    const onFonts = () => live && fit();
+    document.fonts?.addEventListener?.("loadingdone", onFonts);
     return () => {
       live = false;
+      cancelAnimationFrame(frame);
       ro.disconnect();
+      document.fonts?.removeEventListener?.("loadingdone", onFonts);
     };
   }, [box, text, key]);
   return px;
@@ -100,7 +120,7 @@ export default function FocusView({ session, state, verses, surahName, words, re
     if (state.phase === "starting") return "Starting…";
     if (paused) return "Paused";
     if (!step) return "";
-    if (state.activity === "loading") return yourTurn ? "Getting ready…" : "Loading…";
+    if (state.activity === "loading") return yourTurn ? "Get ready" : "Loading…";
     if (yourTurn) return state.verseDone ? "✓" : "Your turn";
     return step.turn === "listen" && listen > 1 ? `Listen ${step.rep}/${listen}` : "Listen";
   })();
@@ -124,80 +144,84 @@ export default function FocusView({ session, state, verses, surahName, words, re
         </button>
       </div>
 
-      <div className="text-center px-4 pt-2">
-        <div className={`text-5xl sm:text-6xl font-bold tracking-tight ${yourTurn && !paused ? "text-primary" : "text-ink"}`}>{title}</div>
-        {dots > 0 && step && (
-          <div className="flex justify-center gap-2 mt-3" aria-label={`Repetition ${step.rep} of ${reps}`}>
-            {Array.from({ length: dots }, (_, i) => (
-              <span key={i} className={`h-3 w-3 rounded-full ${i + 1 < step.rep || (i + 1 === step.rep && yourTurn) ? "bg-primary" : i + 1 === step.rep ? "bg-gold" : "bg-card2 border border-edge"}`} />
-            ))}
+      {/* stacked on a phone held upright; sideways (short), the verse on the left and the controls on the right */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] short:grid-cols-[minmax(0,1fr)_17rem] short:grid-rows-[auto_minmax(0,1fr)]">
+        <div className="text-center px-4 pt-2 short:col-start-2 short:row-start-1">
+          <div className={`text-5xl sm:text-6xl short:text-4xl font-bold tracking-tight whitespace-nowrap ${yourTurn && !paused ? "text-primary" : "text-ink"}`}>{title}</div>
+          {/* always there (empty while listening), so the verse doesn't move when the dots come and go */}
+          <div className="flex justify-center gap-2 mt-3 h-3" aria-label={dots > 0 && step ? `Repetition ${step.rep} of ${reps}` : undefined}>
+            {dots > 0 &&
+              step &&
+              Array.from({ length: dots }, (_, i) => (
+                <span key={i} className={`h-3 w-3 rounded-full ${i + 1 < step.rep || (i + 1 === step.rep && yourTurn) ? "bg-primary" : i + 1 === step.rep ? "bg-gold" : "bg-card2 border border-edge"}`} />
+              ))}
           </div>
-        )}
-      </div>
-
-      <div ref={scroller} className="flex-1 min-h-0 overflow-auto px-5 py-4 flex">
-        <p
-          ref={verseText}
-          dir="rtl"
-          lang="ar"
-          onClick={() => setPeek(true)}
-          style={{ fontSize: fontPx }}
-          className="m-auto font-quran text-ink text-center select-none leading-[1.9]"
-        >
-          {list.map((w, i) => {
-            const got = heard.has(w.key);
-            const hinted = !got && yourTurn && i < state.hintTo;
-            const blank = hide && yourTurn && !peek && !got && !hinted;
-            return (
-              <span
-                key={w.key}
-                data-i={i}
-                className={`transition-colors ${got ? "text-primary" : hinted ? "text-gold-text bg-gold-soft rounded" : blank ? "text-transparent border-b-2 border-edge-strong" : ""}`}
-              >
-                {w.text}{" "}
-              </span>
-            );
-          })}
-        </p>
-      </div>
-
-      <div className="px-4 pb-[max(env(safe-area-inset-bottom),1rem)] space-y-3">
-        <div className="h-1.5 rounded-full bg-card2 overflow-hidden" aria-hidden>
-          <div
-            className={`h-full transition-[width] duration-75 ${state.speaking ? "bg-primary" : "bg-muted"}`}
-            style={{ width: `${yourTurn && state.activity === "listening" ? Math.max(0, Math.min(100, ((state.level + 70) / 70) * 100)) : 0}%` }}
-          />
         </div>
-        <div className="text-xs text-muted text-center h-4">
-          {yourTurn && state.activity === "listening"
-            ? state.model === "ready"
-              ? state.hintTo > heardTo
-                ? "Hint shown · carry on when you remember"
-                : "Moves on when you finish the verse"
-              : "Moves on when you stop"
-            : state.model === "loading"
-              ? "Loading the speech model…"
-              : ""}
+
+        <div ref={scroller} className="min-h-0 overflow-auto px-5 py-4 flex short:col-start-1 short:row-start-1 short:row-span-2 short:py-2">
+          <p
+            ref={verseText}
+            dir="rtl"
+            lang="ar"
+            onClick={() => setPeek(true)}
+            style={{ fontSize: fontPx }}
+            className="m-auto font-quran text-ink text-center select-none leading-[1.9]"
+          >
+            {list.map((w, i) => {
+              const got = heard.has(w.key);
+              const hinted = !got && yourTurn && i < state.hintTo;
+              const blank = hide && yourTurn && !peek && !got && !hinted;
+              return (
+                <span
+                  key={w.key}
+                  data-i={i}
+                  className={`transition-colors ${got ? "text-primary" : hinted ? "text-gold-text bg-gold-soft rounded" : blank ? "text-transparent border-b-2 border-edge-strong" : ""}`}
+                >
+                  {w.text}{" "}
+                </span>
+              );
+            })}
+          </p>
         </div>
-        {paused ? (
-          <button onClick={() => session.resume()} className="w-full bg-primary text-on-primary rounded-2xl py-6 text-2xl font-bold">
-            Resume
-          </button>
-        ) : (
-          <button onClick={() => session.pause()} disabled={state.phase !== "running"} className="w-full bg-primary text-on-primary rounded-2xl py-6 text-2xl font-bold disabled:opacity-50">
-            Pause
-          </button>
-        )}
-        <div className="grid grid-cols-3 gap-3">
-          <button onClick={() => session.again()} className="border border-edge-strong text-ink rounded-xl py-3 text-sm font-medium hover:bg-card2">
-            Again
-          </button>
-          <button onClick={() => session.next()} disabled={state.phase !== "running"} className="border border-edge-strong text-ink rounded-xl py-3 text-sm font-medium hover:bg-card2 disabled:opacity-40">
-            {yourTurn ? "Done" : "Skip"}
-          </button>
-          <button onClick={() => session.nextVerse()} className="border border-edge-strong text-ink rounded-xl py-3 text-sm font-medium hover:bg-card2">
-            Next verse
-          </button>
+
+        <div className="px-4 pb-[max(env(safe-area-inset-bottom),1rem)] space-y-3 short:col-start-2 short:row-start-2 short:self-end">
+          <div className="h-1.5 rounded-full bg-card2 overflow-hidden" aria-hidden>
+            <div
+              className={`h-full transition-[width] duration-75 ${state.speaking ? "bg-primary" : "bg-muted"}`}
+              style={{ width: `${yourTurn && state.activity === "listening" ? Math.max(0, Math.min(100, ((state.level + 70) / 70) * 100)) : 0}%` }}
+            />
+          </div>
+          <div className="text-xs text-muted text-center h-4">
+            {yourTurn && state.activity === "listening"
+              ? state.model === "ready"
+                ? state.hintTo > heardTo
+                  ? "Hint shown · carry on when you remember"
+                  : "Moves on when you finish the verse"
+                : "Moves on when you stop"
+              : state.model === "loading"
+                ? "Loading the speech model…"
+                : ""}
+          </div>
+          {paused ? (
+            <button onClick={() => session.resume()} className="w-full bg-primary text-on-primary rounded-2xl py-6 short:py-4 text-2xl font-bold">
+              Resume
+            </button>
+          ) : (
+            <button onClick={() => session.pause()} disabled={state.phase !== "running"} className="w-full bg-primary text-on-primary rounded-2xl py-6 short:py-4 text-2xl font-bold disabled:opacity-50">
+              Pause
+            </button>
+          )}
+          <div className="grid grid-cols-3 gap-3">
+            <button onClick={() => session.again()} className="border border-edge-strong text-ink rounded-xl py-3 text-sm font-medium hover:bg-card2">
+              Again
+            </button>
+            <button onClick={() => session.next()} disabled={state.phase !== "running"} className="border border-edge-strong text-ink rounded-xl py-3 text-sm font-medium hover:bg-card2 disabled:opacity-40">
+              {yourTurn ? "Done" : "Skip"}
+            </button>
+            <button onClick={() => session.nextVerse()} className="border border-edge-strong text-ink rounded-xl py-3 text-sm font-medium hover:bg-card2">
+              Next verse
+            </button>
+          </div>
         </div>
       </div>
     </div>
