@@ -19,6 +19,8 @@ interface Props {
   surahName: (s: number) => string;
   words: (ayah: string) => { key: string; text: string }[];
   reps: number;
+  /** your turns in a row each round */
+  inRow: number;
   listen: number;
   hide: boolean;
 }
@@ -70,7 +72,7 @@ function useFitText(box: React.RefObject<HTMLElement | null>, text: React.RefObj
   return px;
 }
 
-export default function FocusView({ session, state, verses, surahName, words, reps, listen, hide }: Props) {
+export default function FocusView({ session, state, verses, surahName, words, reps, inRow, listen, hide }: Props) {
   const step = state.step;
   const verse = step ? verses[step.verse] : null;
   const ayah = verse ? `${verse.s}:${verse.a}` : "";
@@ -85,7 +87,7 @@ export default function FocusView({ session, state, verses, surahName, words, re
   // a new verse or turn hides it again
   useEffect(() => {
     setPeek(false);
-  }, [step?.verse, step?.rep, step?.turn]);
+  }, [step?.verse, step?.rep, step?.turn, step?.take]);
 
   // keep the next word to recite (or the hint) in view on long verses
   const heardTo = useMemo(() => list.reduce((m, w, i) => (heard.has(w.key) ? i + 1 : m), 0), [list, heard]);
@@ -126,8 +128,9 @@ export default function FocusView({ session, state, verses, surahName, words, re
 
       <div className="text-center px-4 pt-2">
         <div className={`text-5xl sm:text-6xl font-bold tracking-tight ${yourTurn && !paused ? "text-primary" : "text-ink"}`}>{title}</div>
+        {yourTurn && inRow > 1 && step && <div className="text-lg font-semibold text-muted mt-1 tabular-nums">{`${step.take ?? 1} of ${inRow} in a row`}</div>}
         {dots > 0 && step && (
-          <div className="flex justify-center gap-2 mt-3" aria-label={`Repetition ${step.rep} of ${reps}`}>
+          <div className="flex justify-center gap-2 mt-3" aria-label={`${inRow > 1 ? "Round" : "Repetition"} ${step.rep} of ${reps}`}>
             {Array.from({ length: dots }, (_, i) => (
               <span key={i} className={`h-3 w-3 rounded-full ${i + 1 < step.rep || (i + 1 === step.rep && yourTurn) ? "bg-primary" : i + 1 === step.rep ? "bg-gold" : "bg-card2 border border-edge"}`} />
             ))}
