@@ -1,6 +1,6 @@
 /**
- * Memorize (`/memorize`), plain TS: the verse plan and turn order (listen ×X, then you and the reciter in turn,
- * N times per verse), the rules for your turn with the speech model (ModelTurn: when it ends, when to hint), and
+ * Memorize (`/memorize`), plain TS: the verse plan and turn order (listen ×X, then the reciter and you in turn,
+ * N rounds per verse, you reciting K times in a row each round), the rules for your turn with the speech model (ModelTurn: when it ends, when to hint), and
  * the gate that hears whether you are speaking (TurnGate; without the model, it alone decides when your turn ends).
  */
 
@@ -53,29 +53,40 @@ export type Turn = "listen" | "reciter" | "you";
 export interface Step {
   /** index into the plan's verses */
   verse: number;
-  /** 1-based: the listen number (turn "listen"), or the repetition (turn "reciter" / "you") */
+  /** 1-based: the listen number (turn "listen"), or the round (turn "reciter" / "you") */
   rep: number;
   turn: Turn;
+  /** turn "you" only, 1-based: which of your turns in a row this is (the round's `inRow`) */
+  take?: number;
 }
 
 export interface Plan {
   verses: number;
-  /** times you recite each verse */
+  /** rounds per verse: the reciter, then your turns */
   reps: number;
   /** times you listen to it first */
   listen: number;
+  /** your turns in a row each round, before the reciter recites it again (default 1) */
+  inRow?: number;
 }
+
+/** Times you recite each verse in all. */
+export const recitations = (plan: Pick<Plan, "reps" | "inRow">) => plan.reps * Math.max(1, plan.inRow ?? 1);
 
 /** A verse starts with its listens; with none, with the reciter before your first turn. */
 export const verseStart = (verse: number, plan: Plan): Step => ({ verse, rep: 1, turn: plan.listen > 0 ? "listen" : "reciter" });
 
 /**
- * The step after `step`, null when the plan is done. Each verse: listen ×X, then your turn (you have just heard
- * it), then reciter → you for the remaining repetitions. With no listens: reciter → you, N times.
+ * The step after `step`, null when the plan is done. Each verse: listen ×X, then your turns (you have just heard
+ * it), then reciter → your turns for the remaining rounds. With no listens: reciter → your turns, N rounds. Each
+ * round you recite K times in a row (`inRow`) before the reciter recites it again.
  */
 export function nextStep(step: Step, plan: Plan): Step | null {
-  if (step.turn === "listen") return step.rep < plan.listen ? { ...step, rep: step.rep + 1 } : { verse: step.verse, rep: 1, turn: "you" };
-  if (step.turn === "reciter") return { ...step, turn: "you" };
+  const you = (rep: number, take: number): Step => ({ verse: step.verse, rep, turn: "you", take });
+  if (step.turn === "listen") return step.rep < plan.listen ? { ...step, rep: step.rep + 1 } : you(1, 1);
+  if (step.turn === "reciter") return you(step.rep, 1);
+  const take = step.take ?? 1;
+  if (take < Math.max(1, plan.inRow ?? 1)) return you(step.rep, take + 1);
   if (step.rep < plan.reps) return { verse: step.verse, rep: step.rep + 1, turn: "reciter" };
   return skipVerse(step, plan);
 }
@@ -85,7 +96,7 @@ export function skipVerse(step: Step, plan: Plan): Step | null {
   return step.verse + 1 < plan.verses ? verseStart(step.verse + 1, plan) : null;
 }
 
-/** "Again": hear this verse once more, then your turn (the same repetition). */
+/** "Again": hear this verse once more, then your turns (the same round, from its first turn). */
 export const again = (step: Step): Step => (step.turn === "listen" ? { ...step } : { verse: step.verse, rep: step.rep, turn: "reciter" });
 
 export interface GateOptions {

@@ -23,6 +23,8 @@ interface Props {
   surahName: (s: number) => string;
   words: (ayah: string) => { key: string; text: string }[];
   reps: number;
+  /** your turns in a row each round */
+  inRow: number;
   listen: number;
   hide: boolean;
 }
@@ -90,7 +92,7 @@ function useFitText(box: React.RefObject<HTMLElement | null>, text: React.RefObj
   return px;
 }
 
-export default function FocusView({ session, state, verses, surahName, words, reps, listen, hide }: Props) {
+export default function FocusView({ session, state, verses, surahName, words, reps, inRow, listen, hide }: Props) {
   const step = state.step;
   const verse = step ? verses[step.verse] : null;
   const ayah = verse ? `${verse.s}:${verse.a}` : "";
@@ -105,7 +107,7 @@ export default function FocusView({ session, state, verses, surahName, words, re
   // a new verse or turn hides it again
   useEffect(() => {
     setPeek(false);
-  }, [step?.verse, step?.rep, step?.turn]);
+  }, [step?.verse, step?.rep, step?.turn, step?.take]);
 
   // keep the next word to recite (or the hint) in view on long verses
   const heardTo = useMemo(() => list.reduce((m, w, i) => (heard.has(w.key) ? i + 1 : m), 0), [list, heard]);
@@ -148,8 +150,11 @@ export default function FocusView({ session, state, verses, surahName, words, re
       <div className="flex-1 min-h-0 grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] short:grid-cols-[minmax(0,1fr)_17rem] short:grid-rows-[auto_minmax(0,1fr)]">
         <div className="text-center px-4 pt-2 short:col-start-2 short:row-start-1">
           <div className={`text-5xl sm:text-6xl short:text-4xl font-bold tracking-tight whitespace-nowrap ${yourTurn && !paused ? "text-primary" : "text-ink"}`}>{title}</div>
+          {/* the "in a row" line and the dots' row are always there for the session (empty when not your turn or
+              while listening), so the verse doesn't move when they come and go */}
+          {inRow > 1 && <div className="text-lg short:text-sm font-semibold text-muted mt-1 short:mt-0 h-7 short:h-5 tabular-nums">{yourTurn && step ? `${step.take ?? 1} of ${inRow} in a row` : ""}</div>}
           {/* always there (empty while listening), so the verse doesn't move when the dots come and go */}
-          <div className="flex justify-center gap-2 mt-3 h-3" aria-label={dots > 0 && step ? `Repetition ${step.rep} of ${reps}` : undefined}>
+          <div className="flex justify-center gap-2 mt-3 short:mt-2 h-3" aria-label={dots > 0 && step ? `${inRow > 1 ? "Round" : "Repetition"} ${step.rep} of ${reps}` : undefined}>
             {dots > 0 &&
               step &&
               Array.from({ length: dots }, (_, i) => (
@@ -203,11 +208,11 @@ export default function FocusView({ session, state, verses, surahName, words, re
                 : ""}
           </div>
           {paused ? (
-            <button onClick={() => session.resume()} className="w-full bg-primary text-on-primary rounded-2xl py-6 short:py-4 text-2xl font-bold">
+            <button onClick={() => session.resume()} className="w-full bg-primary text-on-primary rounded-2xl py-6 short:py-3 text-2xl font-bold">
               Resume
             </button>
           ) : (
-            <button onClick={() => session.pause()} disabled={state.phase !== "running"} className="w-full bg-primary text-on-primary rounded-2xl py-6 short:py-4 text-2xl font-bold disabled:opacity-50">
+            <button onClick={() => session.pause()} disabled={state.phase !== "running"} className="w-full bg-primary text-on-primary rounded-2xl py-6 short:py-3 text-2xl font-bold disabled:opacity-50">
               Pause
             </button>
           )}
