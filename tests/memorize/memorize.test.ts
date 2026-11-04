@@ -6,6 +6,7 @@ import {
   ModelTurn,
   modelTurnOptions,
   nextStep,
+  recitations,
   RECITERS,
   skipVerse,
   TurnGate,
@@ -52,6 +53,19 @@ describe("turn order", () => {
   });
   it("listen ×X first, then straight to your turn (you have just heard it), then reciter → you", () => {
     expect(walk({ verses: 2, reps: 2, listen: 3 })).toEqual(["0.1.l", "0.2.l", "0.3.l", "0.1.y", "0.2.r", "0.2.y", "1.1.l", "1.2.l", "1.3.l", "1.1.y", "1.2.r", "1.2.y"]);
+  });
+  it("K in a row: the reciter, then your K turns, each round", () => {
+    const takes = (plan: Plan) => {
+      const seen: string[] = [];
+      for (let s: Step | null = verseStart(0, plan); s; s = nextStep(s, plan)) seen.push(s.turn === "you" ? `y${s.rep}.${s.take}` : `${s.turn[0]}${s.rep}`);
+      return seen;
+    };
+    expect(takes({ verses: 1, reps: 2, listen: 0, inRow: 4 })).toEqual(["r1", "y1.1", "y1.2", "y1.3", "y1.4", "r2", "y2.1", "y2.2", "y2.3", "y2.4"]);
+    expect(takes({ verses: 1, reps: 2, listen: 1, inRow: 2 })).toEqual(["l1", "y1.1", "y1.2", "r2", "y2.1", "y2.2"]);
+    expect(takes({ verses: 1, reps: 1, listen: 0, inRow: 1 })).toEqual(["r1", "y1.1"]);
+    expect(recitations({ reps: 3, inRow: 4 })).toBe(12);
+    expect(recitations({ reps: 3 })).toBe(3);
+    expect(again({ verse: 0, rep: 2, turn: "you", take: 3 })).toEqual({ verse: 0, rep: 2, turn: "reciter" });
   });
   it("skips to the next verse's start; again hears the verse once more", () => {
     expect(skipVerse({ verse: 0, rep: 2, turn: "you" }, { verses: 3, reps: 3, listen: 0 })).toEqual({ verse: 1, rep: 1, turn: "reciter" });

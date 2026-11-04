@@ -1,6 +1,6 @@
 /**
- * A Memorize session: for each verse, the reciter plays it (listen ×X), then you recite it and the reciter plays it
- * again in turn, N times, then the next verse. Pause/resume, again, next; the car's media buttons work too.
+ * A Memorize session: for each verse, the reciter plays it (listen ×X), then you recite it (K times in a row) and
+ * the reciter plays it again in turn, N rounds, then the next verse. Pause/resume, again, next; the car's media buttons work too.
  *
  * The mic opens once, at Start, and stays open (the car test found that most reliable with Bluetooth). Your turn
  * ends when the speech model hears you reach the verse's last word (Recognizer + ModelTurn): quiet only counts
@@ -32,8 +32,10 @@ import {
 } from "@/lib/memorize";
 
 export interface MemorizeConfig {
-  /** times you recite each verse */
+  /** rounds per verse: the reciter, then your turns */
   reps: number;
+  /** your turns in a row each round, before the reciter recites it again */
+  inRow: number;
   /** times you listen to each verse first */
   listen: number;
   /** the reciter's playback speed (pitch kept) */
@@ -157,7 +159,7 @@ export class MemorizeSession {
   }
 
   private where(step = this.state.step) {
-    return step ? `${verseKey(this.verses[step.verse])} ${step.turn} ${step.rep}` : "";
+    return step ? `${verseKey(this.verses[step.verse])} ${step.turn} ${step.rep}${step.turn === "you" && (this.plan.inRow ?? 1) > 1 ? `.${step.take ?? 1}` : ""}` : "";
   }
 
   /** Starts the session. Call from a tap: the audio context, the player and the wake lock are unlocked inside it. */
@@ -169,7 +171,7 @@ export class MemorizeSession {
     this.pausedByMute = false;
     this.waitedForModel = false;
     this.cfg = cfg;
-    this.plan = { verses: verses.length, reps: cfg.reps, listen: cfg.listen };
+    this.plan = { verses: verses.length, reps: cfg.reps, listen: cfg.listen, inRow: Math.max(1, cfg.inRow || 1) };
     this.verses = verses;
     this.reciter = reciter;
     this.wordCount = wordCount;
@@ -193,7 +195,7 @@ export class MemorizeSession {
     this.header = [
       `Itqan memorize · ${new Date().toISOString()}`,
       `browser: ${navigator.userAgent}`,
-      `plan: ${verseKey(verses[0])}–${verseKey(verses[verses.length - 1])} (${verses.length} verses) · listen ×${cfg.listen} · recite ×${cfg.reps} · ${reciter.name} at ${cfg.speed}×`,
+      `plan: ${verseKey(verses[0])}–${verseKey(verses[verses.length - 1])} (${verses.length} verses) · listen ×${cfg.listen} · recite ×${cfg.reps}${(this.plan.inRow ?? 1) > 1 ? ` rounds, ${this.plan.inRow} in a row` : ""} · ${reciter.name} at ${cfg.speed}×`,
       `turn end: ${cfg.useModel ? `speech model · hints ${cfg.hintAfterMs ? `after ${cfg.hintAfterMs} ms` : "off"} · give up after ${cfg.giveUpMs ? `${cfg.giveUpMs} ms quiet` : "never"}` : `${cfg.endSilenceMs} ms quiet`}`,
     ];
     this.watch(audio, ctx);
@@ -423,7 +425,8 @@ export class MemorizeSession {
     if (!("mediaSession" in navigator)) return;
     navigator.mediaSession.playbackState = "playing";
     if (typeof MediaMetadata === "undefined") return;
-    const label = step.turn === "you" ? `your turn ${step.rep} of ${this.cfg.reps}` : step.turn === "listen" ? `listen ${step.rep} of ${this.cfg.listen}` : "listen";
+    const inRow = this.plan.inRow ?? 1;
+    const label = step.turn === "you" ? `your turn ${(step.rep - 1) * inRow + (step.take ?? 1)} of ${this.cfg.reps * inRow}` : step.turn === "listen" ? `listen ${step.rep} of ${this.cfg.listen}` : "listen";
     navigator.mediaSession.metadata = new MediaMetadata({ title: `${verseKey(this.verses[step.verse])} · ${label}`, artist: this.reciter.name, album: "Itqān · Memorize" });
   }
 
