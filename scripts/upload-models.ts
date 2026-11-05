@@ -87,7 +87,10 @@ const upload = async (f: Pack["files"][number]) => {
     url = existing.url;
     console.log(`= ${pathname} already uploaded`);
   } else {
-    const res = await put(pathname, fs.createReadStream(local), {
+    // small files go up as a Buffer: a stream can't be re-read when the Blob client retries a request
+    // ("Response body object should not be disturbed or locked")
+    const body = f.bytes > 8 << 20 ? fs.createReadStream(local) : fs.readFileSync(local);
+    const res = await put(pathname, body, {
       access: "public",
       addRandomSuffix: false,
       allowOverwrite: true,
