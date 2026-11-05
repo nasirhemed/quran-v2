@@ -85,7 +85,10 @@ export function splitAyahs(
   const lengths: number[] = [];
   segs.forEach((s, si) =>
     s.words.forEach((w) => {
-      const sk = skeleton(words.ph[w]) || "?";
+      let sk = skeleton(words.ph[w]) || "?";
+      // the heard skeleton collapses a letter shared across words (غفور رحيم | ما المسيح: one م), so the
+      // reference does too: the letter stays with the earlier word, and the next ayah starts after it
+      if (refText && sk[0] === refText[refText.length - 1]) sk = sk.slice(1);
       refText += sk;
       for (let c = 0; c < sk.length; c++) owner.push(lengths.length);
       lengths.push(sk.length);
@@ -125,7 +128,7 @@ export function splitAyahs(
   for (let k = 0; k < lengths.length; k++) {
     const s = segInfo[wordSeg[k]];
     s.n++;
-    if (matched[k] / lengths[k] < SPLIT.HEARD || first[k] === Infinity) continue;
+    if (!lengths[k] || matched[k] / lengths[k] < SPLIT.HEARD || first[k] === Infinity) continue;
     s.said++;
     s.t0 = Math.min(s.t0, first[k]);
     s.t1 = Math.max(s.t1, last[k]);
