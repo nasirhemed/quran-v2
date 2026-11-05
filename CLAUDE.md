@@ -174,7 +174,12 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   tested in `tests/memorize`). Each verse: listen ×X, then your turn, then reciter → you for the remaining
   rounds (`nextStep`); "Recite in a row" (`inRow`, 1–5) gives you that many turns per round before the reciter
   recites again (`Step.take`; "Recite each verse" becomes "Rounds" and the total is `recitations()`). Reciter audio is everyayah.com's per-verse MP3s (CORS `*`, so COEP allows them; fetched
-  into blob URLs, next 4 prefetched); Ali Jaber is the default; speed 1–2× (`playbackRate`, pitch kept). Built from
+  into blob URLs, next 4 prefetched); Ali Jaber is the default; speed 1–2× (`playbackRate`, pitch kept). Reciters we only have whole-surah recordings of are
+  `hosted` (`lib/memorize.ts`): `scripts/split-ayahs.ts` (`npm run split-ayahs -- <file> <surah> --clips`) cuts them
+  into everyayah-named clips (model B + the Verify-mode skeleton alignment, `engine/split.ts`; each cut in the
+  pause between ayat, a letter shared across joined ayat kept with the earlier one) with a `manifest.json`, and
+  `npm run upload-models -- <clips dir> recitation-<id>` hosts them beside the model packs; the setup screen
+  disables Start for a range outside the surahs a hosted reciter has. Built from
   a car test (prototype logs): the mic opens once at Start and stays open (opening it per turn gained nothing and
   flips Bluetooth between call and media modes); Chrome on Android suspends the AudioContext when the reciter
   starts, so it is resumed on `statechange`. Your turn with the speech model (`ModelTurn`): the engine is told the
