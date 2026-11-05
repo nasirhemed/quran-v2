@@ -7,10 +7,13 @@
  * onnxruntime-web's WebAssembly backend), aligns what it heard with the surah's text and writes:
  *   <out>/timings.json   [{ ayah, start, end, heard, cut }], seconds
  *   <out>/SSSAAA.mp3     one clip per ayah, everyayah's naming (with --clips; SSS000.mp3 is the basmala)
+ *   <out>/manifest.json  the clips' sizes and SHA-256, for `npm run upload-models -- <out> recitation-<id>`
+ *                        (a hosted reciter in src/lib/memorize.ts)
  * Model B's ONNX: $RECITATION_MODELS_DIR/zipformer_p-arabic-v3/ (default ../quran-audio-c/models).
  * Model output is cached next to the timings (<out>/heard.json), so a rerun only redoes the alignment.
  */
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import * as ort from "onnxruntime-web";
@@ -134,11 +137,15 @@ console.log(`timings: ${path.join(out, "timings.json")}`);
 
 if (clips) {
   const pad3 = (n: number) => String(n).padStart(3, "0");
+  const files: { name: string; bytes: number; sha256: string }[] = [];
   for (const s of result) {
     const a = s.ayah === "basmala" ? 0 : Number(s.ayah.split(":")[1]);
     const file = path.join(out, `${pad3(surah)}${pad3(a)}.mp3`);
-    const r = spawnSync("ffmpeg", ["-v", "error", "-y", "-ss", String(s.start), "-t", (s.end - s.start).toFixed(2), "-i", input, "-b:a", "128k", file]);
+    const r = spawnSync("ffmpeg", ["-v", "error", "-y", "-ss", String(s.start), "-t", (s.end - s.start).toFixed(2), "-i", input, "-vn", "-b:a", "128k", file]);
     if (r.status !== 0) throw new Error(`ffmpeg failed on ${s.ayah}: ${r.stderr}`);
+    const bytes = fs.readFileSync(file);
+    files.push({ name: path.basename(file), bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
   }
+  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ version: "1", files }, null, 1));
   console.log(`${result.length} clips in ${out}`);
 }

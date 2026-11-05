@@ -6,7 +6,9 @@
  *
  * Packs: the voice models (src/recitation/asr/modelPack.ts), and the mushaf fonts `qcf-v2`, whose file list is
  * public/data/mushaf-fonts.json (built with the fonts by scripts/build-mushaf-data.py; its manifest.json is
- * uploaded too, for other clients).
+ * uploaded too, for other clients); and hosted reciters' ayah clips, `recitation-<id>` (src/lib/memorize.ts), whose
+ * file list is the manifest.json that scripts/split-ayahs.ts --clips writes beside them (not uploaded: each
+ * surah's folder has its own).
  *
  * The token comes from BLOB_READ_WRITE_TOKEN, or from `.env.local` (gitignored) in this folder: paste the line
  * from Vercel → Storage → your Blob store → .env.local, or run `vercel env pull .env.local`.
@@ -39,9 +41,16 @@ function mushafPack(): Pack {
 }
 
 const [dir, packId = DEFAULT_PACK.id] = process.argv.slice(2);
-const pack: Pack | undefined = packId === MUSHAF_PACK.id ? mushafPack() : MODEL_PACKS.find((p) => p.id === packId);
+/** A hosted reciter's clips, as listed by split-ayahs' manifest.json in `dir`. */
+function recitationPack(): Pack {
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")) as Omit<Pack, "id">;
+  return { id: packId, ...manifest };
+}
+
+const pack: Pack | undefined =
+  packId === MUSHAF_PACK.id ? mushafPack() : packId?.startsWith("recitation-") && dir ? recitationPack() : MODEL_PACKS.find((p) => p.id === packId);
 if (!dir || !pack) {
-  console.error(`usage: npx tsx scripts/upload-models.ts <dir> [${[...MODEL_PACKS.map((p) => p.id), MUSHAF_PACK.id].join(" | ")}]`);
+  console.error(`usage: npx tsx scripts/upload-models.ts <dir> [${[...MODEL_PACKS.map((p) => p.id), MUSHAF_PACK.id, "recitation-<id>"].join(" | ")}]`);
   process.exit(1);
 }
 if (!process.env.BLOB_READ_WRITE_TOKEN && fs.existsSync(".env.local")) process.loadEnvFile(".env.local");
@@ -60,7 +69,7 @@ async function sha256(file: string) {
   return h.digest("hex");
 }
 
-const CONTENT_TYPES: Record<string, string> = { ".woff2": "font/woff2", ".json": "application/json" };
+const CONTENT_TYPES: Record<string, string> = { ".woff2": "font/woff2", ".json": "application/json", ".mp3": "audio/mpeg" };
 
 let base = "";
 const upload = async (f: Pack["files"][number]) => {

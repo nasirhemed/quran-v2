@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchQuranPages, fetchSurahs } from "@/lib/data";
-import { DEFAULT_RECITER, recitations, RECITERS, versesInRange, type Verse } from "@/lib/memorize";
+import { DEFAULT_RECITER, missingSurahs, recitations, RECITERS, versesInRange, type Verse } from "@/lib/memorize";
 import { MemorizeSession, type MemorizeConfig } from "@/memorize/session";
 import { modelAvailability, type ModelAvailability } from "@/memorize/recognizer";
 import FocusView, { SPEEDS } from "@/components/memorize/FocusView";
@@ -158,6 +158,7 @@ export default function MemorizePage() {
   const ayas = useMemo(() => surahs?.map((s) => s.ayas) ?? [], [surahs]);
   const verses = useMemo(() => (ayas.length ? versesInRange(ayas, settings.from, settings.to) : []), [ayas, settings.from, settings.to]);
   const reciter = RECITERS.find((r) => r.id === settings.reciterId) ?? DEFAULT_RECITER;
+  const missing = missingSurahs(reciter, verses);
   const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
   // still checking counts as available: the session falls back to quiet by itself if the model can't load
   const useModel = settings.useModel && availability?.state !== "no-model" && availability?.state !== "unsupported";
@@ -238,7 +239,16 @@ export default function MemorizePage() {
           >
             <Segmented label="Recite in a row" value={settings.inRow} onChange={(inRow) => set({ inRow })} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n}×` }))} />
           </Field>
-          <Field label="Reciter">
+          <Field
+            label="Reciter"
+            hint={
+              reciter.hosted
+                ? missing.length
+                  ? `${reciter.name} is only here for ${reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far. Pick a range in it, or another reciter.`
+                  : `Only ${reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far.`
+                : undefined
+            }
+          >
             <div className="flex gap-2">
               <select className={`${selectClass} flex-1`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })}>
                 {RECITERS.map((r) => (
@@ -301,7 +311,7 @@ export default function MemorizePage() {
           <Check checked={settings.cue} onChange={(v) => set({ cue: v })} title="Beep when it's my turn" />
 
           <button
-            disabled={!verses.length || active}
+            disabled={!verses.length || missing.length > 0 || active}
             onClick={start}
             className="w-full bg-primary text-on-primary rounded-lg px-4 py-3 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
           >

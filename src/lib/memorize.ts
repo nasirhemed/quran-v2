@@ -28,7 +28,12 @@ export interface Reciter {
   id: string;
   name: string;
   /** everyayah.com folder: https://everyayah.com/data/<folder>/SSSAAA.mp3 */
-  folder: string;
+  folder?: string;
+  /**
+   * Hosted by us with the model packs, at <VITE_MODEL_BASE_URL>/<pack>/<version>/SSSAAA.mp3: a reciter we only
+   * have whole-surah recordings of, cut into ayahs by scripts/split-ayahs.ts. Only these surahs.
+   */
+  hosted?: { pack: string; version: string; surahs: number[] };
 }
 
 export const RECITERS: Reciter[] = [
@@ -38,14 +43,32 @@ export const RECITERS: Reciter[] = [
   { id: "minshawi", name: "Muhammad Siddiq al-Minshawi", folder: "Minshawy_Murattal_128kbps" },
   { id: "abdulbasit", name: "Abdul Basit (murattal)", folder: "Abdul_Basit_Murattal_192kbps" },
   { id: "alafasy", name: "Mishary al-Afasy", folder: "Alafasy_128kbps" },
+  // midad.com recitation 867, split from its whole-surah files
+  { id: "midad-867", name: "Midad reciter 867", hosted: { pack: "recitation-midad-867", version: "1", surahs: [5] } },
 ];
 
 export const DEFAULT_RECITER = RECITERS[0];
 
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
-/** everyayah.com sends CORS `*`, so the page's COEP allows it with crossorigin="anonymous" / fetch. */
-export const verseAudioUrl = (r: Reciter, v: Verse) => `https://everyayah.com/data/${r.folder}/${pad3(v.s)}${pad3(v.a)}.mp3`;
+/** Where hosted recitations are: VITE_MODEL_BASE_URL, or `/models` (served from MODELS_DIR by the dev server). */
+const hostedBase = () => (import.meta.env?.VITE_MODEL_BASE_URL || "/models").replace(/\/$/, "");
+
+/**
+ * The verse's MP3. everyayah.com sends CORS `*`, and so does our Blob store, so the page's COEP allows both
+ * with crossorigin="anonymous" / fetch.
+ */
+export const verseAudioUrl = (r: Reciter, v: Verse, base = hostedBase()) =>
+  r.hosted
+    ? `${base}/${r.hosted.pack}/${r.hosted.version}/${pad3(v.s)}${pad3(v.a)}.mp3`
+    : `https://everyayah.com/data/${r.folder}/${pad3(v.s)}${pad3(v.a)}.mp3`;
+
+/** Surahs in `verses` the reciter has no audio for (empty: all covered). */
+export function missingSurahs(r: Reciter, verses: Verse[]): number[] {
+  if (!r.hosted) return [];
+  const have = new Set(r.hosted.surahs);
+  return [...new Set(verses.map((v) => v.s))].filter((s) => !have.has(s));
+}
 
 /** "listen": the reciter alone, before your first turn; "reciter": the reciter before one of your turns. */
 export type Turn = "listen" | "reciter" | "you";
