@@ -43,8 +43,8 @@ export const RECITERS: Reciter[] = [
   { id: "minshawi", name: "Muhammad Siddiq al-Minshawi", folder: "Minshawy_Murattal_128kbps" },
   { id: "abdulbasit", name: "Abdul Basit (murattal)", folder: "Abdul_Basit_Murattal_192kbps" },
   { id: "alafasy", name: "Mishary al-Afasy", folder: "Alafasy_128kbps" },
-  // midad.com recitation 867, split from its whole-surah files
-  { id: "midad-867", name: "Midad reciter 867", hosted: { pack: "recitation-midad-867", version: "1", surahs: [5] } },
+  // whole-surah recordings (midad.com recitation 867), split into ayahs by scripts/split-ayahs.ts
+  { id: "sabr-al-hakm", name: "Sabr Al Hakm", hosted: { pack: "recitation-sabr-al-hakm", version: "1", surahs: [5] } },
 ];
 
 export const DEFAULT_RECITER = RECITERS[0];
