@@ -85,7 +85,7 @@ export interface Step {
 
 export interface Plan {
   verses: number;
-  /** rounds per verse: the reciter, then your turns */
+  /** rounds per verse: the reciter, then your turns; 0 = just listen (`listen` times, then the next verse) */
   reps: number;
   /** times you listen to it first */
   listen: number;
@@ -102,11 +102,12 @@ export const verseStart = (verse: number, plan: Plan): Step => ({ verse, rep: 1,
 /**
  * The step after `step`, null when the plan is done. Each verse: listen ×X, then your turns (you have just heard
  * it), then reciter → your turns for the remaining rounds. With no listens: reciter → your turns, N rounds. Each
- * round you recite K times in a row (`inRow`) before the reciter recites it again.
+ * round you recite K times in a row (`inRow`) before the reciter recites it again. With no rounds (just listen):
+ * listen ×X, then the next verse.
  */
 export function nextStep(step: Step, plan: Plan): Step | null {
   const you = (rep: number, take: number): Step => ({ verse: step.verse, rep, turn: "you", take });
-  if (step.turn === "listen") return step.rep < plan.listen ? { ...step, rep: step.rep + 1 } : you(1, 1);
+  if (step.turn === "listen") return step.rep < plan.listen ? { ...step, rep: step.rep + 1 } : plan.reps > 0 ? you(1, 1) : skipVerse(step, plan);
   if (step.turn === "reciter") return you(step.rep, 1);
   const take = step.take ?? 1;
   if (take < Math.max(1, plan.inRow ?? 1)) return you(step.rep, take + 1);

@@ -171,7 +171,9 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   `[data-w="s:a:w"]` span directly (QuranPage never re-renders per step). Follow mode never marks mistakes.
 - **Memorize** (`pages/MemorizePage.tsx` setup + summary, `components/memorize/FocusView.tsx` the full-screen
   session view, `memorize/session.ts` MemorizeSession, `memorize/recognizer.ts`, `lib/memorize.ts` plain TS,
-  tested in `tests/memorize`). Each verse: listen ×X, then your turn, then reciter → you for the remaining
+  tested in `tests/memorize`). The setup screen is verses + a mode, "Listen & recite" (reciter → you each round; Recite each verse ×N,
+  In a row ×K) or "Just listen" (the reciter ×X, then the next verse: `reps` 0, no mic or model); reciter, speed and
+  turn settings sit under "Edit". Each verse: listen ×X, then your turn, then reciter → you for the remaining
   rounds (`nextStep`); "Recite in a row" (`inRow`, 1–5) gives you that many turns per round before the reciter
   recites again (`Step.take`; "Recite each verse" becomes "Rounds" and the total is `recitations()`). Reciter audio is everyayah.com's per-verse MP3s (CORS `*`, so COEP allows them; fetched
   into blob URLs, next 4 prefetched); Ali Jaber is the default; speed 1–2× (`playbackRate`, pitch kept). Reciters we only have whole-surah recordings of are
