@@ -56,6 +56,9 @@ describe("turn order", () => {
   it("listen ×X first, then straight to your turn (you have just heard it), then reciter → you", () => {
     expect(walk({ verses: 2, reps: 2, listen: 3 })).toEqual(["0.1.l", "0.2.l", "0.3.l", "0.1.y", "0.2.r", "0.2.y", "1.1.l", "1.2.l", "1.3.l", "1.1.y", "1.2.r", "1.2.y"]);
   });
+  it("just listen (no rounds): listen ×X, then the next verse, no turns of yours", () => {
+    expect(walk({ verses: 2, reps: 0, listen: 3 })).toEqual(["0.1.l", "0.2.l", "0.3.l", "1.1.l", "1.2.l", "1.3.l"]);
+  });
   it("K in a row: the reciter, then your K turns, each round", () => {
     const takes = (plan: Plan) => {
       const seen: string[] = [];
