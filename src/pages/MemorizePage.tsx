@@ -287,6 +287,27 @@ export default function MemorizePage() {
             </select>
           </div>
           {reciter.hosted && !missing.length && <p className="text-xs text-muted -mt-1">Only {reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far.</p>}
+          {!justListen && availability && !useModel && (
+            <p className="text-sm text-ink bg-card2 border border-edge rounded-lg px-3 py-2 mt-1 mb-2">
+              {availability.state === "no-model" ? (
+                <>
+                  The speech model isn't on this device, so your words won't show as you recite.{" "}
+                  <Link href="/voice" className="underline text-primary">
+                    Download it
+                  </Link>
+                </>
+              ) : availability.state === "unsupported" ? (
+                "This browser can't run the speech model, so your words won't show as you recite."
+              ) : (
+                <>
+                  The speech model is off, so your words won't show as you recite.{" "}
+                  <button className="underline text-primary" onClick={() => set({ useModel: true })}>
+                    Turn it on
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           {!justListen && settings.inRow > 1 && (
             <p className="text-xs text-muted mt-1">
               Listen, then recite {settings.inRow}× · {recitations(settings)} recitations of each verse
