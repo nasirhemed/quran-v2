@@ -214,7 +214,8 @@ export default function MemorizePage() {
 
   const start = () => {
     void document.documentElement.requestFullscreen?.({ navigationUI: "hide" }).catch(() => undefined);
-    void session.start({ ...settings, ...plan, useModel }, verses, reciter, (ayah) => verseWordsRef.current.get(ayah)?.length ?? NaN);
+    const modelNote = `${useModel ? "on" : "off"} (setting ${settings.useModel ? "on" : "off"}, on this device: ${availability ? availability.state + ("missing" in availability ? ` – ${availability.missing.join(", ")}` : "") : "still checking"})`;
+    void session.start({ ...settings, ...plan, useModel, modelNote }, verses, reciter, (ayah) => verseWordsRef.current.get(ayah)?.length ?? NaN);
   };
 
   const copyLog = async () => {
