@@ -50,6 +50,8 @@ export interface MemorizeConfig {
   endSilenceMs: number;
   /** a short beep when it's your turn */
   cue: boolean;
+  /** for the log: why the model is or isn't used (what the setup screen found) */
+  modelNote?: string;
 }
 
 export type Phase = "idle" | "starting" | "running" | "paused" | "done" | "error";
@@ -197,6 +199,7 @@ export class MemorizeSession {
       `browser: ${navigator.userAgent}`,
       `plan: ${verseKey(verses[0])}–${verseKey(verses[verses.length - 1])} (${verses.length} verses) · listen ×${cfg.listen} · ${cfg.reps ? `recite ×${cfg.reps}` : "just listen"}${(this.plan.inRow ?? 1) > 1 ? ` rounds, ${this.plan.inRow} in a row` : ""} · ${reciter.name} at ${cfg.speed}×`,
       `turn end: ${cfg.useModel ? `speech model · hints ${cfg.hintAfterMs ? `after ${cfg.hintAfterMs} ms` : "off"} · give up after ${cfg.giveUpMs ? `${cfg.giveUpMs} ms quiet` : "never"}` : `${cfg.endSilenceMs} ms quiet`}`,
+      `speech model: ${cfg.modelNote ?? "?"}`,
     ];
     this.watch(audio, ctx);
     // just listening: no turns of yours, so no model and no mic
@@ -640,6 +643,15 @@ export class MemorizeSession {
   }
 
   private abortTurn() {
+    const g = this.gate;
+    if (g && this.state.activity === "listening") {
+      const st = g.status;
+      const mt = this.modelTurn;
+      this.note(
+        `your turn ${this.where()} cut short after ${fmtS(g.elapsedMs / 1000)} · speech ${fmtS(st.speechMs / 1000)} · floor ${Math.round(st.floorDb)} dB · last level ${Math.round(this.state.level)} dB` +
+          (mt ? ` · model heard to word ${mt.heardTo}` : ` · no model this turn (${this.state.model})`),
+      );
+    }
     this.gate = null;
     this.modelTurn = null;
     this.listeningFor = null;
@@ -693,6 +705,7 @@ export class MemorizeSession {
     const ayah = this.listeningFor;
     if (!ayah || this.state.activity !== "listening" || !this.gate) return;
     const mine = keys.filter((k) => k.startsWith(`${ayah}:`));
+    if (mine.length < keys.length) this.note(`  heard words of another verse: ${keys.filter((k) => !k.startsWith(`${ayah}:`)).slice(0, 4).join(" ")}`);
     if (!mine.length) return;
     const before = this.modelTurn?.heardTo ?? 0;
     for (const k of mine) this.modelTurn?.heard(Number(k.slice(ayah.length + 1)), this.gate.elapsedMs);
