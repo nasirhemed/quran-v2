@@ -199,8 +199,7 @@ export default function MemorizePage() {
   // you always listen first: in "recite" the reciter recites before each of your rounds
   const plan = justListen ? { listen: settings.listenTimes, reps: 0, inRow: 1 } : { listen: 0, reps: settings.reps, inRow: settings.inRow };
   const summary = [
-    reciter.name,
-    `${settings.speed}×`,
+    `speed ${settings.speed}×`,
     ...(justListen ? [] : useModel ? [settings.hintAfterMs ? `hints after ${settings.hintAfterMs / 1000} s` : "no hints"] : [`ends after ${settings.endSilenceMs / 1000} s quiet`]),
     ...(!justListen && settings.hideOnMyTurn ? ["hidden"] : []),
   ].join(" · ");
@@ -277,6 +276,17 @@ export default function MemorizePage() {
               </>
             )}
           </div>
+          <div className="flex items-center justify-between gap-3 py-2.5 border-t border-edge">
+            <span className="text-[15px] text-ink">Reciter</span>
+            <select className={`${selectClass} max-w-[60%]`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })} aria-label="Reciter">
+              {RECITERS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {reciter.hosted && !missing.length && <p className="text-xs text-muted -mt-1">Only {reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far.</p>}
           {!justListen && settings.inRow > 1 && (
             <p className="text-xs text-muted mt-1">
               Listen, then recite {settings.inRow}× · {recitations(settings)} recitations of each verse
@@ -297,15 +307,6 @@ export default function MemorizePage() {
             <span className="text-ink hidden group-open:inline">Done</span>
           </summary>
           <div className="bg-card border border-edge rounded-xl p-4 mt-2 space-y-4">
-            <Field label="Reciter" hint={reciter.hosted && !missing.length ? `Only ${reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far.` : undefined}>
-              <select className={`${selectClass} w-full`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })}>
-                {RECITERS.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="Speed">
               <Segmented label="Speed" value={settings.speed} onChange={(speed) => set({ speed })} options={SPEEDS.map((v) => ({ value: v, label: `${v}×` }))} />
             </Field>
