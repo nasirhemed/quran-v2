@@ -196,8 +196,8 @@ export default function MemorizePage() {
   // still checking counts as available: the session falls back to quiet by itself if the model can't load
   const useModel = settings.useModel && availability?.state !== "no-model" && availability?.state !== "unsupported";
   const justListen = settings.mode === "listen";
-  // you always listen first: in "recite" the reciter recites before each of your rounds
-  const plan = justListen ? { listen: settings.listenTimes, reps: 0, inRow: 1 } : { listen: 0, reps: settings.reps, inRow: settings.inRow };
+  // you always listen first (listen ×1, then you, then reciter → you: the same order as before the redesign)
+  const plan = justListen ? { listen: settings.listenTimes, reps: 0, inRow: 1 } : { listen: 1, reps: settings.reps, inRow: settings.inRow };
   const summary = [
     `speed ${settings.speed}×`,
     ...(justListen ? [] : useModel ? [settings.hintAfterMs ? `hints after ${settings.hintAfterMs / 1000} s` : "no hints"] : [`ends after ${settings.endSilenceMs / 1000} s quiet`]),
@@ -337,7 +337,7 @@ export default function MemorizePage() {
                 <Field label="Your turn">
                   {availability?.state === "ready" && (
                     <div className="mb-3">
-                      <Check checked={settings.useModel} onChange={(v) => set({ useModel: v })} title="Move on when I finish the verse" />
+                      <Check checked={settings.useModel} onChange={(v) => set({ useModel: v })} title="Use the speech model (shows your words, moves on when you finish)" />
                     </div>
                   )}
                   {availability?.state === "no-model" && (
