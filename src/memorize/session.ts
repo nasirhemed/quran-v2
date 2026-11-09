@@ -195,11 +195,12 @@ export class MemorizeSession {
     this.header = [
       `Itqan memorize · ${new Date().toISOString()}`,
       `browser: ${navigator.userAgent}`,
-      `plan: ${verseKey(verses[0])}–${verseKey(verses[verses.length - 1])} (${verses.length} verses) · listen ×${cfg.listen} · recite ×${cfg.reps}${(this.plan.inRow ?? 1) > 1 ? ` rounds, ${this.plan.inRow} in a row` : ""} · ${reciter.name} at ${cfg.speed}×`,
+      `plan: ${verseKey(verses[0])}–${verseKey(verses[verses.length - 1])} (${verses.length} verses) · listen ×${cfg.listen} · ${cfg.reps ? `recite ×${cfg.reps}` : "just listen"}${(this.plan.inRow ?? 1) > 1 ? ` rounds, ${this.plan.inRow} in a row` : ""} · ${reciter.name} at ${cfg.speed}×`,
       `turn end: ${cfg.useModel ? `speech model · hints ${cfg.hintAfterMs ? `after ${cfg.hintAfterMs} ms` : "off"} · give up after ${cfg.giveUpMs ? `${cfg.giveUpMs} ms quiet` : "never"}` : `${cfg.endSilenceMs} ms quiet`}`,
     ];
     this.watch(audio, ctx);
-    if (cfg.useModel) void this.loadModel();
+    // just listening: no turns of yours, so no model and no mic
+    if (cfg.useModel && cfg.reps > 0) void this.loadModel();
     else this.set({ model: "off" });
     void wake?.then(
       (w) => this.holdWakeLock(w),
@@ -216,7 +217,7 @@ export class MemorizeSession {
       node.port.onmessage = (e: MessageEvent<number[]>) => this.onFrames(e.data);
       this.node = node;
       // asked for now, not in the middle of a drive; it stays open for the whole session
-      if (!(await this.openMic(gen))) return;
+      if (cfg.reps > 0 && !(await this.openMic(gen))) return;
     } catch (e) {
       if (gen === this.gen) this.fail(e);
       return;
