@@ -171,10 +171,17 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   `[data-w="s:a:w"]` span directly (QuranPage never re-renders per step). Follow mode never marks mistakes.
 - **Memorize** (`pages/MemorizePage.tsx` setup + summary, `components/memorize/FocusView.tsx` the full-screen
   session view, `memorize/session.ts` MemorizeSession, `memorize/recognizer.ts`, `lib/memorize.ts` plain TS,
-  tested in `tests/memorize`). Each verse: listen ×X, then your turn, then reciter → you for the remaining
+  tested in `tests/memorize`). The setup screen is verses + a mode, "Listen & recite" (reciter → you each round; Recite each verse ×N,
+  In a row ×K) or "Just listen" (the reciter ×X, then the next verse: `reps` 0, no mic or model), and the reciter; speed and
+  turn settings sit under "Edit". Each verse: listen ×X, then your turn, then reciter → you for the remaining
   rounds (`nextStep`); "Recite in a row" (`inRow`, 1–5) gives you that many turns per round before the reciter
   recites again (`Step.take`; "Recite each verse" becomes "Rounds" and the total is `recitations()`). Reciter audio is everyayah.com's per-verse MP3s (CORS `*`, so COEP allows them; fetched
-  into blob URLs, next 4 prefetched); Ali Jaber is the default; speed 1–2× (`playbackRate`, pitch kept). Built from
+  into blob URLs, next 4 prefetched); Ali Jaber is the default; speed 1–2× (`playbackRate`, pitch kept). Reciters we only have whole-surah recordings of are
+  `hosted` (`lib/memorize.ts`): `scripts/split-ayahs.ts` (`npm run split-ayahs -- <file> <surah> --clips`) cuts them
+  into everyayah-named clips (model B + the Verify-mode skeleton alignment, `engine/split.ts`; each cut in the
+  pause between ayat, a letter shared across joined ayat kept with the earlier one) with a `manifest.json`, and
+  `npm run upload-models -- <clips dir> recitation-<id>` hosts them beside the model packs; the setup screen
+  disables Start for a range outside the surahs a hosted reciter has. Built from
   a car test (prototype logs): the mic opens once at Start and stays open (opening it per turn gained nothing and
   flips Bluetooth between call and media modes); Chrome on Android suspends the AudioContext when the reciter
   starts, so it is resumed on `statechange`. Your turn with the speech model (`ModelTurn`): the engine is told the
@@ -187,7 +194,9 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   until 40% of the reciter's time is recited; noise floor = 10th percentile of 5 s, rising ≤ 2 dB/s, seeded from
   the last turn but never above -48 dBFS). `?debug` exposes the session as `window.__memorize`; the summary's
   "Copy the session log" gives the turn-by-turn log for bug reports. The session view keeps the verse's space fixed while it
-  runs (one-line state, the dots' row always there, refit only when the box really changes): turned sideways
+  runs (one-line state, the dots' row always there; `useFitText` refits a resized box only once it has settled for
+  300 ms, grows back only after 1.5 s, freezes at the smallest size after 4 resize changes in 10 s, and logs every size
+  change to the session log): turned sideways
   (Tailwind's `short` screen) the verse goes beside the controls, and in full screen the orientation held at Start is
   locked, as a car mount's auto-rotate swapped the layout (and the verse between a 32 px strip and full size). On phones the header hides the theme button
   so the four tabs fit at 320 px (it is in Settings). The mic (to `/transcribe`) is never in the header: it floats at

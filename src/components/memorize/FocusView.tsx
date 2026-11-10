@@ -33,20 +33,48 @@ interface Props {
 const MIN_PX = 28;
 const MAX_PX = 88;
 
+/** a resized box is refitted only once it has kept its size this long (ms): a flapping box never moves the verse */
+const SETTLE_MS = 300;
+/** ...and the verse grows back only after this long, so a box that shrinks and grows again doesn't swap sizes */
+const GROW_MS = 1500;
+/** this many size changes from resizes within LOOP_MS and the verse keeps its smallest size until the next verse */
+const LOOP_CHANGES = 4;
+const LOOP_MS = 10000;
+
 /**
  * Fits `text` inside `box`: the largest font size (px) at which it neither overflows the box's height nor its
- * width. Re-fits when the box changes size (rotation, the browser bars) and once the Arabic font has loaded.
+ * width. Fits at once for a new verse and when the Arabic font has loaded; a resized box (rotation, the browser or
+ * system bars) is refitted only once it has settled, shrinks at once but grows back slowly, and a box that keeps
+ * changing leaves the verse at its smallest size. A phone showed the verse flicking between two sizes many times a
+ * second in a session, so every change of size goes to `log` (the session log).
  */
-function useFitText(box: React.RefObject<HTMLElement | null>, text: React.RefObject<HTMLElement | null>, key: string) {
+function useFitText(
+  box: React.RefObject<HTMLElement | null>,
+  text: React.RefObject<HTMLElement | null>,
+  key: string,
+  log?: (text: string) => void,
+) {
   const [px, setPx] = useState(MIN_PX);
+  const logRef = useRef(log);
+  logRef.current = log;
   useLayoutEffect(() => {
     const b = box.current;
     const t = text.current;
     if (!b || !t) return;
-    const fit = () => {
+    let current = 0;
+    let frozen = false;
+    const changes: number[] = [];
+    const boxSize = () => {
       const style = getComputedStyle(b);
-      const h = b.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-      const w = b.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      return {
+        h: b.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+        w: b.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      };
+    };
+    /** the largest size that fits, or null for a box too small to mean anything (hidden, mid-transition) */
+    const measure = () => {
+      const { h, w } = boxSize();
+      if (h < 40 || w < 40) return null;
       const fits = (size: number) => {
         t.style.fontSize = `${size}px`;
         return t.scrollHeight <= h && t.scrollWidth <= w;
@@ -60,31 +88,58 @@ function useFitText(box: React.RefObject<HTMLElement | null>, text: React.RefObj
           if (fits(mid)) lo = mid;
           else hi = mid;
         }
-      t.style.fontSize = `${lo}px`;
-      setPx(lo);
+      if (current) t.style.fontSize = `${current}px`;
+      return { size: lo, h: Math.round(h), w: Math.round(w) };
     };
-    fit();
-    // refit once per frame at most, and only when the box really changed size
-    let last = `${b.clientWidth}x${b.clientHeight}`;
-    let frame = 0;
+    const apply = (size: number, why: string, h: number, w: number) => {
+      t.style.fontSize = `${size}px`;
+      if (size !== current) logRef.current?.(`verse ${size}px (${why}, box ${w}×${h})`);
+      current = size;
+      setPx(size);
+    };
+    const fitNow = (why: string) => {
+      const m = measure();
+      if (m) apply(m.size, why, m.h, m.w);
+      else if (!current) apply(MIN_PX, why, 0, 0);
+    };
+    fitNow("verse");
+
+    let settle = 0;
+    let grow = 0;
+    const onResize = () => {
+      if (frozen) return;
+      const m = measure();
+      if (!m || m.size === current) return;
+      const now = performance.now();
+      while (changes.length && now - changes[0] > LOOP_MS) changes.shift();
+      changes.push(now);
+      if (changes.length >= LOOP_CHANGES) {
+        frozen = true;
+        logRef.current?.(`the verse's box keeps changing size: the verse stays at ${Math.min(m.size, current)}px for this verse`);
+        if (m.size < current) apply(m.size, "resize", m.h, m.w);
+        return;
+      }
+      if (m.size < current) apply(m.size, "resize", m.h, m.w);
+      else grow = window.setTimeout(() => {
+        const g = measure();
+        if (g && !frozen && g.size > current) apply(g.size, "resize", g.h, g.w);
+      }, GROW_MS - SETTLE_MS);
+    };
     const ro = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const now = `${b.clientWidth}x${b.clientHeight}`;
-        if (now === last) return;
-        last = now;
-        fit();
-      });
+      clearTimeout(settle);
+      clearTimeout(grow);
+      settle = window.setTimeout(onResize, SETTLE_MS);
     });
     ro.observe(b);
     // the verse's font can arrive after the first fit (and after fonts.ready, if it hadn't started loading yet)
     let live = true;
-    void document.fonts?.ready.then(() => live && fit());
-    const onFonts = () => live && fit();
+    const onFonts = () => live && fitNow("font");
+    void document.fonts?.ready.then(onFonts);
     document.fonts?.addEventListener?.("loadingdone", onFonts);
     return () => {
       live = false;
-      cancelAnimationFrame(frame);
+      clearTimeout(settle);
+      clearTimeout(grow);
       ro.disconnect();
       document.fonts?.removeEventListener?.("loadingdone", onFonts);
     };
@@ -102,7 +157,7 @@ export default function FocusView({ session, state, verses, surahName, words, re
   const [peek, setPeek] = useState(false);
   const scroller = useRef<HTMLDivElement | null>(null);
   const verseText = useRef<HTMLParagraphElement | null>(null);
-  const fontPx = useFitText(scroller, verseText, `${ayah}:${list.length}`);
+  const fontPx = useFitText(scroller, verseText, `${ayah}:${list.length}`, (text) => session.remark(text));
 
   // a new verse or turn hides it again
   useEffect(() => {

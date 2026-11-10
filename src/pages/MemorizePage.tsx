@@ -2,17 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchQuranPages, fetchSurahs } from "@/lib/data";
-import { DEFAULT_RECITER, recitations, RECITERS, versesInRange, type Verse } from "@/lib/memorize";
+import { DEFAULT_RECITER, missingSurahs, recitations, RECITERS, versesInRange, type Verse } from "@/lib/memorize";
 import { MemorizeSession, type MemorizeConfig } from "@/memorize/session";
 import { modelAvailability, type ModelAvailability } from "@/memorize/recognizer";
 import FocusView, { SPEEDS } from "@/components/memorize/FocusView";
 
 /**
- * Memorize: pick verses, how many times to listen first and to recite each (and how many times in a row), and a reciter; then the session runs
+ * Memorize: pick verses and a mode (listen & recite N times, K in a row; or just listen X times), the rest tucked under
+ * "Edit"; then the session runs
  * full screen (FocusView). The session itself is src/memorize/session.ts; this page is setup and the summary.
  */
 
-interface Settings extends Omit<MemorizeConfig, "useModel"> {
+interface Settings extends Omit<MemorizeConfig, "useModel" | "listen"> {
+  /** "recite": the reciter, then you, each round; "listen": the reciter `listenTimes` times, then the next verse */
+  mode: "recite" | "listen";
+  listenTimes: number;
   from: Verse;
   to: Verse;
   reciterId: string;
@@ -33,7 +37,8 @@ const DEFAULTS: Settings = {
   to: { s: 112, a: 4 },
   reps: 3,
   inRow: 1,
-  listen: 0,
+  mode: "recite",
+  listenTimes: 3,
   reciterId: DEFAULT_RECITER.id,
   speed: 1,
   useModel: true,
@@ -109,13 +114,41 @@ function VersePicker({ label, value, onChange, names, ayas }: { label: string; v
   );
 }
 
-function Check({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
+function ModeCard({ on, onClick, title, hint }: { on: boolean; onClick: () => void; title: string; hint: string }) {
+  return (
+    <button role="radio" aria-checked={on} onClick={onClick} className={`text-left rounded-xl border-[1.5px] p-3 transition-colors ${on ? "border-primary bg-primary-soft" : "border-edge hover:border-edge-strong"}`}>
+      <span className="block text-[15px] font-semibold text-ink">{title}</span>
+      <span className="block text-xs text-muted mt-0.5">{hint}</span>
+    </button>
+  );
+}
+
+function Counter({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
+  const btn = "w-10 h-9 text-xl text-primary disabled:text-faint";
+  return (
+    <div className="flex items-center justify-between py-2.5">
+      <span className="text-[15px] text-ink">{label}</span>
+      <div className="flex items-center rounded-lg border border-edge bg-card2" role="group" aria-label={label}>
+        <button className={btn} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Fewer: ${label}`}>
+          −
+        </button>
+        <span className="min-w-9 text-center font-semibold tabular-nums" aria-live="polite">
+          {value}×
+        </span>
+        <button className={btn} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label={`More: ${label}`}>
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Check({ checked, onChange, title }: { checked: boolean; onChange: (v: boolean) => void; title: string }) {
   return (
     <label className="flex items-start gap-2 text-sm text-ink cursor-pointer">
       <input type="checkbox" className="mt-1" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>
         {title}
-        {hint && <span className="block text-xs text-muted">{hint}</span>}
       </span>
     </label>
   );
@@ -164,9 +197,18 @@ export default function MemorizePage() {
   const ayas = useMemo(() => surahs?.map((s) => s.ayas) ?? [], [surahs]);
   const verses = useMemo(() => (ayas.length ? versesInRange(ayas, settings.from, settings.to) : []), [ayas, settings.from, settings.to]);
   const reciter = RECITERS.find((r) => r.id === settings.reciterId) ?? DEFAULT_RECITER;
+  const missing = missingSurahs(reciter, verses);
   const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
   // still checking counts as available: the session falls back to quiet by itself if the model can't load
   const useModel = settings.useModel && availability?.state !== "no-model" && availability?.state !== "unsupported";
+  const justListen = settings.mode === "listen";
+  // you always listen first (listen ×1, then you, then reciter → you: the same order as before the redesign)
+  const plan = justListen ? { listen: settings.listenTimes, reps: 0, inRow: 1 } : { listen: 1, reps: settings.reps, inRow: settings.inRow };
+  const summary = [
+    `speed ${settings.speed}×`,
+    ...(justListen ? [] : useModel ? [settings.hintAfterMs ? `hints after ${settings.hintAfterMs / 1000} s` : "no hints"] : [`ends after ${settings.endSilenceMs / 1000} s quiet`]),
+    ...(!justListen && settings.hideOnMyTurn ? ["hidden"] : []),
+  ].join(" · ");
   const active = state.phase === "running" || state.phase === "paused" || state.phase === "starting";
 
   // full screen while a session runs, where the browser allows it (not on iPhone: there the view fills the page)
@@ -187,7 +229,8 @@ export default function MemorizePage() {
         return o?.lock?.(o.type.startsWith("portrait") ? "portrait" : "landscape");
       })
       .catch(() => undefined);
-    void session.start({ ...settings, useModel }, verses, reciter, (ayah) => verseWordsRef.current.get(ayah)?.length ?? NaN);
+    const modelNote = `${useModel ? "on" : "off"} (setting ${settings.useModel ? "on" : "off"}, on this device: ${availability ? availability.state + ("missing" in availability ? ` – ${availability.missing.join(", ")}` : "") : "still checking"})`;
+    void session.start({ ...settings, ...plan, useModel, modelNote }, verses, reciter, (ayah) => verseWordsRef.current.get(ayah)?.length ?? NaN);
   };
 
   const copyLog = async () => {
@@ -202,11 +245,7 @@ export default function MemorizePage() {
 
   return (
     <>
-      <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-ink mb-2">Memorize</h1>
-          <p className="text-muted text-sm">Listen to a verse, recite it, and repeat, verse by verse. The speech model knows when you have finished, and helps when you get stuck.</p>
-        </div>
+      <div className="max-w-xl mx-auto px-4 py-5 space-y-4">
 
         {(state.phase === "done" || (state.phase === "idle" && state.turns > 0)) && (
           <div className="bg-card border border-edge rounded-xl p-5 text-center space-y-2">
@@ -230,99 +269,134 @@ export default function MemorizePage() {
           </div>
         )}
 
-        <div className="bg-card border border-edge rounded-xl p-5 space-y-5">
-          <Field label="From">
-            <VersePicker label="From" value={settings.from} onChange={(from) => set({ from, to: from.s > settings.to.s ? { s: from.s, a: ayas[from.s - 1] ?? 1 } : settings.to })} names={names} ayas={ayas} />
-          </Field>
-          <Field label="To" hint={verses.length ? `${verses.length} verse${verses.length > 1 ? "s" : ""}` : "Pick a range that ends after it starts"}>
-            <VersePicker label="To" value={settings.to} onChange={(to) => set({ to })} names={names} ayas={ayas} />
-          </Field>
-          <Field label="Listen first" hint={settings.listen ? `The reciter recites each verse ${settings.listen} time${settings.listen > 1 ? "s" : ""} before your first turn.` : "Straight into listen, recite, listen, recite."}>
-            <Segmented label="Listen first" value={settings.listen} onChange={(listen) => set({ listen })} options={[0, 1, 2, 3, 5].map((n) => ({ value: n, label: n ? `${n}×` : "No" }))} />
-          </Field>
-          <Field label={settings.inRow > 1 ? "Rounds" : "Recite each verse"}>
-            <Segmented label={settings.inRow > 1 ? "Rounds" : "Recite each verse"} value={settings.reps} onChange={(reps) => set({ reps })} options={[1, 2, 3, 5, 7, 10].map((n) => ({ value: n, label: `${n}×` }))} />
-          </Field>
-          <Field
-            label="Recite in a row"
-            hint={
-              settings.inRow > 1
-                ? `The reciter recites, then you recite it ${settings.inRow} times, then the reciter again: ${settings.reps} round${settings.reps > 1 ? "s" : ""}, ${recitations(settings)} recitations of each verse.`
-                : "Once, then the reciter recites it again."
-            }
-          >
-            <Segmented label="Recite in a row" value={settings.inRow} onChange={(inRow) => set({ inRow })} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n}×` }))} />
-          </Field>
-          <Field label="Reciter">
-            <div className="flex gap-2">
-              <select className={`${selectClass} flex-1`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })}>
-                {RECITERS.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </Field>
-          <Field label="Speed" hint="Change it during the session too: tap the speed at the top.">
-            <Segmented label="Speed" value={settings.speed} onChange={(speed) => set({ speed })} options={SPEEDS.map((v) => ({ value: v, label: `${v}×` }))} />
-          </Field>
-
-          <Field label="Your turn">
-            {availability?.state === "ready" && (
-              <div className="mb-3">
-                <Check
-                  checked={settings.useModel}
-                  onChange={(v) => set({ useModel: v })}
-                  title="Move on when I finish the verse (speech model)"
-                  hint="It listens on your turn: pauses to breathe or think never end it."
-                />
-              </div>
-            )}
-            {availability?.state === "no-model" && (
-              <p className="text-xs text-muted mb-3">
-                For your turn to end when you finish the verse, with hints when you get stuck, download the speech model (73 MB) in{" "}
-                <Link href="/voice" className="underline hover:text-ink">
-                  voice settings
-                </Link>
-                . Until then, your turn ends when you stop.
-              </p>
-            )}
-            {availability?.state === "unsupported" && <p className="text-xs text-muted mb-3">This browser can't run the speech model ({availability.missing.join(", ")}), so your turn ends when you stop.</p>}
-            {useModel ? (
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs text-muted mb-1.5">When I pause, show the next words after</div>
-                  <Segmented label="Hints" value={settings.hintAfterMs} onChange={(hintAfterMs) => set({ hintAfterMs })} options={[{ value: 0, label: "No hints" }, ...[2000, 3000, 5000, 8000].map((v) => ({ value: v, label: `${v / 1000} s` }))]} />
-                </div>
-                <div>
-                  <div className="text-xs text-muted mb-1.5">Move on if I stop for</div>
-                  <Segmented label="Give up" value={settings.giveUpMs} onChange={(giveUpMs) => set({ giveUpMs })} options={[...[10000, 20000, 30000].map((v) => ({ value: v, label: `${v / 1000} s` })), { value: 0, label: "Never" }]} />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="text-xs text-muted mb-1.5">Ends after this much quiet (longer early in the verse, for a breath)</div>
-                <Segmented label="Quiet that ends your turn" value={settings.endSilenceMs} onChange={(endSilenceMs) => set({ endSilenceMs })} options={[2000, 3000, 4000, 6000, 8000].map((v) => ({ value: v, label: `${v / 1000} s` }))} />
-              </div>
-            )}
-          </Field>
-          <Check
-            checked={settings.hideOnMyTurn}
-            onChange={(v) => set({ hideOnMyTurn: v })}
-            title="Hide the verse on my turn"
-            hint={useModel ? "Its words appear as you recite them (and as hints). Tap the verse to see it all." : "Tap the verse to see it."}
-          />
-          <Check checked={settings.cue} onChange={(v) => set({ cue: v })} title="Beep when it's my turn" />
-
-          <button
-            disabled={!verses.length || active}
-            onClick={start}
-            className="w-full bg-primary text-on-primary rounded-lg px-4 py-3 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            Start
-          </button>
+        <div className="bg-card border border-edge rounded-xl p-4 space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted">Verses</div>
+          <VersePicker label="From" value={settings.from} onChange={(from) => set({ from, to: from.s > settings.to.s ? { s: from.s, a: ayas[from.s - 1] ?? 1 } : settings.to })} names={names} ayas={ayas} />
+          <div className="text-center text-xs text-faint">to</div>
+          <VersePicker label="To" value={settings.to} onChange={(to) => set({ to })} names={names} ayas={ayas} />
+          {!verses.length && ayas.length > 0 && <p className="text-xs text-muted">Pick a range that ends after it starts.</p>}
         </div>
+
+        <div className="bg-card border border-edge rounded-xl p-4">
+          <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="Mode">
+            <ModeCard on={!justListen} onClick={() => set({ mode: "recite" })} title="Listen & recite" hint="Hear it, say it back" />
+            <ModeCard on={justListen} onClick={() => set({ mode: "listen" })} title="Just listen" hint="Hear it, then move on" />
+          </div>
+          <div className="mt-2 divide-y divide-edge">
+            {justListen ? (
+              <Counter label="Listen to each verse" value={settings.listenTimes} min={1} max={20} onChange={(listenTimes) => set({ listenTimes })} />
+            ) : (
+              <>
+                <Counter label={settings.inRow > 1 ? "Rounds" : "Recite each verse"} value={settings.reps} min={1} max={20} onChange={(reps) => set({ reps })} />
+                <Counter label="In a row" value={settings.inRow} min={1} max={5} onChange={(inRow) => set({ inRow })} />
+              </>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-3 py-2.5 border-t border-edge">
+            <span className="text-[15px] text-ink">Reciter</span>
+            <select className={`${selectClass} max-w-[60%]`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })} aria-label="Reciter">
+              {RECITERS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {reciter.hosted && !missing.length && <p className="text-xs text-muted -mt-1">Only {reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far.</p>}
+          {!justListen && availability && !useModel && (
+            <p className="text-sm text-ink bg-card2 border border-edge rounded-lg px-3 py-2 mt-1 mb-2">
+              {availability.state === "no-model" ? (
+                <>
+                  The speech model isn't on this device, so your words won't show as you recite.{" "}
+                  <Link href="/voice" className="underline text-primary">
+                    Download it
+                  </Link>
+                </>
+              ) : availability.state === "unsupported" ? (
+                "This browser can't run the speech model, so your words won't show as you recite."
+              ) : (
+                <>
+                  The speech model is off, so your words won't show as you recite.{" "}
+                  <button className="underline text-primary" onClick={() => set({ useModel: true })}>
+                    Turn it on
+                  </button>
+                </>
+              )}
+            </p>
+          )}
+          {!justListen && settings.inRow > 1 && (
+            <p className="text-xs text-muted mt-1">
+              Listen, then recite {settings.inRow}× · {recitations(settings)} recitations of each verse
+            </p>
+          )}
+        </div>
+
+        {reciter.hosted && missing.length > 0 && (
+          <p className="text-sm text-muted px-1">
+            {reciter.name} is only here for {reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far. Pick a range in it, or another reciter.
+          </p>
+        )}
+
+        <details className="group">
+          <summary className="flex items-center gap-2 px-1 py-1 text-sm text-muted cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <span className="flex-1 min-w-0 truncate">{summary}</span>
+            <span className="text-ink group-open:hidden">Edit ›</span>
+            <span className="text-ink hidden group-open:inline">Done</span>
+          </summary>
+          <div className="bg-card border border-edge rounded-xl p-4 mt-2 space-y-4">
+            <Field label="Speed">
+              <Segmented label="Speed" value={settings.speed} onChange={(speed) => set({ speed })} options={SPEEDS.map((v) => ({ value: v, label: `${v}×` }))} />
+            </Field>
+            {!justListen && (
+              <>
+                <Field label="Your turn">
+                  {availability?.state === "ready" && (
+                    <div className="mb-3">
+                      <Check checked={settings.useModel} onChange={(v) => set({ useModel: v })} title="Use the speech model (shows your words, moves on when you finish)" />
+                    </div>
+                  )}
+                  {availability?.state === "no-model" && (
+                    <p className="text-xs text-muted mb-3">
+                      Get the speech model in{" "}
+                      <Link href="/voice" className="underline hover:text-ink">
+                        voice settings
+                      </Link>{" "}
+                      to move on when you finish and get hints. Until then your turn ends when you stop.
+                    </p>
+                  )}
+                  {availability?.state === "unsupported" && <p className="text-xs text-muted mb-3">This browser can't run the speech model, so your turn ends when you stop.</p>}
+                  {useModel ? (
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-xs text-muted mb-1.5">Show the next words after a pause of</div>
+                        <Segmented label="Hints" value={settings.hintAfterMs} onChange={(hintAfterMs) => set({ hintAfterMs })} options={[{ value: 0, label: "Off" }, ...[2000, 3000, 5000, 8000].map((v) => ({ value: v, label: `${v / 1000} s` }))]} />
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted mb-1.5">Move on if I stop for</div>
+                        <Segmented label="Give up" value={settings.giveUpMs} onChange={(giveUpMs) => set({ giveUpMs })} options={[...[10000, 20000, 30000].map((v) => ({ value: v, label: `${v / 1000} s` })), { value: 0, label: "Never" }]} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-xs text-muted mb-1.5">End my turn after quiet of</div>
+                      <Segmented label="Quiet that ends your turn" value={settings.endSilenceMs} onChange={(endSilenceMs) => set({ endSilenceMs })} options={[2000, 3000, 4000, 6000, 8000].map((v) => ({ value: v, label: `${v / 1000} s` }))} />
+                    </div>
+                  )}
+                </Field>
+                <Check checked={settings.hideOnMyTurn} onChange={(v) => set({ hideOnMyTurn: v })} title="Hide the verse on my turn" />
+                <Check checked={settings.cue} onChange={(v) => set({ cue: v })} title="Beep when it's my turn" />
+              </>
+            )}
+          </div>
+        </details>
+
+        <button
+          disabled={!verses.length || missing.length > 0 || active}
+          onClick={start}
+          className="w-full bg-primary text-on-primary rounded-xl px-4 py-3.5 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {verses.length ? `Start · ${verses.length} verse${verses.length > 1 ? "s" : ""}` : "Start"}
+        </button>
       </div>
 
       {/* outside the spaced column: its margins would shift a fixed overlay */}
@@ -333,9 +407,9 @@ export default function MemorizePage() {
           verses={verses}
           surahName={(s) => names[s - 1] ?? `Surah ${s}`}
           words={words}
-          reps={settings.reps}
-          inRow={settings.inRow}
-          listen={settings.listen}
+          reps={plan.reps}
+          inRow={plan.inRow}
+          listen={plan.listen}
           hide={settings.hideOnMyTurn}
         />
       )}

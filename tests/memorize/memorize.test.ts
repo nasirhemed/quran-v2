@@ -11,6 +11,8 @@ import {
   skipVerse,
   TurnGate,
   verseAudioUrl,
+  missingSurahs,
+  type Reciter,
   versesInRange,
   verseStart,
   type GateOptions,
@@ -53,6 +55,9 @@ describe("turn order", () => {
   });
   it("listen ×X first, then straight to your turn (you have just heard it), then reciter → you", () => {
     expect(walk({ verses: 2, reps: 2, listen: 3 })).toEqual(["0.1.l", "0.2.l", "0.3.l", "0.1.y", "0.2.r", "0.2.y", "1.1.l", "1.2.l", "1.3.l", "1.1.y", "1.2.r", "1.2.y"]);
+  });
+  it("just listen (no rounds): listen ×X, then the next verse, no turns of yours", () => {
+    expect(walk({ verses: 2, reps: 0, listen: 3 })).toEqual(["0.1.l", "0.2.l", "0.3.l", "1.1.l", "1.2.l", "1.3.l"]);
   });
   it("K in a row: the reciter, then your K turns, each round", () => {
     const takes = (plan: Plan) => {
@@ -165,6 +170,19 @@ describe("ModelTurn (your turn with the speech model)", () => {
 describe("verseAudioUrl", () => {
   it("uses everyayah's SSSAAA names", () => {
     expect(verseAudioUrl(RECITERS.find((r) => r.id === "husary")!, { s: 2, a: 255 })).toBe("https://everyayah.com/data/Husary_128kbps/002255.mp3");
+  });
+  it("hosted reciters come from our own store, by the same names", () => {
+    const r = RECITERS.find((r) => r.hosted)!;
+    expect(verseAudioUrl(r, { s: 5, a: 3 }, "https://store.example")).toBe(`https://store.example/${r.hosted!.pack}/${r.hosted!.version}/005003.mp3`);
+  });
+});
+
+describe("missingSurahs", () => {
+  it("lists the surahs a hosted reciter doesn't have", () => {
+    const r: Reciter = { id: "x", name: "x", hosted: { pack: "p", version: "1", surahs: [5] } };
+    expect(missingSurahs(r, [{ s: 5, a: 120 }, { s: 6, a: 1 }, { s: 6, a: 2 }])).toEqual([6]);
+    expect(missingSurahs(r, [{ s: 5, a: 1 }])).toEqual([]);
+    expect(missingSurahs(RECITERS[0], [{ s: 6, a: 1 }])).toEqual([]);
   });
 });
 
