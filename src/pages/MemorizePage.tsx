@@ -26,6 +26,12 @@ interface Settings extends Omit<MemorizeConfig, "useModel" | "listen"> {
 }
 
 const KEY = "memorize";
+
+/** `lock` is in browsers (Chrome on Android, in full screen) but no longer in TypeScript's DOM types */
+const orientation = () =>
+  (typeof screen !== "undefined" ? screen.orientation : undefined) as
+    | (ScreenOrientation & { lock?: (o: "portrait" | "landscape") => Promise<void> })
+    | undefined;
 const DEFAULTS: Settings = {
   from: { s: 112, a: 1 },
   to: { s: 112, a: 4 },
@@ -208,12 +214,21 @@ export default function MemorizePage() {
   // full screen while a session runs, where the browser allows it (not on iPhone: there the view fills the page)
   useEffect(() => {
     if (!active) {
+      orientation()?.unlock?.();
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     }
   }, [active]);
 
   const start = () => {
-    void document.documentElement.requestFullscreen?.({ navigationUI: "hide" }).catch(() => undefined);
+    // In full screen (Chrome on Android) the screen keeps the way it was held at Start: a phone in a car mount that
+    // auto-rotates on every bump swaps the whole layout, and the verse with it, back and forth.
+    void document.documentElement
+      .requestFullscreen?.({ navigationUI: "hide" })
+      .then(() => {
+        const o = orientation();
+        return o?.lock?.(o.type.startsWith("portrait") ? "portrait" : "landscape");
+      })
+      .catch(() => undefined);
     const modelNote = `${useModel ? "on" : "off"} (setting ${settings.useModel ? "on" : "off"}, on this device: ${availability ? availability.state + ("missing" in availability ? ` – ${availability.missing.join(", ")}` : "") : "still checking"})`;
     void session.start({ ...settings, ...plan, useModel, modelNote }, verses, reciter, (ayah) => verseWordsRef.current.get(ayah)?.length ?? NaN);
   };

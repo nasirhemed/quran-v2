@@ -156,6 +156,11 @@ export class MemorizeSession {
     this.listeners.forEach((fn) => fn());
   }
 
+  /** a line in the session log from outside the session (the session view's layout) */
+  remark(text: string) {
+    this.note(text);
+  }
+
   private note(text: string) {
     this.log.push({ t: (performance.now() - this.t0) / 1000, text });
   }
