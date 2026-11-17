@@ -40,6 +40,8 @@ export interface QuranPage {
   surahGroups: PageSurahGroup[];
   /** 15 lines (8 on pages 1-2), from scripts/build-mushaf-data.py */
   lines: PageLine[];
+  /** the page's own line width in em, where the print's page fonts are not drawn to one scale (1405H) */
+  lineWidthEm?: number;
 }
 
 // ─── Surah / Juz metadata ───────────────────────────────────────

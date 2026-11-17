@@ -58,6 +58,8 @@ export interface LayoutPage {
   /** page number */
   p: number;
   juz: number;
+  /** this page's widest line in em, plus a hair: the V1 page fonts are not drawn to one scale (absent on 1-2) */
+  w?: number;
   lines: PageLine[];
   ayahs: LayoutAyah[];
 }
@@ -123,7 +125,7 @@ export function applyLayout(base: QuranPage[], file: LayoutFile): QuranPage[] {
         end: { glyph: endGlyph, lineNumber: endLine },
       });
     }
-    return { pageNumber: lp.p, juz: lp.juz, surahGroups, lines: lp.lines };
+    return { pageNumber: lp.p, juz: lp.juz, surahGroups, lines: lp.lines, ...(lp.w ? { lineWidthEm: lp.w } : {}) };
   });
   if (seen.length !== order.length || seen.some((k, i) => k !== order[i])) {
     throw new Error(`mushaf ${file.id}: the pages do not hold every ayah exactly once, in order`);

@@ -166,7 +166,7 @@ export default function QuranPage({
           lang="ar"
           className={`mushaf-glyphs ${fontState === "loading" ? "invisible overflow-hidden" : ""}`}
           onCopy={copyText}
-          style={{ fontFamily: `"${pageFontFamily(page.pageNumber, pack)}"`, "--line-em": lineWidthEm } as CSSProperties}
+          style={{ fontFamily: `"${pageFontFamily(page.pageNumber, pack)}"`, "--line-em": page.lineWidthEm ?? lineWidthEm } as CSSProperties}
         >
           {lines.map((line) => {
             if (line.kind === "surah") {

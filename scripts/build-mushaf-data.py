@@ -28,7 +28,7 @@ With --print 1405 it builds the 1405H Madinah print instead (QCF V1: quran.com's
 which the reader draws when it is chosen in Settings. It leaves quran-pages.json, surahs.json and juz-metadata.json
 as they are and writes only that print's layout, laid over quran-pages.json's words in the app
 (src/lib/mushaf/layouts.ts):
-  public/data/mushaf-1405.json        {id, pack, lineWidthEm, pages: [{p, juz, lines, ayahs: [[surah, ayah,
+  public/data/mushaf-1405.json        {id, pack, lineWidthEm, pages: [{p, juz, w, lines, ayahs: [[surah, ayah,
                                       [word glyphs], [word lines], ornament glyph, ornament line]]}]}
   public/data/mushaf-fonts-1405.json  the pack's manifest, shipped with the app
   <pack dir>/qcf-v1/1/p1.woff2 … p604.woff2, surah-names.woff2, manifest.json
@@ -145,6 +145,8 @@ V1_API = (
 V1_PAGE_FONT = FONT_HOST + "/hafs/v1/woff2/p{page}.woff2"
 # Source errors in the 1405H data, found by the width check: (surah, ayah, word position) -> printed line.
 V1_LINE_FIXES = {}
+# The widest 1405H line is 1.05 of its page's full line: page 454 line 11, the sajdah of 38:24 (۩ widens its word).
+V1_WIDEST = 1.06
 
 
 def build_1405(args):
@@ -251,10 +253,17 @@ def build_1405(args):
     for p in pages:
         p["juz"] = max(j for start, j in starts if start <= p["p"])
 
+    # The V1 page fonts are not drawn to one scale: a full line is 13.5 em on some pages and 15.1 em on others. So
+    # each page's lines are measured against that page's own full line (the median of its near-full lines); the
+    # reader draws every page at one font size and justifies, as quran.com does.
     justified = {n: w for n, w in widths.items() if n not in ORNAMENTAL}
     full = sorted(max(w.values()) for w in justified.values())[len(justified) // 2]
+    page_full = {}
+    for n, w in justified.items():
+        near = sorted(x for x in w.values() if x >= 0.85 * full)
+        page_full[n] = near[len(near) // 2] if near else full
     widest = max(x for w in justified.values() for x in w.values())
-    too_wide = [f"page {n} line {line}: {x / full:.2f} of a full line" for n, w in justified.items() for line, x in w.items() if x > WIDEST * full]
+    too_wide = [f"page {n} line {line}: {x / page_full[n]:.2f} of a full line" for n, w in justified.items() for line, x in w.items() if x > V1_WIDEST * page_full[n]]
     if too_wide:
         sys.exit("Lines wider than the print allows (a word on the wrong line? add it to V1_LINE_FIXES):\n  " + "\n  ".join(too_wide))
     centered = 0
@@ -268,7 +277,7 @@ def build_1405(args):
                 p["lines"].append(extra[(n, line)])
             elif line in widths[n]:
                 entry = {"kind": "text"}
-                if n in ORNAMENTAL or widths[n][line] < CENTER_BELOW * full:
+                if n in ORNAMENTAL or widths[n][line] < CENTER_BELOW * page_full[n]:
                     entry["centered"] = True
                     centered += n not in ORNAMENTAL
                 p["lines"].append(entry)
@@ -278,6 +287,10 @@ def build_1405(args):
             sys.exit(f"page {n}: lines past {count}")
 
     line_width_em = math.ceil((widest + 0.05) * 10) / 10
+    # Each page also gets its own width ("w"), so that every page fills the column as it fills the printed frame.
+    for p in pages:
+        if p["p"] in justified:
+            p["w"] = math.ceil((max(justified[p["p"]].values()) + 0.05) * 10) / 10
     dump(V1_LAYOUT, {"id": "1405", "pack": {"id": V1_PACK_ID, "version": V1_PACK_VERSION}, "lineWidthEm": line_width_em, "pages": pages})
 
     names = [f"p{n}.woff2" for n in range(1, PAGE_COUNT + 1)] + ["surah-names.woff2"]
@@ -300,7 +313,8 @@ def build_1405(args):
     total = sum(f["bytes"] for f in manifest["files"])
     print(f"mushaf-1405.json: {os.path.getsize(V1_LAYOUT) / 1e6:.2f} MB; {moved} ayahs on another page than 1421H "
           f"(around {pages_differ} pages); {folded} marks joined to their word; {text_diffs} words whose API text differs")
-    print(f"{centered} centred lines outside pages 1-2; full line {full:.2f} em, widest {widest:.2f} em (lineWidthEm {line_width_em})")
+    print(f"{centered} centred lines outside pages 1-2; full line {min(page_full.values()):.2f}-{max(page_full.values()):.2f} em, "
+          f"widest {widest:.2f} em (lineWidthEm {line_width_em})")
     print(f"pack: {len(names)} fonts, {total / 1e6:.1f} MB in {pack}")
 
 
@@ -410,10 +424,17 @@ def main():
         p["juz"] = max(j["index"] for j in juzs if j["startPage"] <= p["pageNumber"])
 
     # A full line's width: the median of each page's widest line (pages 3+, where lines are justified).
+    # The V1 page fonts are not drawn to one scale: a full line is 13.5 em on some pages and 15.1 em on others. So
+    # each page's lines are measured against that page's own full line (the median of its near-full lines); the
+    # reader draws every page at one font size and justifies, as quran.com does.
     justified = {n: w for n, w in widths.items() if n not in ORNAMENTAL}
     full = sorted(max(w.values()) for w in justified.values())[len(justified) // 2]
+    page_full = {}
+    for n, w in justified.items():
+        near = sorted(x for x in w.values() if x >= 0.85 * full)
+        page_full[n] = near[len(near) // 2] if near else full
     widest = max(x for w in justified.values() for x in w.values())
-    too_wide = [f"page {n} line {line}: {x / full:.2f} of a full line" for n, w in justified.items() for line, x in w.items() if x > WIDEST * full]
+    too_wide = [f"page {n} line {line}: {x / page_full[n]:.2f} of a full line" for n, w in justified.items() for line, x in w.items() if x > V1_WIDEST * page_full[n]]
     if too_wide:
         sys.exit("Lines wider than the print allows (a word on the wrong line? add it to LINE_FIXES):\n  " + "\n  ".join(too_wide))
     centered = 0
@@ -428,7 +449,7 @@ def main():
                 lines.append(extra[(n, line)])
             elif line in widths[n]:
                 entry = {"kind": "text"}
-                if n in ORNAMENTAL or widths[n][line] < CENTER_BELOW * full:
+                if n in ORNAMENTAL or widths[n][line] < CENTER_BELOW * page_full[n]:
                     entry["centered"] = True
                     centered += n not in ORNAMENTAL
                 lines.append(entry)
