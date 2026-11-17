@@ -1,16 +1,28 @@
 /**
- * The mushaf font pack: the King Fahd Complex's QCF V2 fonts (the 1421H Madinah print, as on quran.com). Every
- * page has its own font in which each word is one pre-drawn glyph, so a page drawn from its words' glyph codes
- * (QuranWord.glyph) on its printed lines (lineNumber) reproduces the print exactly.
+ * The mushaf font packs: the King Fahd Complex's QCF page fonts, one per print the reader can draw (layouts.ts).
+ * Every page has its own font in which each word is one pre-drawn glyph, so a page drawn from its words' glyph
+ * codes (QuranWord.glyph) on its printed lines (lineNumber) reproduces the print exactly.
  *
- * The pack is hosted with the voice model packs, at `<VITE_MODEL_BASE_URL>/<id>/<version>/<file>` (served from
- * MODELS_DIR at /models in dev), never in the app bundle: 98 MB is too much to precache. The same URLs and the
- * manifest (file sizes and SHA-256) serve any other client, e.g. a native app.
+ * - qcf-v2: QCF V2, the 1421H Madinah print (as on quran.com). The default.
+ * - qcf-v1: QCF V1, the 1405H Madinah print.
+ *
+ * Packs are hosted with the voice model packs, at `<VITE_MODEL_BASE_URL>/<id>/<version>/<file>` (served from
+ * MODELS_DIR at /models in dev), never in the app bundle: ~100 MB each is too much to precache. The same URLs and
+ * the manifests (file sizes and SHA-256) serve any other client, e.g. a native app.
  *
  * Files: p1.woff2 … p604.woff2, surah-names.woff2 (headers: the ligatures "surah" and "038" draw "سورة" and "ص") and
- * manifest.json. Built by scripts/build-mushaf-data.py; uploaded with `npm run upload-models -- <dir> qcf-v2`.
+ * manifest.json. Built by scripts/build-mushaf-data.py; uploaded with `npm run upload-models -- <dir> <pack id>`.
  */
-export const MUSHAF_PACK = { id: "qcf-v2", version: "1" } as const;
+export interface MushafPack {
+  id: string;
+  version: string;
+}
+
+export const QCF_V2: MushafPack = { id: "qcf-v2", version: "1" };
+export const QCF_V1: MushafPack = { id: "qcf-v1", version: "1" };
+
+/** The default pack (the 1421H print). */
+export const MUSHAF_PACK = QCF_V2;
 
 export const PAGE_COUNT = 604;
 
@@ -27,16 +39,20 @@ export interface MushafManifest {
 }
 
 /**
- * The widest printed line of any page, in em of the page fonts (measured from their advance widths by
- * scripts/build-mushaf-data.py), plus a hair of room. One em = column width / this, so every line fits.
+ * The widest printed line of any 1421H page, in em of the QCF V2 page fonts (measured from their advance widths by
+ * scripts/build-mushaf-data.py), plus a hair of room. One em = column width / this, so every line fits. (The 1405H
+ * print's width is in its own data file, mushaf-1405.json.)
  */
 export const LINE_WIDTH_EM = 16.3; // widest: 16.22 (a full line is 15.75)
 
 export const pageFontFile = (page: number) => `p${page}.woff2`;
-export const pageFontFamily = (page: number) => `qcf-p${page}`;
+/** Family names carry the pack, so two prints' page fonts never stand in for each other. */
+export const pageFontFamily = (page: number, pack: MushafPack = MUSHAF_PACK) => `${pack.id}-p${page}`;
 
 export const SURAH_NAMES_FILE = "surah-names.woff2";
-export const SURAH_NAMES_FAMILY = "qcf-surah-names";
+export const surahNamesFamily = (pack: MushafPack = MUSHAF_PACK) => `${pack.id}-surah-names`;
+/** The 1421H pack's surah-name family. */
+export const SURAH_NAMES_FAMILY = surahNamesFamily(QCF_V2);
 
 /**
  * The surah-name font has two ligatures per header: "surah" draws the word سورة, and "001" … "114" draws the
@@ -51,7 +67,8 @@ export function packBaseUrl(): string {
   return (import.meta.env.VITE_MODEL_BASE_URL || "/models").replace(/\/$/, "");
 }
 
-export const packFileUrl = (base: string, name: string) => `${base}/${MUSHAF_PACK.id}/${MUSHAF_PACK.version}/${name}`;
+export const packFileUrl = (base: string, name: string, pack: MushafPack = MUSHAF_PACK) =>
+  `${base}/${pack.id}/${pack.version}/${name}`;
 
-/** The manifest ships with the app (precached, so offline status works) and is uploaded beside the fonts. */
+/** The 1421H manifest ships with the app (precached, so offline status works) and is uploaded beside the fonts. */
 export const MANIFEST_URL = "/data/mushaf-fonts.json";

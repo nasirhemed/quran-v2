@@ -1,19 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { fetchQuranPages, fetchAyahHighlights } from "@/lib/data";
+import { fetchAyahHighlights } from "@/lib/data";
 import { computePageHighlights, mergeHighlights } from "@/lib/highlights";
 import type { QuranPage, PageHighlightMap, AyahHighlights } from "@/types";
 
-export function useQuranPage(pageNumber: number, localHighlights?: AyahHighlights) {
-  const {
-    data: pages,
-    isLoading: pagesLoading,
-    error: pagesError,
-  } = useQuery({
-    queryKey: ["quran-pages"],
-    queryFn: fetchQuranPages,
-  });
-
+/** One page of the chosen print (`pages` from useMushafPages) with its highlights. */
+export function useQuranPage(pages: QuranPage[] | undefined, pageNumber: number, localHighlights?: AyahHighlights) {
   const {
     data: highlights,
     isLoading: highlightsLoading,
@@ -38,7 +30,6 @@ export function useQuranPage(pageNumber: number, localHighlights?: AyahHighlight
   return {
     page,
     pageHighlights,
-    isLoading: pagesLoading || highlightsLoading,
-    error: pagesError,
+    isLoading: !pages || highlightsLoading,
   };
 }

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { fetchSurahs, fetchJuzMetadata, fetchQuranPages } from "@/lib/data";
-import type { SurahMeta, JuzMeta } from "@/types";
+import { fetchSurahs, fetchJuzMetadata } from "@/lib/data";
+import { pageIndex } from "@/lib/mushaf/layouts";
+import type { SurahMeta, JuzMeta, QuranPage } from "@/types";
 
-export function useNavigation() {
+/** The reader's place, from its URL. `pages` are the chosen print's (useMushafPages): start pages depend on it. */
+export function useNavigation(pages: QuranPage[] | undefined) {
   const search = useSearch();
   const [, setLocation] = useLocation();
 
@@ -18,10 +20,7 @@ export function useNavigation() {
     queryFn: fetchJuzMetadata,
   });
 
-  const { data: pages } = useQuery({
-    queryKey: ["quran-pages"],
-    queryFn: fetchQuranPages,
-  });
+  const index = useMemo(() => (pages ? pageIndex(pages) : null), [pages]);
 
   // Parse URL params
   const params = useMemo(() => {
@@ -36,30 +35,23 @@ export function useNavigation() {
 
   // Resolve to page number
   const resolvedPage = useMemo(() => {
-    if (!surahs || !juzs || !pages) return 1;
+    if (!surahs || !juzs || !index) return 1;
 
     // Priority: surah+ayah > surah > juz > page
     if (params.surah) {
       const surah = surahs.find((s) => s.index === params.surah);
       if (surah) {
         if (params.ayah) {
-          // Find the page containing this specific ayah
-          const targetPage = pages.find((p) =>
-            p.surahGroups.some(
-              (g) =>
-                g.surahIndex === params.surah &&
-                g.ayahs.some((a) => a.surah === params.surah && a.ayah === params.ayah)
-            )
-          );
-          if (targetPage) return targetPage.pageNumber;
+          const target = index.ayahPage.get(`${params.surah}:${params.ayah}`);
+          if (target) return target;
         }
-        return surah.startPage;
+        return index.surahPage.get(surah.index) ?? surah.startPage;
       }
     }
 
     if (params.juz) {
       const juz = juzs.find((j) => j.index === params.juz);
-      if (juz) return juz.startPage;
+      if (juz) return index.ayahPage.get(`${juz.sura}:${juz.aya}`) ?? juz.startPage;
     }
 
     if (params.page) {
@@ -67,7 +59,7 @@ export function useNavigation() {
     }
 
     return 1;
-  }, [params, surahs, juzs, pages]);
+  }, [params, surahs, juzs, index]);
 
   // Active ayah (for highlighting when navigated via surah+ayah)
   const activeAyah = useMemo(() => {
@@ -134,11 +126,21 @@ export function useNavigation() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [nextPage, prevPage]);
 
+  // Surah and juz lists with this print's start pages.
+  const printSurahs = useMemo(
+    () => (surahs ?? []).map((s) => ({ ...s, startPage: index?.surahPage.get(s.index) ?? s.startPage })),
+    [surahs, index]
+  );
+  const printJuzs = useMemo(
+    () => (juzs ?? []).map((j) => ({ ...j, startPage: index?.ayahPage.get(`${j.sura}:${j.aya}`) ?? j.startPage })),
+    [juzs, index]
+  );
+
   return {
     currentPage: resolvedPage,
     activeAyah,
-    surahs: surahs ?? [],
-    juzs: juzs ?? [],
+    surahs: printSurahs,
+    juzs: printJuzs,
     navigateToPage,
     navigateToSurah,
     navigateToJuz,

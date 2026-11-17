@@ -7,9 +7,11 @@
  *   needed and the bytes never depend on the HTTP cache. Only the most recent page fonts stay registered.
  * - A file that fails to parse is dropped from the cache, so a bad download never sticks.
  *
+ * Each pack (each print) has its own store, cache and font families: `mushafFonts(pack)`.
+ *
  * Storage and font registration sit behind small interfaces so tests run in Node.
  */
-import { MUSHAF_PACK, packBaseUrl, packFileUrl, type MushafFile, type MushafManifest } from "./pack";
+import { MUSHAF_PACK, packBaseUrl, packFileUrl, type MushafFile, type MushafManifest, type MushafPack } from "./pack";
 
 /** Pack files kept on the device. */
 export interface ByteCache {
@@ -54,6 +56,7 @@ export class MushafFonts {
     private fonts: FontHost,
     private baseUrl = packBaseUrl(),
     private fetchFn: typeof fetch = (...args) => fetch(...args),
+    readonly pack: MushafPack = MUSHAF_PACK,
   ) {}
 
   /** True when the family can draw right now (no loading state, no flash). */
@@ -104,7 +107,7 @@ export class MushafFonts {
   }
 
   private async fetchFile(name: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-    const res = await this.fetchFn(packFileUrl(this.baseUrl, name), { signal });
+    const res = await this.fetchFn(packFileUrl(this.baseUrl, name, this.pack), { signal });
     // The app's own page instead of a font: nothing is hosted at this address.
     if (res.headers.get("Content-Type")?.startsWith("text/html")) throw new HostNotSetUpError();
     if (!res.ok) throw new Error(`Download of ${name} failed (HTTP ${res.status})`);
@@ -129,8 +132,9 @@ export class MushafFonts {
    * after a failure or abort: it continues with what is missing.
    */
   async downloadAll(manifest: MushafManifest, onProgress?: (s: OfflineStatus) => void, signal?: AbortSignal): Promise<void> {
-    if (manifest.id !== MUSHAF_PACK.id || manifest.version !== MUSHAF_PACK.version) {
-      throw new Error(`Manifest is for ${manifest.id}/${manifest.version}, not ${MUSHAF_PACK.id}/${MUSHAF_PACK.version}`);
+    const pack = this.pack;
+    if (manifest.id !== pack.id || manifest.version !== pack.version) {
+      throw new Error(`Manifest is for ${manifest.id}/${manifest.version}, not ${pack.id}/${pack.version}`);
     }
     const have = await this.cache.sizes();
     const status = await this.status(manifest);
@@ -176,8 +180,11 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 
 /** Cache Storage, one cache per pack version. Keys are pack paths, not host URLs, so moving hosts keeps them. */
 export class CacheStorageByteCache implements ByteCache {
-  private readonly name = `mushaf-${MUSHAF_PACK.id}-${MUSHAF_PACK.version}`;
-  private key = (name: string) => `/__mushaf/${MUSHAF_PACK.id}/${MUSHAF_PACK.version}/${name}`;
+  constructor(private pack: MushafPack = MUSHAF_PACK) {}
+  private get name() {
+    return `mushaf-${this.pack.id}-${this.pack.version}`;
+  }
+  private key = (name: string) => `/__mushaf/${this.pack.id}/${this.pack.version}/${name}`;
   private open = () => caches.open(this.name);
 
   async get(name: string) {
@@ -241,13 +248,21 @@ export class DocumentFontHost implements FontHost {
   }
 }
 
-let instance: MushafFonts | null = null;
+const instances = new Map<string, MushafFonts>();
 
-/** The app's one font store. */
-export function mushafFonts(): MushafFonts {
-  instance ??= new MushafFonts(
-    typeof caches === "undefined" ? new MemoryByteCache() : new CacheStorageByteCache(),
-    new DocumentFontHost(),
-  );
-  return instance;
+/** The app's font store for a pack (one per print). */
+export function mushafFonts(pack: MushafPack = MUSHAF_PACK): MushafFonts {
+  const key = `${pack.id}/${pack.version}`;
+  let store = instances.get(key);
+  if (!store) {
+    store = new MushafFonts(
+      typeof caches === "undefined" ? new MemoryByteCache() : new CacheStorageByteCache(pack),
+      new DocumentFontHost(),
+      undefined,
+      undefined,
+      pack,
+    );
+    instances.set(key, store);
+  }
+  return store;
 }
