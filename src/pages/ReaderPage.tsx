@@ -5,7 +5,8 @@ import { useQuranPage } from "@/hooks/useQuranPage";
 import { useSidePanel } from "@/hooks/useSidePanel";
 import { useLocalPhrases } from "@/hooks/useLocalPhrases";
 import { useHiddenWords } from "@/hooks/useHiddenWords";
-import { fetchQuranPages, fetchSurahs } from "@/lib/data";
+import { fetchSurahs } from "@/lib/data";
+import { useMushafPages } from "@/hooks/useMushafLayout";
 import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
 import QuranPage from "@/components/page/QuranPage";
@@ -18,6 +19,8 @@ import { HideWordsBar, HideWordsButton } from "@/components/recitation/HideWords
 import type { WordHighlight, LocalPhrase } from "@/types";
 
 export default function ReaderPage() {
+  const mushaf = useMushafPages();
+  const pages = mushaf.data?.pages;
   const {
     currentPage,
     activeAyah,
@@ -29,12 +32,7 @@ export default function ReaderPage() {
     navigateToAyah,
     nextPage,
     prevPage,
-  } = useNavigation();
-
-  const { data: pages } = useQuery({
-    queryKey: ["quran-pages"],
-    queryFn: fetchQuranPages,
-  });
+  } = useNavigation(pages);
 
   const { data: surahsMeta } = useQuery({
     queryKey: ["surahs"],
@@ -45,6 +43,7 @@ export default function ReaderPage() {
   const bismillah = useMemo(() => (pages ? bismillahGlyphs(pages) : []), [pages]);
 
   const { page, pageHighlights, isLoading } = useQuranPage(
+    pages,
     currentPage,
     localPhrases.localHighlights
   );
@@ -203,6 +202,8 @@ export default function ReaderPage() {
           {page ? (
             <QuranPage
               page={page}
+              pack={mushaf.data!.layout.pack}
+              lineWidthEm={mushaf.data!.lineWidthEm}
               highlights={pageHighlights}
               surahs={surahs}
               bismillah={bismillah}

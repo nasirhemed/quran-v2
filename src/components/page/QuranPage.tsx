@@ -2,7 +2,7 @@ import { useMemo, useCallback, type ClipboardEvent, type CSSProperties } from "r
 import type { QuranPage as QuranPageType, PageHighlightMap, WordHighlight, WordSelection, SurahMeta } from "@/types";
 import { HIGHLIGHT_COLORS, HIGHLIGHT_BORDER_COLORS } from "@/lib/highlights";
 import { ayahNumberText, pageLayout, type LineItem } from "@/lib/mushaf/layout";
-import { LINE_WIDTH_EM, pageFontFamily } from "@/lib/mushaf/pack";
+import { pageFontFamily, surahNamesFamily, type MushafPack } from "@/lib/mushaf/pack";
 import { BISMILLAH_PAGE, useMushafFonts } from "@/hooks/useMushafFonts";
 import { REVEALED_CLASS } from "@/hooks/useHiddenWords";
 import SurahHeader from "./SurahHeader";
@@ -11,6 +11,9 @@ import VerseMarker from "./VerseMarker";
 
 interface QuranPageProps {
   page: QuranPageType;
+  /** the print's font pack, and its widest line in em of the pack's fonts (lib/mushaf/layouts.ts) */
+  pack: MushafPack;
+  lineWidthEm: number;
   highlights: PageHighlightMap;
   /** names for surah headers (a header can belong to the next page's surah) */
   surahs: SurahMeta[];
@@ -53,14 +56,16 @@ function copyText(e: ClipboardEvent<HTMLElement>) {
 }
 
 /**
- * One mushaf page as printed: 15 lines (8 on pages 1-2), each word drawn from its glyph in the page's QCF V2 font,
- * so words, line breaks and ornaments match the Madinah print. Every line is one font size wide (the size comes
+ * One mushaf page as printed: 15 lines (8 on pages 1-2), each word drawn from its glyph in the page's QCF font
+ * (V2 for the 1421H print, V1 for 1405H), so words, line breaks and ornaments match that Madinah print. Every line is one font size wide (the size comes
  * from the column width), so lines never wrap; highlights only colour a word's box, never resize it.
  *
  * Without the fonts (offline and never opened, or not hosted), the same lines are drawn from the Unicode text.
  */
 export default function QuranPage({
   page,
+  pack,
+  lineWidthEm,
   highlights,
   surahs,
   bismillah,
@@ -72,7 +77,7 @@ export default function QuranPage({
   hideWords,
 }: QuranPageProps) {
   const lines = useMemo(() => pageLayout(page), [page]);
-  const fontState = useMushafFonts(page.pageNumber, {
+  const fontState = useMushafFonts(pack, page.pageNumber, {
     headers: lines.some((l) => l.kind === "surah"),
     bismillah: lines.some((l) => l.kind === "bismillah"),
   });
@@ -161,15 +166,15 @@ export default function QuranPage({
           lang="ar"
           className={`mushaf-glyphs ${fontState === "loading" ? "invisible overflow-hidden" : ""}`}
           onCopy={copyText}
-          style={{ fontFamily: `"${pageFontFamily(page.pageNumber)}"`, "--line-em": LINE_WIDTH_EM } as CSSProperties}
+          style={{ fontFamily: `"${pageFontFamily(page.pageNumber, pack)}"`, "--line-em": page.lineWidthEm ?? lineWidthEm } as CSSProperties}
         >
           {lines.map((line) => {
             if (line.kind === "surah") {
               const meta = surahMeta(line.surah);
-              return <SurahHeader key={line.n} glyphs surahIndex={line.surah} surahName={meta?.name ?? ""} tname={meta?.tname ?? ""} />;
+              return <SurahHeader key={line.n} glyphs fontFamily={surahNamesFamily(pack)} surahIndex={line.surah} surahName={meta?.name ?? ""} tname={meta?.tname ?? ""} />;
             }
             if (line.kind === "bismillah") {
-              return <Bismillah key={line.n} glyphs={bismillah} fontFamily={pageFontFamily(BISMILLAH_PAGE)} />;
+              return <Bismillah key={line.n} glyphs={bismillah} fontFamily={pageFontFamily(BISMILLAH_PAGE, pack)} />;
             }
             return (
               <div key={line.n} className={`mushaf-line ${line.centered ? "justify-center gap-[0.35em]" : "justify-between"}`}>

@@ -5,9 +5,9 @@ export interface QuranWord {
   text: string;
   /** the same word in the QPC Hafs script, for display: draw it with the QPC Hafs font (`font-quran`) */
   hafs: string;
-  /** QCF V2 glyph codes: they draw this word with its page's font (src/lib/mushaf/pack.ts) */
+  /** QCF glyph codes: they draw this word with its page's font in the page's print (src/lib/mushaf/pack.ts) */
   glyph: string;
-  lineNumber: number; // printed line of the 1421H Madinah mushaf (QCF V2), 1-15
+  lineNumber: number; // printed line, 1-15, of the page's print (1421H in quran-pages.json; see lib/mushaf/layouts.ts)
   position: number; // 1-indexed position in ayah
 }
 
@@ -40,6 +40,8 @@ export interface QuranPage {
   surahGroups: PageSurahGroup[];
   /** 15 lines (8 on pages 1-2), from scripts/build-mushaf-data.py */
   lines: PageLine[];
+  /** the page's own line width in em, where the print's page fonts are not drawn to one scale (1405H) */
+  lineWidthEm?: number;
 }
 
 // ─── Surah / Juz metadata ───────────────────────────────────────

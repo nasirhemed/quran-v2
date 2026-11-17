@@ -1,4 +1,4 @@
-import { SURAH_NAMES_FAMILY, SURAH_WORD_LIGATURE, surahNameLigature } from "@/lib/mushaf/pack";
+import { SURAH_WORD_LIGATURE, surahNameLigature } from "@/lib/mushaf/pack";
 
 interface SurahHeaderProps {
   surahName: string;
@@ -6,18 +6,20 @@ interface SurahHeaderProps {
   surahIndex: number;
   /** draw the name from the mushaf's surah-name font, in one printed line */
   glyphs?: boolean;
+  /** the print's surah-name font family, for `glyphs` */
+  fontFamily?: string;
 }
 
-export default function SurahHeader({ surahName, tname, surahIndex, glyphs }: SurahHeaderProps) {
-  if (glyphs) {
+export default function SurahHeader({ surahName, tname, surahIndex, glyphs, fontFamily }: SurahHeaderProps) {
+  if (glyphs && fontFamily) {
     return (
       <div className="mushaf-line justify-center">
         {/* Right to left: the first item, سورة, sits on the right and the name on its left. */}
         <div className="surah-frame" dir="rtl" title={tname}>
-          <span aria-hidden="true" className="select-none" style={{ fontFamily: `"${SURAH_NAMES_FAMILY}"` }}>
+          <span aria-hidden="true" className="select-none" style={{ fontFamily: `"${fontFamily}"` }}>
             {SURAH_WORD_LIGATURE}
           </span>
-          <span aria-hidden="true" className="select-none" style={{ fontFamily: `"${SURAH_NAMES_FAMILY}"` }}>
+          <span aria-hidden="true" className="select-none" style={{ fontFamily: `"${fontFamily}"` }}>
             {surahNameLigature(surahIndex)}
           </span>
           <span className="sr-only">سورة {surahName}</span>

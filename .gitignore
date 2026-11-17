@@ -6,3 +6,4 @@ dist/
 *.tsbuildinfo
 .vercel
 .mushaf-cache/
+__pycache__/

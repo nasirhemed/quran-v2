@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HostNotSetUpError, mushafFonts, type OfflineStatus } from "@/lib/mushaf/fontStore";
-import { MANIFEST_URL, type MushafManifest } from "@/lib/mushaf/pack";
+import type { MushafManifest } from "@/lib/mushaf/pack";
+import { useMushafLayout } from "@/hooks/useMushafLayout";
 
 const mb = (bytes: number) => `${Math.round(bytes / 1e6)} MB`;
 
@@ -13,13 +14,15 @@ function needsHomeScreen(): boolean {
 }
 
 /**
- * The mushaf's fonts on this device: pages once opened are kept automatically; this saves all 604 at once so
- * every page opens offline.
+ * The chosen print's fonts on this device: pages once opened are kept automatically; this saves all 604 at once
+ * so every page opens offline. Each print has its own pack, saved and removed on its own.
  */
 export default function OfflineMushaf({ onDismiss }: { onDismiss?: () => void } = {}) {
+  const layout = useMushafLayout();
+  const fonts = mushafFonts(layout.pack);
   const { data: manifest } = useQuery({
-    queryKey: ["mushaf-manifest"],
-    queryFn: async (): Promise<MushafManifest> => (await fetch(MANIFEST_URL)).json(),
+    queryKey: ["mushaf-manifest", layout.id],
+    queryFn: async (): Promise<MushafManifest> => (await fetch(layout.manifestUrl)).json(),
   });
   const [status, setStatus] = useState<OfflineStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,8 +30,8 @@ export default function OfflineMushaf({ onDismiss }: { onDismiss?: () => void } 
   const abort = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
-    if (manifest) setStatus(await mushafFonts().status(manifest));
-  }, [manifest]);
+    if (manifest) setStatus(await fonts.status(manifest));
+  }, [manifest, fonts]);
 
   useEffect(() => {
     void refresh();
@@ -44,7 +47,7 @@ export default function OfflineMushaf({ onDismiss }: { onDismiss?: () => void } 
     // Ask the browser not to evict the mushaf under storage pressure.
     if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
     try {
-      await mushafFonts().downloadAll(manifest, setStatus, ctl.signal);
+      await fonts.downloadAll(manifest, setStatus, ctl.signal);
     } catch (e) {
       if ((e as Error).name === "AbortError") setError("Paused. Save again to continue.");
       else if (e instanceof HostNotSetUpError) setError("Saving the mushaf isn't available on this site yet.");
@@ -57,7 +60,7 @@ export default function OfflineMushaf({ onDismiss }: { onDismiss?: () => void } 
   };
 
   const remove = async () => {
-    await mushafFonts().removeAll();
+    await fonts.removeAll();
     void refresh();
   };
 

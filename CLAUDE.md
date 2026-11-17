@@ -41,7 +41,7 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   repos' generated outputs and then MINIFIED (no whitespace; the unused
   `charType` word field is stripped — quran-pages.json went 14.6MB → 4.8MB).
   The future pipeline must emit minified JSON too. Files: `quran-pages.json`
-  (604 pages of the 1421H print, word-level, from the quran.com API; mushaf layout fields and pagination from
+  (604 pages of the 1421H print, word-level; the 1405H print is `mushaf-1405.json` laid over it, from the quran.com API; mushaf layout fields and pagination from
   `scripts/build-mushaf-data.py`), `surahs.json`,
   `juz-metadata.json`, `ayah-highlights.json`,
   `mutashabihat-{list,details}.json`, `similar-ayah-{list,details}.json`,
@@ -90,6 +90,20 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   some wrong glyphs), the fonts, the manifest (also `public/data/mushaf-fonts.json`) and `LINE_WIDTH_EM`; it fails
   on any line wider than the print allows (source errors go in its `LINE_FIXES`); `npm run upload-models -- <pack dir>/qcf-v2/1 qcf-v2`
   uploads it. Local testing: put the pack under `MODELS_DIR` (`<dir>/qcf-v2/1/…`).
+- **Mushaf layouts** (`lib/mushaf/layouts.ts`, `hooks/useMushafLayout.ts`; Settings → Mushaf layout, localStorage
+  "mushafLayout"): the 1421H print (default, `quran-pages.json` itself, pack `qcf-v2`) or the 1405H print (QCF V1,
+  pack `qcf-v1`, 605 fonts, 48 MB at `$VITE_MODEL_BASE_URL/qcf-v1/1/<file>`, Cache Storage per pack). Only the 1405H
+  layout is stored (`public/data/mushaf-1405.json`, ~1 MB: per page each ayah's V1 glyphs and lines, the line kinds,
+  and `w`); `applyLayout` lays it over quran-pages.json's words, so text, Hafs text and positions are the same in
+  both prints and search, Browse and voice are unaffected. What follows the choice: the reader's pages, its surah/juz
+  start pages (`pageIndex`), Follow mode's page turns, Practice's "end of the next page". The prints' page breaks
+  differ around pages 121-123, 144, 532-534 and 565-599. The V1 page fonts are not drawn to one scale (a full line
+  is 13.5-15.1 em), so each 1405H page carries its own width (`w` → `QuranPage.lineWidthEm`) and fills the column as
+  it fills the printed frame. Built by `scripts/build-mushaf-data.py <pack dir> --print 1405` (quran.com's verses
+  API with mushaf=2; source line errors go in `V1_LINE_FIXES`; also writes `public/data/mushaf-fonts-1405.json`);
+  upload with `npm run upload-models -- <pack dir>/qcf-v1/1 qcf-v1`. Until it is uploaded (and whenever our host lacks a
+  file), `qcf-v1` fetches from its `mirror`, quran.com's font host (CORS `*`, the same files, so the SHA-256 check
+  holds). Tests: `tests/mushaf/layout-1405.test.ts`.
 - **Practice** (`src/lib/practice.ts`, plain TS, tested; `pages/PracticePage.tsx`): modelled on how competitions
   test hifz — the judge reads a verse's opening words (5–7, or as many as tell it from look-alikes), the contestant
   recites on (5–7 lines to a page), judges like to start inside look-alikes, and drifting into one is the classic
