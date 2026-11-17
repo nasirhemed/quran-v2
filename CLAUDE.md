@@ -101,7 +101,9 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   is 13.5-15.1 em), so each 1405H page carries its own width (`w` → `QuranPage.lineWidthEm`) and fills the column as
   it fills the printed frame. Built by `scripts/build-mushaf-data.py <pack dir> --print 1405` (quran.com's verses
   API with mushaf=2; source line errors go in `V1_LINE_FIXES`; also writes `public/data/mushaf-fonts-1405.json`);
-  upload with `npm run upload-models -- <pack dir>/qcf-v1/1 qcf-v1`. Tests: `tests/mushaf/layout-1405.test.ts`.
+  upload with `npm run upload-models -- <pack dir>/qcf-v1/1 qcf-v1`. Until it is uploaded (and whenever our host lacks a
+  file), `qcf-v1` fetches from its `mirror`, quran.com's font host (CORS `*`, the same files, so the SHA-256 check
+  holds). Tests: `tests/mushaf/layout-1405.test.ts`.
 - **Practice** (`src/lib/practice.ts`, plain TS, tested; `pages/PracticePage.tsx`): modelled on how competitions
   test hifz — the judge reads a verse's opening words (5–7, or as many as tell it from look-alikes), the contestant
   recites on (5–7 lines to a page), judges like to start inside look-alikes, and drifting into one is the classic

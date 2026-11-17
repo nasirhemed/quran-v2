@@ -16,10 +16,20 @@
 export interface MushafPack {
   id: string;
   version: string;
+  /**
+   * Where else a file can be fetched when our host doesn't have it (not uploaded yet): quran.com's own font host,
+   * which sends CORS headers, so cross-origin isolation allows it. Same files, so the manifest's SHA-256 holds.
+   */
+  mirror?: (name: string) => string;
 }
 
+/** quran.com's font host (scripts/build-mushaf-data.py downloads the packs from it). */
+const QURAN_FONTS = "https://verses.quran.foundation/fonts/quran";
+const quranFonts = (pageDir: string) => (name: string) =>
+  name === "surah-names.woff2" ? `${QURAN_FONTS}/surah-names/v1/sura_names.woff2` : `${QURAN_FONTS}/${pageDir}/${name}`;
+
 export const QCF_V2: MushafPack = { id: "qcf-v2", version: "1" };
-export const QCF_V1: MushafPack = { id: "qcf-v1", version: "1" };
+export const QCF_V1: MushafPack = { id: "qcf-v1", version: "1", mirror: quranFonts("hafs/v1/woff2") };
 
 /** The default pack (the 1421H print). */
 export const MUSHAF_PACK = QCF_V2;

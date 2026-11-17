@@ -107,7 +107,19 @@ export class MushafFonts {
   }
 
   private async fetchFile(name: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-    const res = await this.fetchFn(packFileUrl(this.baseUrl, name, this.pack), { signal });
+    const mirror = this.pack.mirror;
+    if (!mirror) return this.fetchFrom(packFileUrl(this.baseUrl, name, this.pack), name, signal);
+    try {
+      return await this.fetchFrom(packFileUrl(this.baseUrl, name, this.pack), name, signal);
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      // not uploaded to our host (yet): the same file from the pack's mirror
+      return this.fetchFrom(mirror(name), name, signal);
+    }
+  }
+
+  private async fetchFrom(url: string, name: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+    const res = await this.fetchFn(url, { signal });
     // The app's own page instead of a font: nothing is hosted at this address.
     if (res.headers.get("Content-Type")?.startsWith("text/html")) throw new HostNotSetUpError();
     if (!res.ok) throw new Error(`Download of ${name} failed (HTTP ${res.status})`);

@@ -133,4 +133,19 @@ describe("MushafFonts", () => {
     await expect(s.downloadAll(manifest, undefined, ctl.signal)).rejects.toThrow();
     expect((await s.status(manifest)).files).toBe(0);
   });
+
+  it("fetches a file our host doesn't have from the pack's mirror, checked against the manifest", async () => {
+    const pack = { id: "qcf-v1", version: "1", mirror: (name: string) => `https://mirror.example/${name}` };
+    const log: string[] = [];
+    const fetchFn = (async (url: string) => {
+      log.push(url);
+      if (url.startsWith(BASE)) return new Response("<!doctype html>", { headers: { "Content-Type": "text/html" } });
+      return new Response(files[url.split("/").pop()!].slice(), { headers: { "Content-Type": "font/woff2" } });
+    }) as typeof fetch;
+    const s = new MushafFonts(new MemoryByteCache(), fontHost().fonts, BASE, fetchFn, pack);
+    expect(await s.load("p5.woff2", "qcf-v1-p5")).toBe(true);
+    expect(log).toEqual([`${BASE}/qcf-v1/1/p5.woff2`, "https://mirror.example/p5.woff2"]);
+    await s.downloadAll({ ...manifest, id: "qcf-v1" });
+    expect((await s.status({ ...manifest, id: "qcf-v1" })).files).toBe(20);
+  });
 });
