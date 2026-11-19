@@ -58,15 +58,19 @@ export function HideWordsBar({
       ? "Words are hidden. Tap Follow and recite: each word appears as you say it. Tap a word for a hint."
       : "Words are hidden. Tap a word to reveal it.";
   return (
-    <div className="max-w-[40rem] mx-auto px-3 sm:px-6 pt-4">
-      <div className="flex items-center gap-3 rounded-lg border border-edge bg-card px-3 py-2 text-xs font-sans">
-        <p className="flex-1 min-w-0 text-muted" data-testid="hide-words-hint">
-          {hint}
-        </p>
-        <button onClick={onReset} disabled={revealedCount === 0} className="shrink-0 font-semibold text-primary hover:underline disabled:opacity-40 disabled:no-underline">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/25 bg-card shadow-card px-4 py-2.5 text-xs font-sans">
+      <p className="flex-1 min-w-0 text-muted" data-testid="hide-words-hint">
+        {hint}
+      </p>
+      <div className="flex items-center gap-3 shrink-0">
+        <button
+          onClick={onReset}
+          disabled={revealedCount === 0}
+          className="font-semibold text-primary hover:underline disabled:opacity-40 disabled:no-underline"
+        >
           Hide again
         </button>
-        <button onClick={onShowAll} className="shrink-0 font-semibold text-muted hover:text-ink">
+        <button onClick={onShowAll} className="font-semibold text-muted hover:text-ink">
           Show all
         </button>
       </div>

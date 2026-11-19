@@ -12,6 +12,7 @@ export const readerHref = (key: string) => {
 
 /** The n-th phrase of a verse gets the n-th highlight colour, here and in its list. */
 export const phraseColor = (n: number) => `var(--hl-${n % 8}-bg)`;
+export const phraseBorderColor = (n: number) => `var(--hl-${n % 8}-bd)`;
 export const MATCH_COLOR = "var(--primary-soft)";
 
 const here = () => location.pathname + location.search;
@@ -112,12 +113,12 @@ function Counts({ verse }: { verse: BrowseVerse }) {
   return (
     <span className="flex flex-wrap gap-1.5 justify-end">
       {verse.phrases.length > 0 && (
-        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-card2 text-muted">
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-card2 text-ink-soft">
           {verse.phrases.length} {verse.phrases.length === 1 ? "phrase" : "phrases"}
         </span>
       )}
       {verse.similar.length > 0 && (
-        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-soft text-primary">
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-soft text-primary">
           {verse.similar.length} similar {verse.similar.length === 1 ? "verse" : "verses"}
         </span>
       )}
@@ -141,10 +142,10 @@ export function VerseCard({
   return (
     <BrowseLink
       href={verseHref(verse.key)}
-      className="block bg-surface border border-edge rounded-lg p-4 hover:border-primary transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_160px]"
+      className="block bg-card border border-edge rounded-2xl p-4 sm:p-5 shadow-card hover:shadow-card-hover hover:border-primary/45 transition-all [content-visibility:auto] [contain-intrinsic-size:auto_160px]"
     >
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-semibold text-ink-soft">{label}</span>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-xs font-semibold text-primary">{label}</span>
         <span className="ml-auto">
           <Counts verse={verse} />
         </span>
@@ -169,20 +170,20 @@ export function OccurrenceRow({
   return (
     <BrowseLink
       href={verseHref(verse.key)}
-      className="block rounded-lg border border-edge bg-card px-3 py-2 hover:border-primary transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_110px]"
+      className="block rounded-xl border border-edge bg-ground hover:bg-card2/60 px-3.5 py-3 hover:border-primary/45 transition-all [content-visibility:auto] [contain-intrinsic-size:auto_110px]"
     >
-      <div className="flex items-center gap-2 text-xs mb-1">
+      <div className="flex items-center gap-2 text-xs mb-1.5">
         <span className="font-semibold text-primary">{label}</span>
         {badge && <span className="ml-auto">{badge}</span>}
       </div>
-      <VerseText words={verse.hafs} marks={marks} className="font-quran text-lg leading-loose text-ink-soft" />
+      <VerseText words={verse.hafs} marks={marks} className="font-quran text-lg leading-loose text-ink" />
     </BrowseLink>
   );
 }
 
 export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
   return (
-    <nav className="flex flex-wrap items-center gap-1.5 text-sm text-muted mb-4">
+    <nav className="flex flex-wrap items-center gap-1.5 text-sm text-muted mb-5">
       {items.map((item, i) => (
         <span key={i} className="flex items-center gap-1.5">
           {i > 0 && <span className="text-faint">›</span>}
@@ -191,7 +192,7 @@ export function Breadcrumbs({ items }: { items: { label: string; href?: string }
               {item.label}
             </BrowseLink>
           ) : (
-            <span className="text-ink font-medium">{item.label}</span>
+            <span className="text-ink font-semibold">{item.label}</span>
           )}
         </span>
       ))}
@@ -200,5 +201,11 @@ export function Breadcrumbs({ items }: { items: { label: string; href?: string }
 }
 
 export function Loading() {
-  return <div className="text-center py-20 text-muted">Loading…</div>;
+  return (
+    <div className="space-y-3 py-6">
+      {Array.from({ length: 5 }, (_, i) => (
+        <div key={i} className="h-24 rounded-2xl bg-card border border-edge animate-pulse" />
+      ))}
+    </div>
+  );
 }

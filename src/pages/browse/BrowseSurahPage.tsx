@@ -42,35 +42,41 @@ export default function BrowseSurahPage({ surah }: { surah: number }) {
   const next = surahs!.find((s) => s.index === surah + 1);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       <Breadcrumbs items={[{ label: "Browse", href: "/browse" }, { label: `${meta.index} · ${meta.tname}` }]} />
 
-      <div className="text-center mb-6">
+      <div className="bg-card border border-edge rounded-2xl shadow-card px-5 py-6 text-center mb-6">
         <div className="leading-loose">
           <SurahName surah={meta.index} name={meta.name} className="text-4xl text-ink" />
         </div>
-        <div className="text-sm text-muted">
-          {meta.index} · {meta.tname} · {meta.ename}
+        <div className="text-sm font-medium text-ink-soft mt-1">
+          {meta.index} · {meta.tname} <span className="text-muted font-normal">· {meta.ename}</span>
         </div>
         {index && (
-          <div className="text-xs text-faint mt-1">
+          <div className="text-xs text-muted mt-1.5">
             {counts.all} of {meta.ayas} verses share a phrase or have a similar verse
           </div>
         )}
-        <div className="flex items-center justify-center gap-3 mt-3 text-sm">
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-4 text-sm">
           {prev && (
-            <BrowseLink href={surahHref(prev.index)} className="text-muted hover:text-primary">
+            <BrowseLink
+              href={surahHref(prev.index)}
+              className="px-3 py-1.5 rounded-full text-muted hover:text-primary hover:bg-card2 transition-colors"
+            >
               ‹ {prev.tname}
             </BrowseLink>
           )}
           <Link
             href={`/read?surah=${surah}`}
-            className="px-3 py-1 rounded-full border border-edge text-muted hover:text-primary hover:border-primary transition-colors"
+            className="px-4 py-1.5 rounded-full border border-primary/30 bg-primary-soft text-primary font-semibold hover:bg-primary hover:text-on-primary transition-colors"
           >
             Read this surah
           </Link>
           {next && (
-            <BrowseLink href={surahHref(next.index)} className="text-muted hover:text-primary">
+            <BrowseLink
+              href={surahHref(next.index)}
+              className="px-3 py-1.5 rounded-full text-muted hover:text-primary hover:bg-card2 transition-colors"
+            >
               {next.tname} ›
             </BrowseLink>
           )}
@@ -80,13 +86,13 @@ export default function BrowseSurahPage({ surah }: { surah: number }) {
       {!index ? (
         <Loading />
       ) : verses.length === 0 ? (
-        <div className="text-center py-16 text-muted text-sm">
+        <div className="bg-card border border-edge rounded-2xl shadow-card text-center py-12 px-4 text-muted text-sm">
           No similar phrases or verses are recorded for this surah.
         </div>
       ) : (
         <>
           <div className="flex justify-center mb-6">
-            <div className="inline-flex bg-card2 border border-edge rounded-lg p-1 gap-1">
+            <div className="inline-flex bg-card2 border border-edge rounded-xl p-1 gap-1">
               {(
                 [
                   ["all", "All"],
@@ -99,11 +105,11 @@ export default function BrowseSurahPage({ surah }: { surah: number }) {
                   onClick={() =>
                     navigate(value === "all" ? location : `${location}?show=${value}`, { replace: true })
                   }
-                  className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  className={`px-3.5 py-1.5 rounded-lg text-sm transition-all ${
                     filter === value ? "bg-card text-ink font-semibold shadow-sm" : "text-muted hover:text-ink"
                   }`}
                 >
-                  {label} <span className="text-xs text-primary font-semibold">{counts[value]}</span>
+                  {label} <span className="text-xs text-primary font-semibold ml-0.5 tabular-nums">{counts[value]}</span>
                 </button>
               ))}
             </div>

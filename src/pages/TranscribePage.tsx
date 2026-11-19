@@ -134,30 +134,36 @@ export default function TranscribePage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h1 className="text-xl font-semibold text-ink">Transcribe</h1>
-        <Link href="/voice" className="text-xs font-medium text-muted hover:text-ink">
+    <div className="max-w-2xl mx-auto px-4 py-8 pb-24 space-y-5">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-ink">Live Recitation</h1>
+          <p className="text-xs text-muted mt-0.5">Recite aloud to match verses on-device in real time.</p>
+        </div>
+        <Link
+          href="/voice"
+          className="px-3 py-1.5 rounded-full border border-edge bg-card text-xs font-medium text-muted hover:text-primary hover:border-primary/40 transition-colors shrink-0"
+        >
           Voice settings
         </Link>
       </div>
 
       {phase === "no-model" ? (
-        <div className="bg-card border border-edge rounded-lg p-4 text-sm text-muted">
-          Download the speech model first (once; it then works offline).{" "}
+        <div className="bg-card border border-edge rounded-2xl shadow-card p-5 text-sm text-muted leading-relaxed">
+          Download the speech model once to enable live transcription — after that it runs completely offline.{" "}
           <Link href="/voice" className="font-semibold text-primary hover:underline">
-            Go to voice settings
+            Go to voice settings →
           </Link>
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-4">
+          <div className="bg-card border border-edge rounded-2xl shadow-card p-4 sm:p-5 flex items-center gap-4">
             <button
               onClick={() => (listening ? void session?.stop() : void session?.start())}
               disabled={phase !== "ready" && phase !== "listening"}
               aria-label={listening ? "Stop" : "Start listening"}
-              className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${
-                listening ? "bg-red-500 text-white" : "bg-primary text-on-primary"
+              className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center shadow-sm transition-all disabled:opacity-40 ${
+                listening ? "bg-[rgb(var(--danger-rgb))] text-white" : "bg-primary text-on-primary hover:opacity-90"
               }`}
             >
               {listening ? (
@@ -172,7 +178,7 @@ export default function TranscribePage() {
               <p className="text-sm font-medium text-ink" role="status">
                 {status}
               </p>
-              <div className="mt-2 h-1.5 rounded-full bg-card2 overflow-hidden" aria-hidden>
+              <div className="mt-2.5 h-1.5 rounded-full bg-card2 overflow-hidden" aria-hidden>
                 <div className="h-full bg-primary transition-[width] duration-100" style={{ width: `${Math.min(100, Math.sqrt(st?.level ?? 0) * 250)}%` }} />
               </div>
             </div>
@@ -182,7 +188,7 @@ export default function TranscribePage() {
             {here && (
               <Link
                 href={`/read?surah=${here.s}&ayah=${here.a}`}
-                className="px-3 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary hover:underline"
+                className="px-3.5 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary border border-primary/25 hover:bg-primary hover:text-on-primary transition-colors"
                 data-testid="location"
               >
                 {here.label}
@@ -194,7 +200,11 @@ export default function TranscribePage() {
                 {st!.candidates.map((c) => {
                   const pl = place(c.key, surahs, words);
                   return (
-                    <Link key={c.key} href={`/read?surah=${pl.s}&ayah=${pl.a}`} className="px-2 py-0.5 rounded-full text-xs border border-edge text-muted hover:text-ink">
+                    <Link
+                      key={c.key}
+                      href={`/read?surah=${pl.s}&ayah=${pl.a}`}
+                      className="px-2.5 py-0.5 rounded-full text-xs border border-edge bg-card text-muted hover:text-ink transition-colors"
+                    >
                       {pl.label}
                     </Link>
                   );
@@ -210,7 +220,7 @@ export default function TranscribePage() {
                 const el = e.currentTarget;
                 setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < 40);
               }}
-              className="bg-card border border-edge rounded-lg p-4 h-[45vh] overflow-y-auto"
+              className="bg-card border border-edge rounded-2xl shadow-card p-5 h-[45vh] overflow-y-auto"
               aria-live="off"
             >
               {showSounds ? (
@@ -235,7 +245,7 @@ export default function TranscribePage() {
             {!pinned && (
               <button
                 onClick={() => setPinned(true)}
-                className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-semibold bg-primary text-on-primary shadow"
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full text-xs font-semibold bg-primary text-on-primary shadow"
               >
                 Jump to latest
               </button>
@@ -243,13 +253,13 @@ export default function TranscribePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-xs">
-            <button onClick={copy} disabled={!paragraphs.length} className="font-medium text-muted hover:text-ink disabled:opacity-40">
+            <button onClick={copy} disabled={!paragraphs.length} className="font-medium text-muted hover:text-ink disabled:opacity-40 transition-colors">
               Copy text
             </button>
-            <button onClick={() => session?.clear()} disabled={(!paragraphs.length && !raw.length) || listening} className="font-medium text-muted hover:text-ink disabled:opacity-40">
+            <button onClick={() => session?.clear()} disabled={(!paragraphs.length && !raw.length) || listening} className="font-medium text-muted hover:text-ink disabled:opacity-40 transition-colors">
               Clear
             </button>
-            <label className={`font-medium text-muted hover:text-ink cursor-pointer ${phase !== "ready" ? "opacity-40 pointer-events-none" : ""}`}>
+            <label className={`font-medium text-muted hover:text-ink cursor-pointer transition-colors ${phase !== "ready" ? "opacity-40 pointer-events-none" : ""}`}>
               Transcribe an audio file…
               <input
                 type="file"
@@ -262,10 +272,10 @@ export default function TranscribePage() {
                 }}
               />
             </label>
-            <button onClick={() => setShowSounds((v) => !v)} className="font-medium text-muted hover:text-ink">
+            <button onClick={() => setShowSounds((v) => !v)} className="font-medium text-muted hover:text-ink transition-colors">
               {showSounds ? "Show words" : "Show sounds"}
             </button>
-            <button onClick={() => setShowDetails((v) => !v)} className="ml-auto font-medium text-muted hover:text-ink">
+            <button onClick={() => setShowDetails((v) => !v)} className="ml-auto font-medium text-muted hover:text-ink transition-colors">
               {showDetails ? "Hide details" : "Details"}
             </button>
           </div>

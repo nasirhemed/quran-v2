@@ -27,27 +27,31 @@ export default function BrowsePhrasePage({ id }: { id: string }) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       <Breadcrumbs items={[{ label: "Browse", href: "/browse" }, { label: "Phrase" }]} />
 
-      <div className="text-center mb-8">
+      <div className="bg-card border border-edge rounded-2xl shadow-card px-5 py-6 text-center mb-8">
         <div dir="rtl" lang="ar" className="font-quran text-3xl leading-loose text-ink">
-          <span className="rounded-sm px-1" style={{ background: phraseColor(0) }}>
+          <span className="rounded-md px-2 py-0.5" style={{ background: phraseColor(0) }}>
             {phrase.text}
           </span>
         </div>
-        <div className="text-sm text-muted mt-1">
-          {phrase.occurrences.length} verses in {phrase.surahCount}{" "}
+        <div className="text-sm text-muted mt-2">
+          {phrase.occurrences.length} verses across {phrase.surahCount}{" "}
           {phrase.surahCount === 1 ? "surah" : "surahs"}
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         {[...bySurah].map(([surah, occurrences]) => (
-          <section key={surah}>
-            <h2 className="text-sm font-semibold text-ink-soft mb-2">
-              {surah} · {surahTname(surahs, surah)}
-              <span className="ml-2 text-xs font-normal text-faint">{occurrences.length}</span>
+          <section key={surah} className="bg-card border border-edge rounded-2xl shadow-card p-4 sm:p-5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink mb-3">
+              <span>
+                {surah} · {surahTname(surahs, surah)}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-card2 text-muted tabular-nums">
+                {occurrences.length}
+              </span>
             </h2>
             <div className="space-y-2">
               {occurrences.map((o) => (

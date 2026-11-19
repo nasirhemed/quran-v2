@@ -156,10 +156,7 @@ export default function QuranPage({
     );
 
   return (
-    <div className={`mushaf ${hideWords ? "words-hidden" : ""} max-w-[40rem] mx-auto px-3 sm:px-6 py-6 text-slate-100`} dir="rtl">
-      <div className="text-center mb-3">
-        <span className="text-xs font-sans text-slate-500">Page {page.pageNumber}</span>
-      </div>
+    <div className={`mushaf ${hideWords ? "words-hidden" : ""} max-w-[40rem] mx-auto text-ink`} dir="rtl">
 
       {glyphs ? (
         <div
