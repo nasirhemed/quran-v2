@@ -3,165 +3,206 @@
 @tailwind utilities;
 
 /* ── Theme tokens ─────────────────────────────────────────────────
-   Light: warm "paper mushaf". Dark: quran-reader's familiar slate.
+   Light: warm "paper mushaf" with crisp elevated cards.
+   Dark: calm deep charcoal-slate designed for comfortable night reading.
    The viewer preference (prefers-color-scheme) sets the default;
    an explicit choice stamps data-theme on <html> and wins. */
 
 :root {
-  --ground: #f7f5ef;
-  --card: #ffffff;
-  --card2: #efede3;
-  --ink: #232920;
-  --ink-soft: #3e4438;
-  --muted: #6b7261;
-  --faint: #9aa08f;
-  --border: #e4e1d4;
-  --border-strong: #d2cfc0;
-  --primary: #1d8660;
-  --primary-soft: #e3f0e9;
+  --ground: #f6f3eb;
+  --ground-rgb: 246 243 235;
+  --card: #fffefb;
+  --card-rgb: 255 254 251;
+  --card2: #eeeae0;
+  --card2-rgb: 238 234 224;
+  --ink: #1f261e;
+  --ink-soft: #3a4236;
+  --muted: #5e6657;
+  --faint: #8b9282;
+  --border: #e5e0d3;
+  --border-rgb: 229 224 211;
+  --border-strong: #d3ccb9;
+  --primary: #177e59;
+  --primary-rgb: 23 126 89;
+  --primary-soft: #e3f2eb;
+  --primary-soft-rgb: 227 242 235;
   --on-primary: #ffffff;
-  --gold: #a9853f;
-  --gold-text: #7a5f2b;
-  --gold-rgb: 169 133 63;
-  --danger-rgb: 180 55 46;
+  --gold: #b0893f;
+  --gold-text: #7d5d22;
+  --gold-rgb: 176 137 63;
+  --danger-rgb: 185 56 48;
+  --shadow-card: 0 1px 2px rgba(31, 38, 30, 0.04), 0 4px 12px rgba(31, 38, 30, 0.03);
+  --shadow-card-hover: 0 4px 14px rgba(31, 38, 30, 0.08), 0 1px 3px rgba(31, 38, 30, 0.05);
 
   --hl-0-bg: rgba(59, 130, 246, 0.14);
-  --hl-0-bd: rgba(59, 130, 246, 0.45);
-  --hl-1-bg: rgba(16, 185, 129, 0.16);
-  --hl-1-bd: rgba(16, 185, 129, 0.5);
+  --hl-0-bd: rgba(59, 130, 246, 0.5);
+  --hl-1-bg: rgba(16, 185, 129, 0.15);
+  --hl-1-bd: rgba(16, 185, 129, 0.52);
   --hl-2-bg: rgba(217, 150, 10, 0.16);
-  --hl-2-bd: rgba(217, 150, 10, 0.5);
+  --hl-2-bd: rgba(217, 150, 10, 0.52);
   --hl-3-bg: rgba(239, 68, 68, 0.13);
-  --hl-3-bd: rgba(239, 68, 68, 0.45);
+  --hl-3-bd: rgba(239, 68, 68, 0.48);
   --hl-4-bg: rgba(168, 85, 247, 0.13);
-  --hl-4-bd: rgba(168, 85, 247, 0.45);
+  --hl-4-bd: rgba(168, 85, 247, 0.48);
   --hl-5-bg: rgba(236, 72, 153, 0.13);
-  --hl-5-bd: rgba(236, 72, 153, 0.45);
+  --hl-5-bd: rgba(236, 72, 153, 0.48);
   --hl-6-bg: rgba(8, 145, 178, 0.14);
-  --hl-6-bd: rgba(8, 145, 178, 0.45);
+  --hl-6-bd: rgba(8, 145, 178, 0.5);
   --hl-7-bg: rgba(101, 163, 13, 0.15);
-  --hl-7-bd: rgba(101, 163, 13, 0.45);
+  --hl-7-bd: rgba(101, 163, 13, 0.5);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #0f172a;
-    --card: #17213a;
-    --card2: #1e293b;
-    --ink: #e2e8f0;
-    --ink-soft: #cbd5e1;
-    --muted: #92a3bc;
-    --faint: #64748b;
-    --border: #2a3a57;
-    --border-strong: #37496b;
-    --primary: #31c08a;
-    --primary-soft: #163b31;
-    --on-primary: #06251a;
-    --gold: #c9a96a;
-    --gold-text: #e3cd9c;
-    --gold-rgb: 201 169 106;
+    --ground: #101622;
+    --ground-rgb: 16 22 34;
+    --card: #172030;
+    --card-rgb: 23 32 48;
+    --card2: #202c40;
+    --card2-rgb: 32 44 64;
+    --ink: #ecf0f6;
+    --ink-soft: #cfd8e5;
+    --muted: #94a5be;
+    --faint: #6b7d97;
+    --border: #27354d;
+    --border-rgb: 39 53 77;
+    --border-strong: #374a69;
+    --primary: #34c791;
+    --primary-rgb: 52 199 145;
+    --primary-soft: #14392f;
+    --primary-soft-rgb: 20 57 47;
+    --on-primary: #062419;
+    --gold: #d1b06e;
+    --gold-text: #e8d2a2;
+    --gold-rgb: 209 176 110;
     --danger-rgb: 248 113 113;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18);
+    --shadow-card-hover: 0 6px 18px rgba(0, 0, 0, 0.34), 0 2px 4px rgba(0, 0, 0, 0.22);
 
-    --hl-0-bg: rgba(59, 130, 246, 0.28);
+    --hl-0-bg: rgba(59, 130, 246, 0.26);
     --hl-0-bd: rgba(96, 165, 250, 0.6);
-    --hl-1-bg: rgba(16, 185, 129, 0.26);
+    --hl-1-bg: rgba(16, 185, 129, 0.24);
     --hl-1-bd: rgba(52, 211, 153, 0.6);
-    --hl-2-bg: rgba(245, 158, 11, 0.24);
+    --hl-2-bg: rgba(245, 158, 11, 0.22);
     --hl-2-bd: rgba(251, 191, 36, 0.55);
-    --hl-3-bg: rgba(239, 68, 68, 0.24);
+    --hl-3-bg: rgba(239, 68, 68, 0.22);
     --hl-3-bd: rgba(248, 113, 113, 0.55);
-    --hl-4-bg: rgba(168, 85, 247, 0.24);
+    --hl-4-bg: rgba(168, 85, 247, 0.22);
     --hl-4-bd: rgba(192, 132, 252, 0.55);
-    --hl-5-bg: rgba(236, 72, 153, 0.24);
+    --hl-5-bg: rgba(236, 72, 153, 0.22);
     --hl-5-bd: rgba(244, 114, 182, 0.55);
-    --hl-6-bg: rgba(6, 182, 212, 0.24);
+    --hl-6-bg: rgba(6, 182, 212, 0.22);
     --hl-6-bd: rgba(34, 211, 238, 0.55);
-    --hl-7-bg: rgba(132, 204, 22, 0.24);
+    --hl-7-bg: rgba(132, 204, 22, 0.22);
     --hl-7-bd: rgba(163, 230, 53, 0.55);
   }
 }
 
 :root[data-theme="light"] {
-  --ground: #f7f5ef;
-  --card: #ffffff;
-  --card2: #efede3;
-  --ink: #232920;
-  --ink-soft: #3e4438;
-  --muted: #6b7261;
-  --faint: #9aa08f;
-  --border: #e4e1d4;
-  --border-strong: #d2cfc0;
-  --primary: #1d8660;
-  --primary-soft: #e3f0e9;
+  --ground: #f6f3eb;
+  --ground-rgb: 246 243 235;
+  --card: #fffefb;
+  --card-rgb: 255 254 251;
+  --card2: #eeeae0;
+  --card2-rgb: 238 234 224;
+  --ink: #1f261e;
+  --ink-soft: #3a4236;
+  --muted: #5e6657;
+  --faint: #8b9282;
+  --border: #e5e0d3;
+  --border-rgb: 229 224 211;
+  --border-strong: #d3ccb9;
+  --primary: #177e59;
+  --primary-rgb: 23 126 89;
+  --primary-soft: #e3f2eb;
+  --primary-soft-rgb: 227 242 235;
   --on-primary: #ffffff;
-  --gold: #a9853f;
-  --gold-text: #7a5f2b;
-  --gold-rgb: 169 133 63;
-  --danger-rgb: 180 55 46;
+  --gold: #b0893f;
+  --gold-text: #7d5d22;
+  --gold-rgb: 176 137 63;
+  --danger-rgb: 185 56 48;
+  --shadow-card: 0 1px 2px rgba(31, 38, 30, 0.04), 0 4px 12px rgba(31, 38, 30, 0.03);
+  --shadow-card-hover: 0 4px 14px rgba(31, 38, 30, 0.08), 0 1px 3px rgba(31, 38, 30, 0.05);
 
   --hl-0-bg: rgba(59, 130, 246, 0.14);
-  --hl-0-bd: rgba(59, 130, 246, 0.45);
-  --hl-1-bg: rgba(16, 185, 129, 0.16);
-  --hl-1-bd: rgba(16, 185, 129, 0.5);
+  --hl-0-bd: rgba(59, 130, 246, 0.5);
+  --hl-1-bg: rgba(16, 185, 129, 0.15);
+  --hl-1-bd: rgba(16, 185, 129, 0.52);
   --hl-2-bg: rgba(217, 150, 10, 0.16);
-  --hl-2-bd: rgba(217, 150, 10, 0.5);
+  --hl-2-bd: rgba(217, 150, 10, 0.52);
   --hl-3-bg: rgba(239, 68, 68, 0.13);
-  --hl-3-bd: rgba(239, 68, 68, 0.45);
+  --hl-3-bd: rgba(239, 68, 68, 0.48);
   --hl-4-bg: rgba(168, 85, 247, 0.13);
-  --hl-4-bd: rgba(168, 85, 247, 0.45);
+  --hl-4-bd: rgba(168, 85, 247, 0.48);
   --hl-5-bg: rgba(236, 72, 153, 0.13);
-  --hl-5-bd: rgba(236, 72, 153, 0.45);
+  --hl-5-bd: rgba(236, 72, 153, 0.48);
   --hl-6-bg: rgba(8, 145, 178, 0.14);
-  --hl-6-bd: rgba(8, 145, 178, 0.45);
+  --hl-6-bd: rgba(8, 145, 178, 0.5);
   --hl-7-bg: rgba(101, 163, 13, 0.15);
-  --hl-7-bd: rgba(101, 163, 13, 0.45);
+  --hl-7-bd: rgba(101, 163, 13, 0.5);
 }
 
 :root[data-theme="dark"] {
-  --ground: #0f172a;
-  --card: #17213a;
-  --card2: #1e293b;
-  --ink: #e2e8f0;
-  --ink-soft: #cbd5e1;
-  --muted: #92a3bc;
-  --faint: #64748b;
-  --border: #2a3a57;
-  --border-strong: #37496b;
-  --primary: #31c08a;
-  --primary-soft: #163b31;
-  --on-primary: #06251a;
-  --gold: #c9a96a;
-  --gold-text: #e3cd9c;
-  --gold-rgb: 201 169 106;
+  --ground: #101622;
+  --ground-rgb: 16 22 34;
+  --card: #172030;
+  --card-rgb: 23 32 48;
+  --card2: #202c40;
+  --card2-rgb: 32 44 64;
+  --ink: #ecf0f6;
+  --ink-soft: #cfd8e5;
+  --muted: #94a5be;
+  --faint: #6b7d97;
+  --border: #27354d;
+  --border-rgb: 39 53 77;
+  --border-strong: #374a69;
+  --primary: #34c791;
+  --primary-rgb: 52 199 145;
+  --primary-soft: #14392f;
+  --primary-soft-rgb: 20 57 47;
+  --on-primary: #062419;
+  --gold: #d1b06e;
+  --gold-text: #e8d2a2;
+  --gold-rgb: 209 176 110;
   --danger-rgb: 248 113 113;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18);
+  --shadow-card-hover: 0 6px 18px rgba(0, 0, 0, 0.34), 0 2px 4px rgba(0, 0, 0, 0.22);
 
-  --hl-0-bg: rgba(59, 130, 246, 0.28);
+  --hl-0-bg: rgba(59, 130, 246, 0.26);
   --hl-0-bd: rgba(96, 165, 250, 0.6);
-  --hl-1-bg: rgba(16, 185, 129, 0.26);
+  --hl-1-bg: rgba(16, 185, 129, 0.24);
   --hl-1-bd: rgba(52, 211, 153, 0.6);
-  --hl-2-bg: rgba(245, 158, 11, 0.24);
+  --hl-2-bg: rgba(245, 158, 11, 0.22);
   --hl-2-bd: rgba(251, 191, 36, 0.55);
-  --hl-3-bg: rgba(239, 68, 68, 0.24);
+  --hl-3-bg: rgba(239, 68, 68, 0.22);
   --hl-3-bd: rgba(248, 113, 113, 0.55);
-  --hl-4-bg: rgba(168, 85, 247, 0.24);
+  --hl-4-bg: rgba(168, 85, 247, 0.22);
   --hl-4-bd: rgba(192, 132, 252, 0.55);
-  --hl-5-bg: rgba(236, 72, 153, 0.24);
+  --hl-5-bg: rgba(236, 72, 153, 0.22);
   --hl-5-bd: rgba(244, 114, 182, 0.55);
-  --hl-6-bg: rgba(6, 182, 212, 0.24);
+  --hl-6-bg: rgba(6, 182, 212, 0.22);
   --hl-6-bd: rgba(34, 211, 238, 0.55);
-  --hl-7-bg: rgba(132, 204, 22, 0.24);
+  --hl-7-bg: rgba(132, 204, 22, 0.22);
   --hl-7-bd: rgba(163, 230, 53, 0.55);
 }
 
 @layer base {
   body {
-    @apply bg-ground text-ink font-sans;
+    @apply bg-ground text-ink font-sans antialiased;
     margin: 0;
     min-height: 100vh;
   }
 
+  button,
+  a,
+  input,
+  select {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-ground;
+  }
+
   ::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: var(--ground);
@@ -170,6 +211,13 @@
     background: var(--border-strong);
     border-radius: 9999px;
   }
+}
+
+.shadow-card {
+  box-shadow: var(--shadow-card);
+}
+.hover\:shadow-card-hover:hover {
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* A mushaf page drawn from QCF V2 glyphs (components/page/QuranPage.tsx). Every page uses one font size: the
@@ -204,7 +252,7 @@
   border: 1px solid var(--gold);
   border-radius: 0.25em;
   /* a second, inner rule, as on the printed frames */
-  box-shadow: inset 0 0 0 0.12em var(--ground), inset 0 0 0 calc(0.12em + 1px) var(--gold);
+  box-shadow: inset 0 0 0 0.12em var(--card), inset 0 0 0 calc(0.12em + 1px) var(--gold);
   color: var(--ink);
 }
 .surah-frame > span {

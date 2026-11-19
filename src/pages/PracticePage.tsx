@@ -122,33 +122,38 @@ export default function PracticePage() {
   if (phase === "done") {
     const missed = questions.filter((_, i) => slipped[i]);
     return (
-      <div className="max-w-xl mx-auto px-4 py-8">
-        <div className="bg-card border border-edge rounded-xl p-6 text-center">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">Session complete</div>
-          <div className="text-4xl font-bold text-ink mb-1">
+      <div className="max-w-xl mx-auto px-4 py-8 pb-24">
+        <div className="bg-card border border-edge rounded-2xl shadow-card p-6 sm:p-8 text-center">
+          <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary-soft text-primary text-xs font-semibold uppercase tracking-wider mb-3">
+            Session complete
+          </div>
+          <div className="text-4xl font-bold text-ink tabular-nums mb-1">
             {questions.length - missed.length} / {questions.length}
           </div>
           <p className="text-sm text-muted mb-6">
             {missed.length === 0
               ? "Every passage recited cleanly — ما شاء الله."
-              : `recited cleanly. Go over ${missed.length === 1 ? "this one" : `these ${missed.length}`} again:`}
+              : `Recited cleanly. Review ${missed.length === 1 ? "this passage" : `these ${missed.length} passages`} again:`}
           </p>
 
           {missed.length > 0 && (
-            <div className="text-left space-y-2 mb-6">
+            <div className="text-left space-y-2.5 mb-6">
               {missed.map((q) => {
                 const v = index.verses[q.start];
                 return (
-                  <div key={q.key} className="border border-edge rounded-lg p-3 flex items-center justify-between gap-3">
+                  <div key={q.key} className="bg-ground border border-edge rounded-xl p-3.5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-xs font-semibold text-primary">
+                      <div className="text-xs font-semibold text-primary mb-0.5">
                         {v.tname} {v.key} · page {v.page}
                       </div>
                       <div dir="rtl" lang="ar" className="font-quran text-base text-ink truncate">
                         {v.hafs.slice(0, q.promptWords).join(" ")} …
                       </div>
                     </div>
-                    <Link href={readerHref(v.key)} className="shrink-0 text-xs text-muted hover:text-primary underline">
+                    <Link
+                      href={readerHref(v.key)}
+                      className="shrink-0 px-3 py-1 rounded-full border border-edge bg-card text-xs font-medium text-muted hover:text-primary hover:border-primary/40 transition-colors"
+                    >
                       Reader
                     </Link>
                   </div>
@@ -157,18 +162,18 @@ export default function PracticePage() {
             </div>
           )}
 
-          <div className="flex gap-3 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center">
             {missed.length > 0 && (
               <button
                 onClick={() => startWith(missed)}
-                className="bg-primary text-on-primary rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+                className="bg-primary text-on-primary rounded-xl px-5 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity"
               >
                 Retry the slips
               </button>
             )}
             <button
               onClick={() => setPhase("setup")}
-              className="border border-edge-strong text-ink rounded-lg px-4 py-2 text-sm font-medium hover:bg-card2 transition-colors"
+              className="border border-edge-strong bg-card text-ink rounded-xl px-5 py-2.5 text-sm font-medium hover:bg-card2 transition-colors"
             >
               New session
             </button>
@@ -180,15 +185,21 @@ export default function PracticePage() {
 
   const q = questions[current];
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-8 pb-24">
       <div className="flex items-center gap-3 mb-4 text-xs text-muted">
-        <span className="whitespace-nowrap">
+        <span className="whitespace-nowrap font-medium text-ink-soft tabular-nums">
           Question {current + 1} of {questions.length}
         </span>
-        <div className="flex-1 h-1 rounded-full bg-card2 overflow-hidden">
-          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${(current / questions.length) * 100}%` }} />
+        <div className="flex-1 h-1.5 rounded-full bg-card2 overflow-hidden">
+          <div
+            className="h-full bg-primary rounded-full transition-all duration-300"
+            style={{ width: `${((current + (checking ? 0.5 : 0)) / questions.length) * 100}%` }}
+          />
         </div>
-        <button onClick={() => setPhase("setup")} className="hover:text-ink transition-colors">
+        <button
+          onClick={() => setPhase("setup")}
+          className="px-2.5 py-1 rounded-full hover:bg-card2 hover:text-ink transition-colors"
+        >
           End
         </button>
       </div>
@@ -219,7 +230,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 const selectClass =
-  "flex-1 min-w-0 bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary";
+  "flex-1 min-w-0 bg-ground border border-edge rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all";
 
 function Segmented<T extends string | number>({
   label,
@@ -233,15 +244,15 @@ function Segmented<T extends string | number>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-edge bg-card2 p-0.5" role="radiogroup" aria-label={label}>
+    <div className="inline-flex rounded-xl border border-edge bg-card2 p-1 gap-0.5" role="radiogroup" aria-label={label}>
       {options.map((o) => (
         <button
           key={o.value}
           role="radio"
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`px-4 py-1.5 rounded-md text-sm transition-colors ${
-            value === o.value ? "bg-primary text-on-primary font-semibold" : "text-muted hover:text-ink"
+          className={`px-4 py-1.5 rounded-lg text-sm transition-all ${
+            value === o.value ? "bg-primary text-on-primary font-semibold shadow-sm" : "text-muted hover:text-ink"
           }`}
         >
           {o.label}
@@ -249,6 +260,17 @@ function Segmented<T extends string | number>({
       ))}
     </div>
   );
+}
+
+const RANGE_PRESETS: { label: string; range: PracticeRange }[] = [
+  { label: "Full Qur'an", range: { type: "juz", from: 1, to: 30 } },
+  { label: "Juz 'Amma", range: { type: "juz", from: 30, to: 30 } },
+  { label: "Last 3 Juz", range: { type: "juz", from: 28, to: 30 } },
+  { label: "Al-Baqara", range: { type: "surah", from: 2, to: 2 } },
+];
+
+function sameRange(a: PracticeRange, b: PracticeRange) {
+  return a.type === b.type && a.from === b.from && a.to === b.to;
 }
 
 function Setup({
@@ -271,21 +293,43 @@ function Setup({
     range.type === "juz"
       ? Array.from({ length: 30 }, (_, i) => ({ value: i + 1, label: `Juz ${i + 1}` }))
       : (surahs ?? []).map((s) => ({ value: s.index, label: `${s.index}. ${s.tname}` }));
-  const setRange = (patch: Partial<PracticeRange>) => onChange({ ...settings, range: { ...range, ...patch } });
+  const setFrom = (from: number) =>
+    onChange({ ...settings, range: { ...range, from, to: Math.max(from, range.to) } });
+  const setTo = (to: number) =>
+    onChange({ ...settings, range: { ...range, from: Math.min(range.from, to), to } });
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-8">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-sans font-bold text-ink mb-2">Practice</h1>
-        <p className="text-muted text-sm">
-          You get the opening words of a verse; recite on from memory to the end of the next page, as competition judges
-          test. Questions start where verses have look-alikes elsewhere, on the pages where they crowd together.
+    <div className="max-w-xl mx-auto px-4 py-8 pb-24">
+      <div className="text-center mb-7">
+        <h1 className="text-3xl sm:text-4xl font-sans font-bold tracking-tight text-ink mb-2">Practice</h1>
+        <p className="text-muted text-sm max-w-md mx-auto leading-relaxed">
+          Start from a verse's opening words and recite on from memory to the end of the next page. Questions focus on
+          verses with look-alikes elsewhere so you strengthen tricky transitions.
         </p>
       </div>
 
-      <div className="bg-card border border-edge rounded-xl p-6 space-y-6">
+      <div className="bg-card border border-edge rounded-2xl shadow-card p-5 sm:p-6 space-y-6">
         <Field label="What you're tested on">
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {RANGE_PRESETS.map((p) => {
+                const active = sameRange(range, p.range);
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => onChange({ ...settings, range: p.range })}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? "border-primary/40 bg-primary-soft text-primary font-semibold"
+                        : "border-edge bg-ground text-muted hover:text-ink hover:border-edge-strong"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
             <Segmented
               label="Range by"
               options={[
@@ -299,7 +343,7 @@ function Setup({
               <select
                 aria-label="From"
                 value={range.from}
-                onChange={(e) => setRange({ from: Number(e.target.value) })}
+                onChange={(e) => setFrom(Number(e.target.value))}
                 className={selectClass}
               >
                 {options.map((o) => (
@@ -308,11 +352,11 @@ function Setup({
                   </option>
                 ))}
               </select>
-              <span className="text-faint text-sm">to</span>
+              <span className="text-faint text-sm shrink-0">to</span>
               <select
                 aria-label="To"
                 value={range.to}
-                onChange={(e) => setRange({ to: Number(e.target.value) })}
+                onChange={(e) => setTo(Number(e.target.value))}
                 className={selectClass}
               >
                 {options.map((o) => (
@@ -345,22 +389,24 @@ function Setup({
               value={settings.readAlong ? "on" : "off"}
               onChange={(v) => onChange({ ...settings, readAlong: v === "on" })}
             />
-            <p className="text-xs text-muted mt-2">
+            <p className="text-xs text-muted mt-2 leading-relaxed">
               {settings.readAlong
                 ? "The mic listens as you recite. Each verse appears once you finish it; Peek shows the next word. You still judge Clean or Slipped yourself."
-                : "Recite, then press Check."}
+                : "Recite aloud or silently, then press Check to reveal the passage and its look-alikes."}
             </p>
             {settings.readAlong && (
-              <label className="flex items-start gap-2 mt-3 text-sm text-ink cursor-pointer">
+              <label className="flex items-start gap-2.5 mt-3 p-3 rounded-xl bg-ground border border-edge text-sm text-ink cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.lookAlikesWhileReading}
                   onChange={(e) => onChange({ ...settings, lookAlikesWhileReading: e.target.checked })}
-                  className="mt-1"
+                  className="mt-1 accent-[var(--primary)]"
                 />
                 <span>
                   Show look-alikes while I recite
-                  <span className="block text-xs text-muted">Off: they stay hidden until you finish, then you can expand them all.</span>
+                  <span className="block text-xs text-muted mt-0.5">
+                    Off: they stay hidden until you finish, then you can expand them all.
+                  </span>
                 </span>
               </label>
             )}
@@ -370,12 +416,12 @@ function Setup({
         <button
           onClick={onStart}
           disabled={!ready}
-          className="w-full bg-primary text-on-primary rounded-lg px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-wait"
+          className="w-full bg-primary text-on-primary rounded-xl px-4 py-3 text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-wait"
         >
-          {ready ? "Start" : "Preparing…"}
+          {ready ? `Start ${count}-question session` : "Preparing…"}
         </button>
 
-        {emptyMessage && <p className="text-sm text-red-400">{emptyMessage}</p>}
+        {emptyMessage && <p className="text-sm text-[rgb(var(--danger-rgb))]">{emptyMessage}</p>}
       </div>
     </div>
   );
@@ -406,10 +452,13 @@ function Question({
   const to = endsPage ? `the end of page ${end.page}` : `the end of ${end.key}, where your range ends`;
 
   return (
-    <div className="bg-card border border-edge rounded-xl">
-      <div className="p-5 border-b border-edge">
-        <div className="text-xs text-muted mb-3">
-          {start.tname} {start.key} · page {start.page}
+    <div className="bg-card border border-edge rounded-2xl shadow-card">
+      <div className="p-5 sm:p-6 border-b border-edge">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted mb-3">
+          <span className="font-semibold text-primary">
+            {start.tname} {start.key}
+          </span>
+          <span className="tabular-nums">Page {start.page}</span>
         </div>
         <p dir="rtl" lang="ar" className="font-quran text-3xl leading-loose text-ink">
           {start.hafs.slice(0, q.promptWords).join(" ")} <span className="text-faint">…</span>
@@ -423,36 +472,47 @@ function Question({
         <div className="p-5">
           <button
             onClick={onCheck}
-            className="w-full bg-primary text-on-primary rounded-lg px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity"
+            className="w-full bg-primary text-on-primary rounded-xl px-4 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
           >
-            Check
+            Check recitation
           </button>
         </div>
       ) : (
         <>
-          <div className="px-5 pt-4 text-xs text-muted">
-            {start.key} – {end.key} ·{" "}
-            {q.traps === 0
-              ? "no look-alikes on these pages"
-              : `${q.traps} ${q.traps === 1 ? "verse has a look-alike" : "verses have look-alikes"} — the marked words are where they part`}
+          <div className="px-5 pt-4 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span className="font-medium text-ink-soft">
+              {start.key} – {end.key}
+            </span>
+            <span>·</span>
+            {q.traps === 0 ? (
+              <span>No look-alikes on these pages</span>
+            ) : (
+              <span>
+                {q.traps} {q.traps === 1 ? "verse has a look-alike" : "verses have look-alikes"} —{" "}
+                <span className="rounded px-1.5 py-0.5 text-ink font-medium" style={{ background: DIFF_BG }}>
+                  marked words
+                </span>{" "}
+                show where they part
+              </span>
+            )}
           </div>
           <Passage index={index} question={q} />
-          <div className="sticky bottom-0 p-4 bg-card border-t border-edge rounded-b-xl flex gap-2">
+          <div className="sticky bottom-0 p-4 bg-card/95 backdrop-blur border-t border-edge rounded-b-2xl flex gap-2">
             <button
               onClick={() => onAnswer(false)}
-              className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+              className="flex-1 bg-primary text-on-primary rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity"
             >
               ✓ Clean
             </button>
             <button
               onClick={() => onAnswer(true)}
-              className="flex-1 border border-red-400/40 text-red-400 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-red-500/10 transition-colors"
+              className="flex-1 border border-[rgb(var(--danger-rgb)/0.4)] text-[rgb(var(--danger-rgb))] rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-[rgb(var(--danger-rgb)/0.1)] transition-colors"
             >
               ✗ Slipped
             </button>
             <Link
               href={readerHref(start.key)}
-              className="border border-edge-strong text-muted rounded-lg px-3 py-2 text-sm font-medium hover:bg-card2 transition-colors"
+              className="border border-edge-strong text-muted rounded-xl px-3.5 py-2.5 text-sm font-medium hover:bg-card2 hover:text-ink transition-colors"
             >
               Reader
             </Link>
@@ -702,16 +762,16 @@ function ReadAlongPassage({
       )}
 
       {done ? (
-        <div className="sticky bottom-0 p-4 bg-card border-t border-edge rounded-b-xl flex gap-2">
+        <div className="sticky bottom-0 p-4 bg-card/95 backdrop-blur border-t border-edge rounded-b-2xl flex gap-2">
           <button
             onClick={() => onAnswer(false)}
-            className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+            className="flex-1 bg-primary text-on-primary rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             ✓ Clean
           </button>
           <button
             onClick={() => onAnswer(true)}
-            className="flex-1 border border-red-400/40 text-red-400 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-red-500/10 transition-colors"
+            className="flex-1 border border-[rgb(var(--danger-rgb)/0.4)] text-[rgb(var(--danger-rgb))] rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-[rgb(var(--danger-rgb)/0.1)] transition-colors"
           >
             ✗ Slipped
           </button>
@@ -722,15 +782,15 @@ function ReadAlongPassage({
             <button
               onClick={toggle}
               aria-pressed={listening}
-              className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-90 ${
-                listening ? "bg-red-500 text-white" : "bg-primary text-on-primary"
+              className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 ${
+                listening ? "bg-[rgb(var(--danger-rgb))] text-white" : "bg-primary text-on-primary"
               }`}
             >
               {listening ? "Stop listening" : "Start listening"}
             </button>
             <button
               onClick={onCheck}
-              className="border border-edge-strong text-ink rounded-lg px-4 py-2 text-sm font-medium hover:bg-card2 transition-colors"
+              className="border border-edge-strong text-ink rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-card2 transition-colors"
             >
               Check
             </button>
