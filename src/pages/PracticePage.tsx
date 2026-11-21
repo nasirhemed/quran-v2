@@ -732,7 +732,9 @@ function ReadAlongPassage({
                   {shown > heard && (
                     <>
                       {heard > 0 && " "}
-                      <span className="text-gold-text">{v.hafs.slice(heard, shown).join(" ")}</span>
+                      <span className="rounded px-1 bg-[var(--next-bg)] text-[var(--next-ink)] shadow-[0_0_0_1.5px_var(--next-ring)]">
+                        {v.hafs.slice(heard, shown).join(" ")}
+                      </span>
                     </>
                   )}{" "}
                   <span className="text-faint">…</span>

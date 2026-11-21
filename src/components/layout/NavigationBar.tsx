@@ -16,6 +16,8 @@ interface NavigationBarProps {
   editMode?: boolean;
   onToggleEditMode?: () => void;
   onExportImport?: () => void;
+  showHighlights?: boolean;
+  onToggleHighlights?: () => void;
   /** voice Follow button (shown in the bar, never over the text) */
   voiceControl?: ReactNode;
   /** while following: on phones, fold away the Surah/Juz row to give the page more room */
@@ -39,6 +41,8 @@ export default function NavigationBar({
   editMode,
   onToggleEditMode,
   onExportImport,
+  showHighlights = true,
+  onToggleHighlights,
   voiceControl,
   compact,
 }: NavigationBarProps) {
@@ -67,6 +71,31 @@ export default function NavigationBar({
       (document.activeElement as HTMLElement | null)?.blur?.();
     },
     [pageInput, commitPage]
+  );
+
+  const highlightsBtn = !editMode && onToggleHighlights && (
+    <button
+      type="button"
+      onClick={onToggleHighlights}
+      aria-pressed={showHighlights}
+      title={showHighlights ? "Hide Mutashabihat highlights for plain reading" : "Show Mutashabihat highlights"}
+      aria-label={showHighlights ? "Hide highlights" : "Show highlights"}
+      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 h-9 rounded-full text-xs font-semibold border transition-colors font-sans ${
+        showHighlights
+          ? "border-primary/40 bg-primary-soft text-primary hover:bg-primary/15"
+          : "border-edge bg-card text-muted hover:text-ink hover:border-edge-strong"
+      }`}
+    >
+      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+        />
+      </svg>
+      <span className="hidden lg:inline">{showHighlights ? "Highlights" : "Plain"}</span>
+    </button>
   );
 
   const pager = (
@@ -169,8 +198,9 @@ export default function NavigationBar({
         {/* Center - Page navigation */}
         {pager}
 
-        {/* Right side - Voice/Hide + Edit controls */}
+        {/* Right side - Highlights + Voice/Hide + Edit controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {highlightsBtn}
           {voiceControl}
 
           {editMode && onExportImport && (
@@ -244,10 +274,13 @@ export default function NavigationBar({
           </select>
         </div>
 
-        {/* Bottom row - Pager and voice/hide tools */}
+        {/* Bottom row - Pager and highlights/voice/hide tools */}
         <div className="flex items-center justify-between gap-2">
           {pager}
-          <div className="flex items-center gap-1.5">{voiceControl}</div>
+          <div className="flex items-center gap-1.5">
+            {highlightsBtn}
+            {voiceControl}
+          </div>
         </div>
       </div>
     </nav>

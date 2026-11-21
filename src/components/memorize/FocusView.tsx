@@ -231,11 +231,24 @@ export default function FocusView({ session, state, verses, surahName, words, re
               const got = heard.has(w.key);
               const hinted = !got && yourTurn && i < state.hintTo;
               const blank = hide && yourTurn && !peek && !got && !hinted;
+              const isNext = yourTurn && !state.verseDone && !got && i === heardTo;
               return (
                 <span
                   key={w.key}
                   data-i={i}
-                  className={`transition-colors ${got ? "text-primary" : hinted ? "text-gold-text bg-gold-soft rounded" : blank ? "text-transparent border-b-2 border-edge-strong" : ""}`}
+                  className={`transition-colors rounded ${
+                    got
+                      ? "text-primary"
+                      : isNext && !blank
+                        ? "bg-[var(--next-bg)] text-[var(--next-ink)] shadow-[0_0_0_2px_var(--next-ring)]"
+                        : isNext && blank
+                          ? "text-transparent border-b-[3px] border-[var(--next-ring)] bg-gold-soft"
+                          : hinted
+                            ? "text-gold-text bg-gold-soft"
+                            : blank
+                              ? "text-transparent border-b-2 border-edge-strong"
+                              : ""
+                  }`}
                 >
                   {w.text}{" "}
                 </span>

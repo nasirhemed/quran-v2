@@ -21,9 +21,9 @@ export default function Bismillah({ glyphs, fontFamily }: BismillahProps) {
   }
   return (
     <div className="w-full my-4 flex items-center justify-center gap-4" dir="rtl">
-      <span className="h-px flex-1 max-w-[4.5rem] bg-gold/40" aria-hidden />
-      <span className="font-quran text-2xl sm:text-[1.75rem] text-ink-soft leading-loose">{BISMILLAH}</span>
-      <span className="h-px flex-1 max-w-[4.5rem] bg-gold/40" aria-hidden />
+      <span className="h-px flex-1 max-w-[4.5rem] bg-gold/60" aria-hidden />
+      <span className="font-quran text-2xl sm:text-[1.75rem] text-ink leading-loose">{BISMILLAH}</span>
+      <span className="h-px flex-1 max-w-[4.5rem] bg-gold/60" aria-hidden />
     </div>
   );
 }

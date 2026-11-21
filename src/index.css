@@ -3,187 +3,199 @@
 @tailwind utilities;
 
 /* ── Theme tokens ─────────────────────────────────────────────────
-   Light: warm "paper mushaf" with crisp elevated cards.
-   Dark: calm deep charcoal-slate designed for comfortable night reading.
+   Light: crisp high-contrast paper mushaf (jet ink on pure white card).
+   Dark: true-dark night reading (pure white ink on deep charcoal-black card).
    The viewer preference (prefers-color-scheme) sets the default;
    an explicit choice stamps data-theme on <html> and wins. */
 
 :root {
-  --ground: #f6f3eb;
-  --ground-rgb: 246 243 235;
-  --card: #fffefb;
-  --card-rgb: 255 254 251;
-  --card2: #eeeae0;
-  --card2-rgb: 238 234 224;
-  --ink: #1f261e;
-  --ink-soft: #3a4236;
-  --muted: #5e6657;
-  --faint: #8b9282;
-  --border: #e5e0d3;
-  --border-rgb: 229 224 211;
-  --border-strong: #d3ccb9;
-  --primary: #177e59;
-  --primary-rgb: 23 126 89;
-  --primary-soft: #e3f2eb;
-  --primary-soft-rgb: 227 242 235;
+  --ground: #efece4;
+  --ground-rgb: 239 236 228;
+  --card: #ffffff;
+  --card-rgb: 255 255 255;
+  --card2: #e7e3d8;
+  --card2-rgb: 231 227 216;
+  --ink: #090c09;
+  --ink-soft: #1f261f;
+  --muted: #475044;
+  --faint: #636d5e;
+  --border: #d4cec0;
+  --border-rgb: 212 206 192;
+  --border-strong: #b3ab99;
+  --primary: #0f6e4b;
+  --primary-rgb: 15 110 75;
+  --primary-soft: #daf1e6;
+  --primary-soft-rgb: 218 241 230;
   --on-primary: #ffffff;
-  --gold: #b0893f;
-  --gold-text: #7d5d22;
-  --gold-rgb: 176 137 63;
-  --danger-rgb: 185 56 48;
-  --shadow-card: 0 1px 2px rgba(31, 38, 30, 0.04), 0 4px 12px rgba(31, 38, 30, 0.03);
-  --shadow-card-hover: 0 4px 14px rgba(31, 38, 30, 0.08), 0 1px 3px rgba(31, 38, 30, 0.05);
+  --gold: #9a6f1e;
+  --gold-text: #6b4b0e;
+  --gold-rgb: 154 111 30;
+  --danger-rgb: 185 28 28;
+  --next-bg: #fde047;
+  --next-ink: #090c09;
+  --next-ring: #b45309;
+  --shadow-card: 0 1px 2px rgba(9, 12, 9, 0.06), 0 4px 12px rgba(9, 12, 9, 0.04);
+  --shadow-card-hover: 0 4px 16px rgba(9, 12, 9, 0.1), 0 1px 3px rgba(9, 12, 9, 0.06);
 
-  --hl-0-bg: rgba(59, 130, 246, 0.14);
-  --hl-0-bd: rgba(59, 130, 246, 0.5);
-  --hl-1-bg: rgba(16, 185, 129, 0.15);
-  --hl-1-bd: rgba(16, 185, 129, 0.52);
-  --hl-2-bg: rgba(217, 150, 10, 0.16);
-  --hl-2-bd: rgba(217, 150, 10, 0.52);
-  --hl-3-bg: rgba(239, 68, 68, 0.13);
-  --hl-3-bd: rgba(239, 68, 68, 0.48);
-  --hl-4-bg: rgba(168, 85, 247, 0.13);
-  --hl-4-bd: rgba(168, 85, 247, 0.48);
-  --hl-5-bg: rgba(236, 72, 153, 0.13);
-  --hl-5-bd: rgba(236, 72, 153, 0.48);
-  --hl-6-bg: rgba(8, 145, 178, 0.14);
-  --hl-6-bd: rgba(8, 145, 178, 0.5);
-  --hl-7-bg: rgba(101, 163, 13, 0.15);
-  --hl-7-bd: rgba(101, 163, 13, 0.5);
+  --hl-0-bg: rgba(37, 99, 235, 0.1);
+  --hl-0-bd: rgba(37, 99, 235, 0.72);
+  --hl-1-bg: rgba(5, 150, 105, 0.11);
+  --hl-1-bd: rgba(5, 150, 105, 0.72);
+  --hl-2-bg: rgba(217, 119, 6, 0.11);
+  --hl-2-bd: rgba(217, 119, 6, 0.72);
+  --hl-3-bg: rgba(220, 38, 38, 0.1);
+  --hl-3-bd: rgba(220, 38, 38, 0.68);
+  --hl-4-bg: rgba(147, 51, 234, 0.1);
+  --hl-4-bd: rgba(147, 51, 234, 0.68);
+  --hl-5-bg: rgba(219, 39, 119, 0.1);
+  --hl-5-bd: rgba(219, 39, 119, 0.68);
+  --hl-6-bg: rgba(8, 145, 178, 0.11);
+  --hl-6-bd: rgba(8, 145, 178, 0.72);
+  --hl-7-bg: rgba(77, 124, 15, 0.11);
+  --hl-7-bd: rgba(77, 124, 15, 0.72);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #101622;
-    --ground-rgb: 16 22 34;
-    --card: #172030;
-    --card-rgb: 23 32 48;
-    --card2: #202c40;
-    --card2-rgb: 32 44 64;
-    --ink: #ecf0f6;
-    --ink-soft: #cfd8e5;
-    --muted: #94a5be;
-    --faint: #6b7d97;
-    --border: #27354d;
-    --border-rgb: 39 53 77;
-    --border-strong: #374a69;
-    --primary: #34c791;
-    --primary-rgb: 52 199 145;
-    --primary-soft: #14392f;
-    --primary-soft-rgb: 20 57 47;
-    --on-primary: #062419;
-    --gold: #d1b06e;
-    --gold-text: #e8d2a2;
-    --gold-rgb: 209 176 110;
-    --danger-rgb: 248 113 113;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18);
-    --shadow-card-hover: 0 6px 18px rgba(0, 0, 0, 0.34), 0 2px 4px rgba(0, 0, 0, 0.22);
+    --ground: #05070a;
+    --ground-rgb: 5 7 10;
+    --card: #0d1118;
+    --card-rgb: 13 17 24;
+    --card2: #171e2b;
+    --card2-rgb: 23 30 43;
+    --ink: #ffffff;
+    --ink-soft: #e2e8f0;
+    --muted: #a8b6cc;
+    --faint: #8294b0;
+    --border: #263247;
+    --border-rgb: 38 50 71;
+    --border-strong: #3c4e6b;
+    --primary: #34e0a1;
+    --primary-rgb: 52 224 161;
+    --primary-soft: #0e3b2c;
+    --primary-soft-rgb: 14 59 44;
+    --on-primary: #031a11;
+    --gold: #f0c451;
+    --gold-text: #fde08d;
+    --gold-rgb: 240 196 81;
+    --danger-rgb: 252 129 129;
+    --next-bg: #facc15;
+    --next-ink: #05070a;
+    --next-ring: #fef08a;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.35);
+    --shadow-card-hover: 0 8px 22px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
 
-    --hl-0-bg: rgba(59, 130, 246, 0.26);
-    --hl-0-bd: rgba(96, 165, 250, 0.6);
-    --hl-1-bg: rgba(16, 185, 129, 0.24);
-    --hl-1-bd: rgba(52, 211, 153, 0.6);
-    --hl-2-bg: rgba(245, 158, 11, 0.22);
-    --hl-2-bd: rgba(251, 191, 36, 0.55);
-    --hl-3-bg: rgba(239, 68, 68, 0.22);
-    --hl-3-bd: rgba(248, 113, 113, 0.55);
-    --hl-4-bg: rgba(168, 85, 247, 0.22);
-    --hl-4-bd: rgba(192, 132, 252, 0.55);
-    --hl-5-bg: rgba(236, 72, 153, 0.22);
-    --hl-5-bd: rgba(244, 114, 182, 0.55);
-    --hl-6-bg: rgba(6, 182, 212, 0.22);
-    --hl-6-bd: rgba(34, 211, 238, 0.55);
-    --hl-7-bg: rgba(132, 204, 22, 0.22);
-    --hl-7-bd: rgba(163, 230, 53, 0.55);
+    --hl-0-bg: rgba(59, 130, 246, 0.16);
+    --hl-0-bd: rgba(96, 165, 250, 0.85);
+    --hl-1-bg: rgba(16, 185, 129, 0.15);
+    --hl-1-bd: rgba(52, 211, 153, 0.85);
+    --hl-2-bg: rgba(245, 158, 11, 0.15);
+    --hl-2-bd: rgba(251, 191, 36, 0.85);
+    --hl-3-bg: rgba(239, 68, 68, 0.15);
+    --hl-3-bd: rgba(248, 113, 113, 0.85);
+    --hl-4-bg: rgba(168, 85, 247, 0.15);
+    --hl-4-bd: rgba(192, 132, 252, 0.85);
+    --hl-5-bg: rgba(236, 72, 153, 0.15);
+    --hl-5-bd: rgba(244, 114, 182, 0.85);
+    --hl-6-bg: rgba(6, 182, 212, 0.15);
+    --hl-6-bd: rgba(34, 211, 238, 0.85);
+    --hl-7-bg: rgba(132, 204, 22, 0.15);
+    --hl-7-bd: rgba(163, 230, 53, 0.85);
   }
 }
 
 :root[data-theme="light"] {
-  --ground: #f6f3eb;
-  --ground-rgb: 246 243 235;
-  --card: #fffefb;
-  --card-rgb: 255 254 251;
-  --card2: #eeeae0;
-  --card2-rgb: 238 234 224;
-  --ink: #1f261e;
-  --ink-soft: #3a4236;
-  --muted: #5e6657;
-  --faint: #8b9282;
-  --border: #e5e0d3;
-  --border-rgb: 229 224 211;
-  --border-strong: #d3ccb9;
-  --primary: #177e59;
-  --primary-rgb: 23 126 89;
-  --primary-soft: #e3f2eb;
-  --primary-soft-rgb: 227 242 235;
+  --ground: #efece4;
+  --ground-rgb: 239 236 228;
+  --card: #ffffff;
+  --card-rgb: 255 255 255;
+  --card2: #e7e3d8;
+  --card2-rgb: 231 227 216;
+  --ink: #090c09;
+  --ink-soft: #1f261f;
+  --muted: #475044;
+  --faint: #636d5e;
+  --border: #d4cec0;
+  --border-rgb: 212 206 192;
+  --border-strong: #b3ab99;
+  --primary: #0f6e4b;
+  --primary-rgb: 15 110 75;
+  --primary-soft: #daf1e6;
+  --primary-soft-rgb: 218 241 230;
   --on-primary: #ffffff;
-  --gold: #b0893f;
-  --gold-text: #7d5d22;
-  --gold-rgb: 176 137 63;
-  --danger-rgb: 185 56 48;
-  --shadow-card: 0 1px 2px rgba(31, 38, 30, 0.04), 0 4px 12px rgba(31, 38, 30, 0.03);
-  --shadow-card-hover: 0 4px 14px rgba(31, 38, 30, 0.08), 0 1px 3px rgba(31, 38, 30, 0.05);
+  --gold: #9a6f1e;
+  --gold-text: #6b4b0e;
+  --gold-rgb: 154 111 30;
+  --danger-rgb: 185 28 28;
+  --next-bg: #fde047;
+  --next-ink: #090c09;
+  --next-ring: #b45309;
+  --shadow-card: 0 1px 2px rgba(9, 12, 9, 0.06), 0 4px 12px rgba(9, 12, 9, 0.04);
+  --shadow-card-hover: 0 4px 16px rgba(9, 12, 9, 0.1), 0 1px 3px rgba(9, 12, 9, 0.06);
 
-  --hl-0-bg: rgba(59, 130, 246, 0.14);
-  --hl-0-bd: rgba(59, 130, 246, 0.5);
-  --hl-1-bg: rgba(16, 185, 129, 0.15);
-  --hl-1-bd: rgba(16, 185, 129, 0.52);
-  --hl-2-bg: rgba(217, 150, 10, 0.16);
-  --hl-2-bd: rgba(217, 150, 10, 0.52);
-  --hl-3-bg: rgba(239, 68, 68, 0.13);
-  --hl-3-bd: rgba(239, 68, 68, 0.48);
-  --hl-4-bg: rgba(168, 85, 247, 0.13);
-  --hl-4-bd: rgba(168, 85, 247, 0.48);
-  --hl-5-bg: rgba(236, 72, 153, 0.13);
-  --hl-5-bd: rgba(236, 72, 153, 0.48);
-  --hl-6-bg: rgba(8, 145, 178, 0.14);
-  --hl-6-bd: rgba(8, 145, 178, 0.5);
-  --hl-7-bg: rgba(101, 163, 13, 0.15);
-  --hl-7-bd: rgba(101, 163, 13, 0.5);
+  --hl-0-bg: rgba(37, 99, 235, 0.1);
+  --hl-0-bd: rgba(37, 99, 235, 0.72);
+  --hl-1-bg: rgba(5, 150, 105, 0.11);
+  --hl-1-bd: rgba(5, 150, 105, 0.72);
+  --hl-2-bg: rgba(217, 119, 6, 0.11);
+  --hl-2-bd: rgba(217, 119, 6, 0.72);
+  --hl-3-bg: rgba(220, 38, 38, 0.1);
+  --hl-3-bd: rgba(220, 38, 38, 0.68);
+  --hl-4-bg: rgba(147, 51, 234, 0.1);
+  --hl-4-bd: rgba(147, 51, 234, 0.68);
+  --hl-5-bg: rgba(219, 39, 119, 0.1);
+  --hl-5-bd: rgba(219, 39, 119, 0.68);
+  --hl-6-bg: rgba(8, 145, 178, 0.11);
+  --hl-6-bd: rgba(8, 145, 178, 0.72);
+  --hl-7-bg: rgba(77, 124, 15, 0.11);
+  --hl-7-bd: rgba(77, 124, 15, 0.72);
 }
 
 :root[data-theme="dark"] {
-  --ground: #101622;
-  --ground-rgb: 16 22 34;
-  --card: #172030;
-  --card-rgb: 23 32 48;
-  --card2: #202c40;
-  --card2-rgb: 32 44 64;
-  --ink: #ecf0f6;
-  --ink-soft: #cfd8e5;
-  --muted: #94a5be;
-  --faint: #6b7d97;
-  --border: #27354d;
-  --border-rgb: 39 53 77;
-  --border-strong: #374a69;
-  --primary: #34c791;
-  --primary-rgb: 52 199 145;
-  --primary-soft: #14392f;
-  --primary-soft-rgb: 20 57 47;
-  --on-primary: #062419;
-  --gold: #d1b06e;
-  --gold-text: #e8d2a2;
-  --gold-rgb: 209 176 110;
-  --danger-rgb: 248 113 113;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18);
-  --shadow-card-hover: 0 6px 18px rgba(0, 0, 0, 0.34), 0 2px 4px rgba(0, 0, 0, 0.22);
+  --ground: #05070a;
+  --ground-rgb: 5 7 10;
+  --card: #0d1118;
+  --card-rgb: 13 17 24;
+  --card2: #171e2b;
+  --card2-rgb: 23 30 43;
+  --ink: #ffffff;
+  --ink-soft: #e2e8f0;
+  --muted: #a8b6cc;
+  --faint: #8294b0;
+  --border: #263247;
+  --border-rgb: 38 50 71;
+  --border-strong: #3c4e6b;
+  --primary: #34e0a1;
+  --primary-rgb: 52 224 161;
+  --primary-soft: #0e3b2c;
+  --primary-soft-rgb: 14 59 44;
+  --on-primary: #031a11;
+  --gold: #f0c451;
+  --gold-text: #fde08d;
+  --gold-rgb: 240 196 81;
+  --danger-rgb: 252 129 129;
+  --next-bg: #facc15;
+  --next-ink: #05070a;
+  --next-ring: #fef08a;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 8px 22px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
 
-  --hl-0-bg: rgba(59, 130, 246, 0.26);
-  --hl-0-bd: rgba(96, 165, 250, 0.6);
-  --hl-1-bg: rgba(16, 185, 129, 0.24);
-  --hl-1-bd: rgba(52, 211, 153, 0.6);
-  --hl-2-bg: rgba(245, 158, 11, 0.22);
-  --hl-2-bd: rgba(251, 191, 36, 0.55);
-  --hl-3-bg: rgba(239, 68, 68, 0.22);
-  --hl-3-bd: rgba(248, 113, 113, 0.55);
-  --hl-4-bg: rgba(168, 85, 247, 0.22);
-  --hl-4-bd: rgba(192, 132, 252, 0.55);
-  --hl-5-bg: rgba(236, 72, 153, 0.22);
-  --hl-5-bd: rgba(244, 114, 182, 0.55);
-  --hl-6-bg: rgba(6, 182, 212, 0.22);
-  --hl-6-bd: rgba(34, 211, 238, 0.55);
-  --hl-7-bg: rgba(132, 204, 22, 0.22);
-  --hl-7-bd: rgba(163, 230, 53, 0.55);
+  --hl-0-bg: rgba(59, 130, 246, 0.16);
+  --hl-0-bd: rgba(96, 165, 250, 0.85);
+  --hl-1-bg: rgba(16, 185, 129, 0.15);
+  --hl-1-bd: rgba(52, 211, 153, 0.85);
+  --hl-2-bg: rgba(245, 158, 11, 0.15);
+  --hl-2-bd: rgba(251, 191, 36, 0.85);
+  --hl-3-bg: rgba(239, 68, 68, 0.15);
+  --hl-3-bd: rgba(248, 113, 113, 0.85);
+  --hl-4-bg: rgba(168, 85, 247, 0.15);
+  --hl-4-bd: rgba(192, 132, 252, 0.85);
+  --hl-5-bg: rgba(236, 72, 153, 0.15);
+  --hl-5-bd: rgba(244, 114, 182, 0.85);
+  --hl-6-bg: rgba(6, 182, 212, 0.15);
+  --hl-6-bd: rgba(34, 211, 238, 0.85);
+  --hl-7-bg: rgba(132, 204, 22, 0.15);
+  --hl-7-bd: rgba(163, 230, 53, 0.85);
 }
 
 @layer base {
@@ -260,14 +272,23 @@
   line-height: 1;
 }
 
-/* Follow mode (voice): the word just recited. Set on [data-w] spans directly, so following never re-renders
-   the page. */
+/* Follow mode (voice): .voice-current marks the word just recited subtly, while .voice-next puts a high-contrast
+   spotlight on the next word to read so your eyes land on it immediately, day or night. Set on [data-w] spans
+   directly without changing width/padding so following never reflows or re-renders the page. */
 .voice-current {
-  background: var(--primary-soft);
-  /* a ring rather than only a background: mutashabihat highlights set their own background inline */
-  box-shadow: 0 0 0 2px var(--primary);
+  background-image: none !important;
+  background-color: var(--primary-soft);
+  box-shadow: inset 0 -2.5px 0 var(--primary);
   border-radius: 0.25rem;
-  transition: background-color 150ms, box-shadow 150ms;
+  transition: background-color 120ms, box-shadow 120ms;
+}
+.voice-next {
+  background-image: none !important;
+  background-color: var(--next-bg);
+  color: var(--next-ink) !important;
+  box-shadow: 0 0 0 2px var(--next-ring);
+  border-radius: 0.25rem;
+  transition: background-color 120ms, box-shadow 120ms, color 120ms;
 }
 
 /* Hidden words (recite from memory): each word keeps its place and width but shows only a faint baseline until
@@ -275,9 +296,16 @@
 .words-hidden [data-w]:not(.word-revealed) {
   color: transparent;
   background-image: none !important; /* mutashabihat highlights would give the phrase away */
-  box-shadow: inset 0 -2px 0 var(--border);
+  box-shadow: inset 0 -2px 0 var(--border-strong);
   border-radius: 0;
   cursor: pointer;
+}
+/* When hiding words during Follow mode, highlight the next blank slot without revealing its letters. */
+.words-hidden [data-w].voice-next:not(.word-revealed) {
+  color: transparent !important;
+  background-color: rgb(var(--gold-rgb) / 0.18);
+  box-shadow: inset 0 -3px 0 var(--next-ring);
+  border-radius: 0.2rem;
 }
 .words-hidden [data-w].word-revealed {
   animation: word-reveal 300ms ease-out;
