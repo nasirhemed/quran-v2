@@ -163,15 +163,20 @@ export default function QuranPage({
       <VerseMarker key={`end-${item.ayahKey}`} ayahNumber={item.ayah} />
     );
 
-  return (
-    <div className={`mushaf ${hideWords ? "words-hidden" : ""} max-w-[40rem] mx-auto text-ink`} dir="rtl">
+  const effectiveLineEm = page.lineWidthEm ?? lineWidthEm;
 
+  return (
+    <div
+      className={`mushaf ${hideWords ? "words-hidden" : ""} mx-auto text-ink`}
+      dir="rtl"
+      style={{ "--line-em": effectiveLineEm } as CSSProperties}
+    >
       {glyphs ? (
         <div
           lang="ar"
           className={`mushaf-glyphs ${fontState === "loading" ? "invisible overflow-hidden" : ""}`}
           onCopy={copyText}
-          style={{ fontFamily: `"${pageFontFamily(page.pageNumber, pack)}"`, "--line-em": page.lineWidthEm ?? lineWidthEm } as CSSProperties}
+          style={{ fontFamily: `"${pageFontFamily(page.pageNumber, pack)}"` }}
         >
           {lines.map((line) => {
             if (line.kind === "surah") {
@@ -189,7 +194,7 @@ export default function QuranPage({
           })}
         </div>
       ) : (
-        <div lang="ar" className="font-quran text-lg sm:text-2xl space-y-1">
+        <div lang="ar" className="font-quran mushaf-unicode space-y-0.5">
           {lines.map((line) => {
             if (line.kind === "surah") {
               const meta = surahMeta(line.surah);
@@ -199,7 +204,7 @@ export default function QuranPage({
             return (
               <div
                 key={line.n}
-                className={`flex items-baseline flex-wrap leading-[2.1] ${
+                className={`flex items-baseline flex-wrap leading-[1.85] ${
                   line.centered ? "justify-center gap-x-2" : "justify-between gap-x-1"
                 }`}
               >

@@ -25,16 +25,17 @@ const EyeIcon = ({ off, className }: { off: boolean; className: string }) => (
 export function HideWordsButton({ hidden, onToggle }: { hidden: boolean; onToggle: () => void }) {
   return (
     <button
+      type="button"
       onClick={onToggle}
       aria-pressed={hidden}
       aria-label={hidden ? "Words hidden" : "Hide words"}
       title={hidden ? "Show the words" : "Hide the words to recite from memory"}
-      className={`shrink-0 flex items-center gap-1.5 px-2.5 lg:px-3 h-9 rounded-full text-sm font-semibold border transition-colors ${
-        hidden ? "bg-primary-soft border-primary text-primary" : "bg-card border-edge text-ink hover:border-edge-strong"
+      className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
+        hidden ? "bg-primary-soft text-primary" : "text-muted hover:text-ink hover:bg-card2/70"
       }`}
     >
-      <EyeIcon off={hidden} className="w-4 h-4" />
-      <span className="hidden lg:inline">{hidden ? "Hidden" : "Hide"}</span>
+      <EyeIcon off={hidden} className="w-3.5 h-3.5" />
+      <span className="hidden md:inline">{hidden ? "Hidden" : "Hide"}</span>
     </button>
   );
 }
@@ -53,24 +54,25 @@ export function HideWordsBar({
   onShowAll: () => void;
 }) {
   const hint = following
-    ? "Words appear as you recite them. Tap a word for a hint."
+    ? "Words appear as you recite. Tap any blank for a hint."
     : canFollow
-      ? "Words are hidden. Tap Follow and recite: each word appears as you say it. Tap a word for a hint."
-      : "Words are hidden. Tap a word to reveal it.";
+      ? "Words hidden — tap Follow to recite, or tap any blank for a hint."
+      : "Words hidden — tap any blank to reveal it.";
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/25 bg-card shadow-card px-4 py-2.5 text-xs font-sans">
-      <p className="flex-1 min-w-0 text-muted" data-testid="hide-words-hint">
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-card2/70 border border-edge/70 px-3 py-1.5 text-xs font-sans">
+      <p className="min-w-0 truncate text-muted" data-testid="hide-words-hint">
         {hint}
       </p>
       <div className="flex items-center gap-3 shrink-0">
         <button
+          type="button"
           onClick={onReset}
           disabled={revealedCount === 0}
           className="font-semibold text-primary hover:underline disabled:opacity-40 disabled:no-underline"
         >
           Hide again
         </button>
-        <button onClick={onShowAll} className="font-semibold text-muted hover:text-ink">
+        <button type="button" onClick={onShowAll} className="font-medium text-muted hover:text-ink">
           Show all
         </button>
       </div>

@@ -3,39 +3,39 @@
 @tailwind utilities;
 
 /* ── Theme tokens ─────────────────────────────────────────────────
-   Light: crisp high-contrast paper mushaf (jet ink on pure white card).
-   Dark: true-dark night reading (pure white ink on deep charcoal-black card).
+   Light: crisp editorial warm-ivory paper mushaf.
+   Dark: calm matte charcoal reading surface (restful high-contrast ink).
    The viewer preference (prefers-color-scheme) sets the default;
    an explicit choice stamps data-theme on <html> and wins. */
 
 :root {
-  --ground: #efece4;
-  --ground-rgb: 239 236 228;
+  --ground: #f6f5f1;
+  --ground-rgb: 246 245 241;
   --card: #ffffff;
   --card-rgb: 255 255 255;
-  --card2: #e7e3d8;
-  --card2-rgb: 231 227 216;
-  --ink: #090c09;
-  --ink-soft: #1f261f;
-  --muted: #475044;
-  --faint: #636d5e;
-  --border: #d4cec0;
-  --border-rgb: 212 206 192;
-  --border-strong: #b3ab99;
+  --card2: #eceae3;
+  --card2-rgb: 236 234 227;
+  --ink: #141714;
+  --ink-soft: #2c312c;
+  --muted: #616760;
+  --faint: #848a82;
+  --border: #e4e1d8;
+  --border-rgb: 228 225 216;
+  --border-strong: #cbc6b9;
   --primary: #0f6e4b;
   --primary-rgb: 15 110 75;
-  --primary-soft: #daf1e6;
-  --primary-soft-rgb: 218 241 230;
+  --primary-soft: #e2f3eb;
+  --primary-soft-rgb: 226 243 235;
   --on-primary: #ffffff;
-  --gold: #9a6f1e;
-  --gold-text: #6b4b0e;
-  --gold-rgb: 154 111 30;
+  --gold: #a67c2e;
+  --gold-text: #785515;
+  --gold-rgb: 166 124 46;
   --danger-rgb: 185 28 28;
   --next-bg: #fde047;
   --next-ink: #090c09;
   --next-ring: #b45309;
-  --shadow-card: 0 1px 2px rgba(9, 12, 9, 0.06), 0 4px 12px rgba(9, 12, 9, 0.04);
-  --shadow-card-hover: 0 4px 16px rgba(9, 12, 9, 0.1), 0 1px 3px rgba(9, 12, 9, 0.06);
+  --shadow-card: 0 1px 2px rgba(20, 23, 20, 0.04);
+  --shadow-card-hover: 0 3px 10px rgba(20, 23, 20, 0.07);
 
   --hl-0-bg: rgba(37, 99, 235, 0.1);
   --hl-0-bd: rgba(37, 99, 235, 0.72);
@@ -57,33 +57,33 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #05070a;
-    --ground-rgb: 5 7 10;
-    --card: #0d1118;
-    --card-rgb: 13 17 24;
-    --card2: #171e2b;
-    --card2-rgb: 23 30 43;
-    --ink: #ffffff;
-    --ink-soft: #e2e8f0;
-    --muted: #a8b6cc;
-    --faint: #8294b0;
-    --border: #263247;
-    --border-rgb: 38 50 71;
-    --border-strong: #3c4e6b;
-    --primary: #34e0a1;
-    --primary-rgb: 52 224 161;
-    --primary-soft: #0e3b2c;
-    --primary-soft-rgb: 14 59 44;
-    --on-primary: #031a11;
-    --gold: #f0c451;
-    --gold-text: #fde08d;
-    --gold-rgb: 240 196 81;
-    --danger-rgb: 252 129 129;
+    --ground: #181a1d;
+    --ground-rgb: 24 26 29;
+    --card: #1f2125;
+    --card-rgb: 31 33 37;
+    --card2: #282b30;
+    --card2-rgb: 40 43 48;
+    --ink: #f3f4f6;
+    --ink-soft: #d5d8de;
+    --muted: #9aa0aa;
+    --faint: #6f7681;
+    --border: #2e3239;
+    --border-rgb: 46 50 57;
+    --border-strong: #414752;
+    --primary: #2dd4a0;
+    --primary-rgb: 45 212 160;
+    --primary-soft: #13362c;
+    --primary-soft-rgb: 19 54 44;
+    --on-primary: #061b14;
+    --gold: #dfb35a;
+    --gold-text: #f0cc7e;
+    --gold-rgb: 223 179 90;
+    --danger-rgb: 248 113 113;
     --next-bg: #facc15;
-    --next-ink: #05070a;
+    --next-ink: #0f1115;
     --next-ring: #fef08a;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.35);
-    --shadow-card-hover: 0 8px 22px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22);
+    --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.32);
 
     --hl-0-bg: rgba(59, 130, 246, 0.16);
     --hl-0-bd: rgba(96, 165, 250, 0.85);
@@ -105,33 +105,33 @@
 }
 
 :root[data-theme="light"] {
-  --ground: #efece4;
-  --ground-rgb: 239 236 228;
+  --ground: #f6f5f1;
+  --ground-rgb: 246 245 241;
   --card: #ffffff;
   --card-rgb: 255 255 255;
-  --card2: #e7e3d8;
-  --card2-rgb: 231 227 216;
-  --ink: #090c09;
-  --ink-soft: #1f261f;
-  --muted: #475044;
-  --faint: #636d5e;
-  --border: #d4cec0;
-  --border-rgb: 212 206 192;
-  --border-strong: #b3ab99;
+  --card2: #eceae3;
+  --card2-rgb: 236 234 227;
+  --ink: #141714;
+  --ink-soft: #2c312c;
+  --muted: #616760;
+  --faint: #848a82;
+  --border: #e4e1d8;
+  --border-rgb: 228 225 216;
+  --border-strong: #cbc6b9;
   --primary: #0f6e4b;
   --primary-rgb: 15 110 75;
-  --primary-soft: #daf1e6;
-  --primary-soft-rgb: 218 241 230;
+  --primary-soft: #e2f3eb;
+  --primary-soft-rgb: 226 243 235;
   --on-primary: #ffffff;
-  --gold: #9a6f1e;
-  --gold-text: #6b4b0e;
-  --gold-rgb: 154 111 30;
+  --gold: #a67c2e;
+  --gold-text: #785515;
+  --gold-rgb: 166 124 46;
   --danger-rgb: 185 28 28;
   --next-bg: #fde047;
   --next-ink: #090c09;
   --next-ring: #b45309;
-  --shadow-card: 0 1px 2px rgba(9, 12, 9, 0.06), 0 4px 12px rgba(9, 12, 9, 0.04);
-  --shadow-card-hover: 0 4px 16px rgba(9, 12, 9, 0.1), 0 1px 3px rgba(9, 12, 9, 0.06);
+  --shadow-card: 0 1px 2px rgba(20, 23, 20, 0.04);
+  --shadow-card-hover: 0 3px 10px rgba(20, 23, 20, 0.07);
 
   --hl-0-bg: rgba(37, 99, 235, 0.1);
   --hl-0-bd: rgba(37, 99, 235, 0.72);
@@ -152,33 +152,33 @@
 }
 
 :root[data-theme="dark"] {
-  --ground: #05070a;
-  --ground-rgb: 5 7 10;
-  --card: #0d1118;
-  --card-rgb: 13 17 24;
-  --card2: #171e2b;
-  --card2-rgb: 23 30 43;
-  --ink: #ffffff;
-  --ink-soft: #e2e8f0;
-  --muted: #a8b6cc;
-  --faint: #8294b0;
-  --border: #263247;
-  --border-rgb: 38 50 71;
-  --border-strong: #3c4e6b;
-  --primary: #34e0a1;
-  --primary-rgb: 52 224 161;
-  --primary-soft: #0e3b2c;
-  --primary-soft-rgb: 14 59 44;
-  --on-primary: #031a11;
-  --gold: #f0c451;
-  --gold-text: #fde08d;
-  --gold-rgb: 240 196 81;
-  --danger-rgb: 252 129 129;
+  --ground: #181a1d;
+  --ground-rgb: 24 26 29;
+  --card: #1f2125;
+  --card-rgb: 31 33 37;
+  --card2: #282b30;
+  --card2-rgb: 40 43 48;
+  --ink: #f3f4f6;
+  --ink-soft: #d5d8de;
+  --muted: #9aa0aa;
+  --faint: #6f7681;
+  --border: #2e3239;
+  --border-rgb: 46 50 57;
+  --border-strong: #414752;
+  --primary: #2dd4a0;
+  --primary-rgb: 45 212 160;
+  --primary-soft: #13362c;
+  --primary-soft-rgb: 19 54 44;
+  --on-primary: #061b14;
+  --gold: #dfb35a;
+  --gold-text: #f0cc7e;
+  --gold-rgb: 223 179 90;
+  --danger-rgb: 248 113 113;
   --next-bg: #facc15;
-  --next-ink: #05070a;
+  --next-ink: #0f1115;
   --next-ring: #fef08a;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.35);
-  --shadow-card-hover: 0 8px 22px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.32);
 
   --hl-0-bg: rgba(59, 130, 246, 0.16);
   --hl-0-bd: rgba(96, 165, 250, 0.85);
@@ -203,6 +203,7 @@
     @apply bg-ground text-ink font-sans antialiased;
     margin: 0;
     min-height: 100vh;
+    min-height: 100dvh;
   }
 
   button,
@@ -213,11 +214,11 @@
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: var(--ground);
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
     background: var(--border-strong);
@@ -232,21 +233,51 @@
   box-shadow: var(--shadow-card-hover);
 }
 
-/* A mushaf page drawn from QCF V2 glyphs (components/page/QuranPage.tsx). Every page uses one font size: the
-   widest printed line (--line-em, in em) fills the column, so no line ever wraps. Every line, headers and
-   bismillah included, is one fixed-height row, like the print's 15-line grid. */
+/* A mushaf page drawn from QCF glyphs (components/page/QuranPage.tsx).
+   The column width scales proportionally to fit all 15 lines (15 × 1.78em = 26.7em) inside one viewport
+   height (100dvh minus reader chrome), while never overflowing the viewport width or shrinking below a
+   comfortable minimum glyph size (--mushaf-min-font: 17.5px; shorter screens like landscape phones keep
+   legible text and scroll naturally). Pages 1–2 (8 lines) use the same 15-line scale so their typography
+   matches the rest of the mushaf. */
 .mushaf {
   container-type: inline-size;
+  width: min(
+    100%,
+    44rem,
+    max(
+      calc((100vh - var(--reader-chrome, 140px)) * var(--line-em, 16.3) / 26.7),
+      calc(var(--line-em, 16.3) * var(--mushaf-min-font, 18px))
+    )
+  );
+  width: min(
+    100%,
+    44rem,
+    max(
+      calc((100dvh - var(--reader-chrome, 140px)) * var(--line-em, 16.3) / 26.7),
+      calc(var(--line-em, 16.3) * var(--mushaf-min-font, 18px))
+    )
+  );
+}
+/* Screens too short to fit all 15 lines at a comfortable size (e.g. phone landscape, compact small phones):
+   stop shrinking and keep a generous, legible reading width that scrolls naturally. */
+@media (max-height: 580px) {
+  .mushaf {
+    width: min(100%, 26rem);
+  }
 }
 .mushaf-glyphs {
-  font-size: calc(100cqw / var(--line-em));
+  font-size: calc(100cqw / var(--line-em, 16.3));
 }
 .mushaf-line {
   display: flex;
   align-items: baseline;
   white-space: nowrap;
-  height: 1.8em;
-  line-height: 1.8em;
+  height: 1.78em;
+  line-height: 1.78em;
+}
+/* Fallback Unicode rendering (when page fonts aren't available): scale cleanly with the fitted column too. */
+.mushaf-unicode {
+  font-size: clamp(1.05rem, 5.2cqw, 1.75rem);
 }
 /* Where a platform rounds glyph widths up to whole pixels, a full line can gain a pixel or two: let words give
    that back (their glyphs overlap by a fraction of a pixel) rather than the line overflow. */
@@ -259,16 +290,16 @@
   justify-content: center;
   gap: 0.3em;
   width: 100%;
-  height: 1.5em;
+  height: 1.48em;
   align-self: center;
-  border: 1px solid var(--gold);
+  border: 1px solid rgb(var(--gold-rgb) / 0.72);
   border-radius: 0.25em;
   /* a second, inner rule, as on the printed frames */
-  box-shadow: inset 0 0 0 0.12em var(--card), inset 0 0 0 calc(0.12em + 1px) var(--gold);
+  box-shadow: inset 0 0 0 0.11em var(--card), inset 0 0 0 calc(0.11em + 1px) rgb(var(--gold-rgb) / 0.55);
   color: var(--ink);
 }
 .surah-frame > span {
-  font-size: 1.25em;
+  font-size: 1.24em;
   line-height: 1;
 }
 

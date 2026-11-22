@@ -65,7 +65,7 @@ function MushafLayoutPicker() {
   return (
     <div className="space-y-2.5">
       <div
-        className="bg-card border border-edge rounded-2xl shadow-card divide-y divide-edge"
+        className="bg-card border border-edge/80 rounded-xl divide-y divide-edge/80"
         role="radiogroup"
         aria-label="Mushaf layout"
       >
@@ -91,18 +91,18 @@ export default function SettingsPage() {
   const voiceSupported = getVoiceSupport().supported;
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-8 pb-24 space-y-8">
+    <div className="max-w-xl mx-auto w-full px-4 py-6 sm:py-8 pb-24 space-y-7">
       <div className="text-center">
-        <h1 className="text-3xl sm:text-4xl font-sans font-bold tracking-tight text-ink mb-2">Settings</h1>
-        <p className="text-muted text-sm">Customize reading theme, mushaf print, and offline downloads.</p>
+        <h1 className="text-2xl sm:text-3xl font-sans font-semibold tracking-tight text-ink">Settings</h1>
+        <p className="text-muted text-xs sm:text-sm mt-1">Customize theme, mushaf print, and offline downloads.</p>
       </div>
 
       <Section title="Appearance">
-        <div className="bg-card border border-edge rounded-2xl shadow-card p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-card border border-edge/80 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-ink">Theme</div>
             <div className="text-xs text-muted mt-0.5">
-              {theme === "dark" ? "Calm night reading palette" : "Warm paper mushaf palette"}
+              {theme === "dark" ? "Calm night reading palette" : "Crisp paper mushaf palette"}
             </div>
           </div>
           <div className="inline-flex rounded-xl border border-edge bg-card2 p-1 gap-0.5" role="radiogroup" aria-label="Theme">

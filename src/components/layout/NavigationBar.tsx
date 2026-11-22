@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link } from "wouter";
+import { useTheme } from "@/hooks/useTheme";
 import type { SurahMeta, JuzMeta } from "@/types";
 
 interface NavigationBarProps {
@@ -18,14 +19,13 @@ interface NavigationBarProps {
   onExportImport?: () => void;
   showHighlights?: boolean;
   onToggleHighlights?: () => void;
-  /** voice Follow button (shown in the bar, never over the text) */
+  /** voice Follow / Hide controls (shown in the bar, never over the text) */
   voiceControl?: ReactNode;
-  /** while following: on phones, fold away the Surah/Juz row to give the page more room */
+  /** while following: kept for API compatibility */
   compact?: boolean;
 }
 
-const selectCls =
-  "bg-card border border-edge hover:border-edge-strong rounded-xl px-2.5 py-1.5 text-sm text-ink font-sans focus:outline-none focus:border-primary transition-colors";
+type JumpTab = "surah" | "juz";
 
 export default function NavigationBar({
   currentPage,
@@ -36,27 +36,76 @@ export default function NavigationBar({
   onNavigateToPage,
   onNavigateToSurah,
   onNavigateToJuz,
-  onPrevPage,
-  onNextPage,
   editMode,
   onToggleEditMode,
   onExportImport,
   showHighlights = true,
   onToggleHighlights,
   voiceControl,
-  compact,
 }: NavigationBarProps) {
+  const { theme, toggle: toggleTheme } = useTheme();
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const [jumpTab, setJumpTab] = useState<JumpTab>("surah");
+  const [search, setSearch] = useState("");
   const [pageInput, setPageInput] = useState(String(currentPage));
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const jumpRef = useRef<HTMLDivElement | null>(null);
+  const moreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setPageInput(String(currentPage));
   }, [currentPage]);
 
+  // Close popovers on outside click or Escape
+  useEffect(() => {
+    if (!jumpOpen && !moreOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (jumpOpen && jumpRef.current && !jumpRef.current.contains(target)) {
+        setJumpOpen(false);
+      }
+      if (moreOpen && moreRef.current && !moreRef.current.contains(target)) {
+        setMoreOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setJumpOpen(false);
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [jumpOpen, moreOpen]);
+
+  const activeSurah = useMemo(
+    () => surahs.find((s) => s.index === currentSurah),
+    [surahs, currentSurah]
+  );
+
+  const filteredSurahs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return surahs;
+    return surahs.filter(
+      (s) =>
+        s.tname.toLowerCase().includes(q) ||
+        s.ename.toLowerCase().includes(q) ||
+        s.name.includes(search.trim()) ||
+        String(s.index) === q
+    );
+  }, [surahs, search]);
+
   const commitPage = useCallback(
     (raw: string) => {
       const num = Number(raw);
-      if (Number.isInteger(num) && num >= 1 && num <= 604 && num !== currentPage) {
-        onNavigateToPage(num);
+      if (Number.isInteger(num) && num >= 1 && num <= 604) {
+        if (num !== currentPage) onNavigateToPage(num);
+        setJumpOpen(false);
       } else {
         setPageInput(String(currentPage));
       }
@@ -73,215 +122,305 @@ export default function NavigationBar({
     [pageInput, commitPage]
   );
 
-  const highlightsBtn = !editMode && onToggleHighlights && (
-    <button
-      type="button"
-      onClick={onToggleHighlights}
-      aria-pressed={showHighlights}
-      title={showHighlights ? "Hide Mutashabihat highlights for plain reading" : "Show Mutashabihat highlights"}
-      aria-label={showHighlights ? "Hide highlights" : "Show highlights"}
-      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 h-9 rounded-full text-xs font-semibold border transition-colors font-sans ${
-        showHighlights
-          ? "border-primary/40 bg-primary-soft text-primary hover:bg-primary/15"
-          : "border-edge bg-card text-muted hover:text-ink hover:border-edge-strong"
-      }`}
-    >
-      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-        />
-      </svg>
-      <span className="hidden lg:inline">{showHighlights ? "Highlights" : "Plain"}</span>
-    </button>
-  );
-
-  const pager = (
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={onPrevPage}
-        disabled={currentPage <= 1}
-        aria-label="Previous page"
-        title="Previous page (Right arrow)"
-        className="w-8 h-8 flex items-center justify-center bg-card border border-edge rounded-xl text-ink hover:bg-card2 hover:border-edge-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      <form onSubmit={handlePageSubmit} className="flex items-center gap-1 bg-card border border-edge rounded-xl px-2 h-8">
-        <span className="text-xs text-muted font-sans hidden sm:inline">Page</span>
-        <input
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={604}
-          aria-label="Page number"
-          value={pageInput}
-          onChange={(e) => setPageInput(e.target.value)}
-          onBlur={() => commitPage(pageInput)}
-          onFocus={(e) => e.currentTarget.select()}
-          className="w-10 bg-transparent text-sm font-semibold text-ink text-center font-sans tabular-nums focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        />
-        <span className="text-xs text-faint font-sans tabular-nums">/ 604</span>
-      </form>
-
-      <button
-        type="button"
-        onClick={onNextPage}
-        disabled={currentPage >= 604}
-        aria-label="Next page"
-        title="Next page (Left arrow)"
-        className="w-8 h-8 flex items-center justify-center bg-card border border-edge rounded-xl text-ink hover:bg-card2 hover:border-edge-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
-    </div>
-  );
+  const progressPct = Math.min(100, Math.max(0.5, (currentPage / 604) * 100));
 
   return (
-    <nav data-sticky-top className="sticky top-14 z-20 bg-ground/92 backdrop-blur-md border-b border-edge">
-      {/* Desktop navigation */}
-      <div className="hidden md:flex max-w-6xl mx-auto px-4 py-2.5 items-center justify-between gap-3">
-        {/* Left side - Back + Surah and Juz selectors */}
-        <div className="flex items-center gap-2 min-w-0">
-          <Link
-            href="/"
-            title="All surahs"
-            aria-label="Back to surah list"
-            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl border border-edge bg-card text-muted hover:text-ink hover:border-edge-strong transition-colors"
+    <nav data-sticky-top className="sticky top-12 z-30 bg-card/95 backdrop-blur-md">
+      <div className="max-w-6xl mx-auto h-11 px-3 sm:px-5 flex items-center justify-between gap-2">
+        {/* Left: Clean Surah / Juz / Page quick-jump trigger */}
+        <div className="relative flex-1 min-w-0 flex items-center" ref={jumpRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setMoreOpen(false);
+              setSearch("");
+              setJumpOpen((o) => !o);
+            }}
+            aria-expanded={jumpOpen}
+            aria-haspopup="dialog"
+            className="inline-flex items-center gap-1.5 min-w-0 max-w-full px-1.5 py-1 -ml-1.5 rounded-lg hover:bg-card2/70 transition-colors text-left"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <span className="text-[13.5px] sm:text-sm font-semibold text-ink truncate">
+              {activeSurah ? `${activeSurah.index}. ${activeSurah.tname}` : `Page ${currentPage}`}
+            </span>
+            <svg
+              className={`w-3.5 h-3.5 shrink-0 text-muted transition-transform ${jumpOpen ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          </Link>
+            {currentJuz && (
+              <span className="hidden sm:inline text-xs text-faint font-normal ml-0.5 tabular-nums shrink-0">
+                Juz {currentJuz}
+              </span>
+            )}
+          </button>
 
-          <select
-            aria-label="Select surah"
-            className={`${selectCls} max-w-[190px] truncate`}
-            value={currentSurah ?? ""}
-            onChange={(e) => onNavigateToSurah(Number(e.target.value))}
-          >
-            <option value="" disabled>
-              Surah
-            </option>
-            {surahs.map((s) => (
-              <option key={s.index} value={s.index}>
-                {s.index}. {s.tname}
-              </option>
-            ))}
-          </select>
+          {/* Quick Jump Popover */}
+          {jumpOpen && (
+            <div
+              role="dialog"
+              aria-label="Navigate mushaf"
+              className="absolute left-0 top-full mt-1.5 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl bg-card border border-edge shadow-xl z-50 overflow-hidden font-sans"
+            >
+              {/* Direct page jump */}
+              <form onSubmit={handlePageSubmit} className="p-2.5 border-b border-edge/80 flex items-center gap-2">
+                <label className="text-xs text-muted shrink-0" htmlFor="reader-page-jump">
+                  Page
+                </label>
+                <input
+                  id="reader-page-jump"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={604}
+                  value={pageInput}
+                  onChange={(e) => setPageInput(e.target.value)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="w-16 bg-ground border border-edge rounded-lg px-2 py-1 text-xs font-semibold text-ink text-center tabular-nums focus:outline-none focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <span className="text-xs text-faint tabular-nums">/ 604</span>
+                <button
+                  type="submit"
+                  className="ml-auto px-2.5 py-1 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Go
+                </button>
+              </form>
 
-          <select
-            aria-label="Select juz"
-            className={selectCls}
-            value={currentJuz ?? ""}
-            onChange={(e) => onNavigateToJuz(Number(e.target.value))}
-          >
-            <option value="" disabled>
-              Juz
-            </option>
-            {juzs.map((j) => (
-              <option key={j.index} value={j.index}>
-                Juz {j.index}
-              </option>
-            ))}
-          </select>
+              {/* Tabs: Surahs / Juz */}
+              <div className="px-2.5 pt-2 pb-1.5 flex items-center justify-between gap-2">
+                <div className="inline-flex rounded-lg bg-card2/80 p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setJumpTab("surah")}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      jumpTab === "surah" ? "bg-card text-ink shadow-sm" : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    Surah
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJumpTab("juz")}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      jumpTab === "juz" ? "bg-card text-ink shadow-sm" : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    Juz
+                  </button>
+                </div>
+                <Link
+                  href="/"
+                  onClick={() => setJumpOpen(false)}
+                  className="text-xs text-muted hover:text-primary transition-colors"
+                >
+                  All surahs
+                </Link>
+              </div>
+
+              {jumpTab === "surah" ? (
+                <div className="p-2 pt-1">
+                  <input
+                    type="text"
+                    dir="auto"
+                    placeholder="Filter surah…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full bg-ground border border-edge rounded-lg px-2.5 py-1.5 text-xs text-ink placeholder-faint focus:outline-none focus:border-primary mb-1.5"
+                  />
+                  <div className="max-h-60 overflow-y-auto divide-y divide-edge/40">
+                    {filteredSurahs.map((s) => {
+                      const active = s.index === currentSurah;
+                      return (
+                        <button
+                          key={s.index}
+                          type="button"
+                          onClick={() => {
+                            onNavigateToSurah(s.index);
+                            setJumpOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs transition-colors text-left ${
+                            active ? "bg-primary-soft text-primary font-semibold" : "text-ink hover:bg-card2/60"
+                          }`}
+                        >
+                          <span className="truncate">
+                            <span className="tabular-nums text-faint mr-1.5">{s.index}.</span>
+                            {s.tname}
+                          </span>
+                          <span className="text-[11px] text-faint tabular-nums shrink-0">p.{s.startPage}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 grid grid-cols-5 gap-1.5 max-h-64 overflow-y-auto">
+                  {juzs.map((j) => {
+                    const active = j.index === currentJuz;
+                    return (
+                      <button
+                        key={j.index}
+                        type="button"
+                        onClick={() => {
+                          onNavigateToJuz(j.index);
+                          setJumpOpen(false);
+                        }}
+                        className={`py-1.5 rounded-lg text-xs font-medium tabular-nums transition-colors ${
+                          active
+                            ? "bg-primary text-on-primary font-semibold"
+                            : "bg-ground text-ink hover:bg-card2 border border-edge/60"
+                        }`}
+                      >
+                        {j.index}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Center - Page navigation */}
-        {pager}
+        {/* Right: Clean compact reader tools */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {!editMode && onToggleHighlights && (
+            <button
+              type="button"
+              onClick={onToggleHighlights}
+              aria-pressed={showHighlights}
+              title={showHighlights ? "Hide Mutashabihat highlights" : "Show Mutashabihat highlights"}
+              aria-label={showHighlights ? "Hide highlights" : "Show highlights"}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
+                showHighlights
+                  ? "bg-primary-soft text-primary"
+                  : "text-muted hover:text-ink hover:bg-card2/70"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+              <span className="hidden md:inline">{showHighlights ? "Highlights" : "Plain"}</span>
+            </button>
+          )}
 
-        {/* Right side - Highlights + Voice/Hide + Edit controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          {highlightsBtn}
           {voiceControl}
 
           {editMode && onExportImport && (
             <button
+              type="button"
               onClick={onExportImport}
-              className="px-3 h-9 rounded-full text-xs font-medium bg-card border border-edge hover:border-edge-strong text-ink transition-colors font-sans"
+              className="px-2.5 h-8 rounded-lg text-xs font-medium text-ink bg-card2 hover:bg-card2/80 transition-colors font-sans"
             >
-              Export/Import
+              Export
             </button>
           )}
-          {onToggleEditMode && (
+
+          {editMode && onToggleEditMode && (
             <button
+              type="button"
               onClick={onToggleEditMode}
-              title={editMode ? "Finish editing custom phrases" : "Highlight and save your own similar phrases"}
-              className={`px-3 h-9 rounded-full text-xs font-semibold transition-colors font-sans border ${
-                editMode
-                  ? "bg-gold/15 text-gold-text border-gold/50 hover:bg-gold/25"
-                  : "bg-card border-edge text-muted hover:text-ink hover:border-edge-strong"
+              className="px-2.5 h-8 rounded-lg text-xs font-semibold bg-gold/20 text-gold-text hover:bg-gold/30 transition-colors font-sans"
+            >
+              Done
+            </button>
+          )}
+
+          {/* Overflow menu for secondary reader actions (Edit custom phrases, Theme on mobile, Settings) */}
+          <div className="relative" ref={moreRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setJumpOpen(false);
+                setMoreOpen((o) => !o);
+              }}
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              aria-label="More reader options"
+              title="More options"
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                moreOpen ? "bg-card2 text-ink" : "text-muted hover:text-ink hover:bg-card2/70"
               }`}
             >
-              {editMode ? "Done editing" : "Edit"}
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <circle cx="5" cy="12" r="1.75" />
+                <circle cx="12" cy="12" r="1.75" />
+                <circle cx="19" cy="12" r="1.75" />
+              </svg>
             </button>
-          )}
+
+            {moreOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-card border border-edge shadow-xl py-1 z-50 font-sans text-xs"
+              >
+                {onToggleEditMode && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onToggleEditMode();
+                      setMoreOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-ink hover:bg-card2/70 transition-colors"
+                  >
+                    <span>{editMode ? "Finish editing phrases" : "Edit custom phrases"}</span>
+                  </button>
+                )}
+                {editMode && onExportImport && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onExportImport();
+                      setMoreOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-ink hover:bg-card2/70 transition-colors"
+                  >
+                    <span>Export / Import phrases</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    toggleTheme();
+                    setMoreOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 text-ink hover:bg-card2/70 transition-colors"
+                >
+                  <span>{theme === "dark" ? "Light theme" : "Dark theme"}</span>
+                  <span className="text-faint">{theme === "dark" ? "Day" : "Night"}</span>
+                </button>
+                <div className="my-1 border-t border-edge/70" />
+                <Link
+                  href="/settings"
+                  role="menuitem"
+                  onClick={() => setMoreOpen(false)}
+                  className="block px-3 py-2 text-muted hover:text-ink hover:bg-card2/70 transition-colors"
+                >
+                  Mushaf settings
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Mobile navigation */}
-      <div className="md:hidden px-3 py-2 space-y-2">
-        {/* Top row - Surah and Juz selectors; folded away while following */}
-        <div className={`flex items-center gap-1.5 ${compact ? "hidden" : ""}`}>
-          <Link
-            href="/"
-            aria-label="Back to surah list"
-            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl border border-edge bg-card text-muted hover:text-ink transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-
-          <select
-            aria-label="Select surah"
-            className={`flex-1 min-w-0 ${selectCls} py-1 text-[13px]`}
-            value={currentSurah ?? ""}
-            onChange={(e) => onNavigateToSurah(Number(e.target.value))}
-          >
-            <option value="" disabled>
-              Surah
-            </option>
-            {surahs.map((s) => (
-              <option key={s.index} value={s.index}>
-                {s.index}. {s.tname}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label="Select juz"
-            className={`w-[5.25rem] shrink-0 ${selectCls} py-1 text-[13px]`}
-            value={currentJuz ?? ""}
-            onChange={(e) => onNavigateToJuz(Number(e.target.value))}
-          >
-            <option value="" disabled>
-              Juz
-            </option>
-            {juzs.map((j) => (
-              <option key={j.index} value={j.index}>
-                Juz {j.index}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Bottom row - Pager and highlights/voice/hide tools */}
-        <div className="flex items-center justify-between gap-2">
-          {pager}
-          <div className="flex items-center gap-1.5">
-            {highlightsBtn}
-            {voiceControl}
-          </div>
-        </div>
+      {/* Whisper-thin reading progress line (like Quran.com) */}
+      <div className="h-[2px] w-full bg-edge/60">
+        <div
+          className="h-full bg-gold transition-[width] duration-300 ease-out"
+          style={{ width: `${progressPct}%` }}
+        />
       </div>
     </nav>
   );
