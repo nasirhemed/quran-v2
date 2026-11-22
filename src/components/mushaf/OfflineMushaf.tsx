@@ -76,66 +76,53 @@ export default function OfflineMushaf({
 
   return (
     <div
-      className={`relative rounded-2xl border border-edge bg-card shadow-card px-4 py-3.5 text-left font-sans text-sm ${className}`}
+      className={`rounded-xl border border-edge/80 bg-card px-3.5 py-3 text-left font-sans text-xs ${className}`}
     >
-      {onDismiss && (
-        <button
-          onClick={onDismiss}
-          aria-label="Dismiss"
-          title="Dismiss (you can still manage this in Settings)"
-          className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full border border-edge bg-card text-muted hover:text-ink hover:border-edge-strong shadow-sm flex items-center justify-center text-sm leading-none transition-colors"
-        >
-          ×
-        </button>
-      )}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0 mt-0.5">
-            {done ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"
-                />
-              </svg>
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="font-semibold text-ink">{done ? "Whole mushaf saved offline" : "Read offline"}</div>
-            <div className="text-xs text-muted mt-0.5 leading-relaxed">
-              {done
-                ? `${mb(status.totalBytes)} saved on this device`
-                : busy
-                  ? `Saving… ${pct}% (${mb(status.bytes)} of ${mb(status.totalBytes)})`
-                  : `Pages you open stay on this device. Save all 604 pages (${mb(status.totalBytes)}) to read anywhere.`}
-            </div>
+        <div className="min-w-0">
+          <div className="font-semibold text-ink">{done ? "Whole mushaf saved offline" : "Read offline"}</div>
+          <div className="text-muted mt-0.5 leading-relaxed">
+            {done
+              ? `${mb(status.totalBytes)} saved on this device`
+              : busy
+                ? `Saving… ${pct}% (${mb(status.bytes)} of ${mb(status.totalBytes)})`
+                : `Save all 604 pages (${mb(status.totalBytes)}) to read without internet.`}
           </div>
         </div>
-        {done ? (
-          <button onClick={remove} className="shrink-0 text-xs font-medium text-muted hover:text-ink underline">
-            Remove
-          </button>
-        ) : busy ? (
-          <button
-            onClick={() => abort.current?.abort()}
-            className="shrink-0 px-3.5 py-1.5 rounded-xl border border-edge-strong text-ink font-medium hover:bg-card2 transition-colors"
-          >
-            Pause
-          </button>
-        ) : (
-          <button
-            onClick={download}
-            className="shrink-0 px-3.5 py-1.5 rounded-xl bg-primary text-on-primary font-semibold hover:opacity-90 transition-opacity"
-          >
-            {status.files > 0 && !done ? "Save all" : "Save"}
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {done ? (
+            <button type="button" onClick={remove} className="text-xs font-medium text-muted hover:text-ink underline">
+              Remove
+            </button>
+          ) : busy ? (
+            <button
+              type="button"
+              onClick={() => abort.current?.abort()}
+              className="px-2.5 py-1 rounded-lg border border-edge-strong text-ink font-medium hover:bg-card2 transition-colors"
+            >
+              Pause
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={download}
+              className="px-2.5 py-1 rounded-lg bg-card2 text-ink font-semibold hover:bg-primary hover:text-on-primary transition-colors"
+            >
+              {status.files > 0 && !done ? "Save all" : "Save"}
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label="Dismiss"
+              title="Dismiss (still available in Settings)"
+              className="w-6 h-6 rounded-md text-faint hover:text-ink hover:bg-card2 flex items-center justify-center text-sm leading-none transition-colors"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
       {busy && (
         <div className="mt-3 h-1.5 rounded-full bg-card2 overflow-hidden">

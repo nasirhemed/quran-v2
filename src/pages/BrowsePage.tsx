@@ -27,35 +27,35 @@ const EXAMPLE_QUERIES = [
 
 function SurahGrid({ surahs, index }: { surahs: SurahMeta[]; index?: BrowseIndex }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
       {surahs.map((s) => {
         const count = index?.bySurah.get(s.index)?.length;
         const body = (
           <>
-            <span className="w-10 h-10 shrink-0 rounded-xl bg-card2 text-ink-soft text-sm font-semibold tabular-nums flex items-center justify-center group-hover:bg-primary-soft group-hover:text-primary transition-colors">
+            <span className="w-8 h-8 shrink-0 rounded-lg bg-card2/80 text-muted text-xs font-semibold tabular-nums flex items-center justify-center group-hover:bg-primary-soft group-hover:text-primary transition-colors">
               {s.index}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-semibold text-ink truncate group-hover:text-primary transition-colors">
+              <span className="block text-sm font-semibold text-ink truncate group-hover:text-primary transition-colors">
                 {s.tname}
               </span>
               <span className="block text-xs text-muted">
-                {index ? (count ? `${count} of ${s.ayas} verses matched` : "No matches recorded") : "…"}
+                {index ? (count ? `${count} of ${s.ayas} matched` : "No matches") : "…"}
               </span>
             </span>
             <SurahName surah={s.index} name={s.name} className="text-xl text-ink-soft" />
           </>
         );
-        const cls = "flex items-center gap-3 rounded-2xl border border-edge bg-card px-4 py-3 shadow-card";
+        const cls = "flex items-center gap-3 rounded-xl border border-edge/80 bg-card px-3.5 py-2.5";
         return index && !count ? (
-          <div key={s.index} className={`${cls} opacity-50`}>
+          <div key={s.index} className={`${cls} opacity-45`}>
             {body}
           </div>
         ) : (
           <BrowseLink
             key={s.index}
             href={surahHref(s.index)}
-            className={`${cls} hover:shadow-card-hover hover:border-primary/45 hover:-translate-y-0.5 transition-all group`}
+            className={`${cls} hover:border-edge-strong hover:bg-card2/35 transition-colors group`}
           >
             {body}
           </BrowseLink>
@@ -174,18 +174,18 @@ export default function BrowsePage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-8 pb-24">
-      <div className="mb-7 text-center">
-        <h1 className="text-3xl sm:text-4xl font-sans font-bold tracking-tight text-ink mb-2">Browse</h1>
-        <p className="text-muted font-sans text-sm sm:text-[15px] max-w-lg mx-auto">
-          Explore similar phrases (Mutashabihat) and look-alike verses by surah, or search anywhere in the Qur'an.
+    <div className="max-w-5xl mx-auto w-full px-4 pt-6 sm:pt-8 pb-24">
+      <div className="mb-5 text-center">
+        <h1 className="text-2xl sm:text-3xl font-sans font-semibold tracking-tight text-ink">Browse</h1>
+        <p className="text-muted font-sans text-xs sm:text-sm max-w-lg mx-auto mt-1">
+          Explore similar phrases (Mutashabihat) and look-alike verses, or search anywhere in the Qur'an.
         </p>
       </div>
 
-      <div className="max-w-2xl mx-auto mb-8">
+      <div className="max-w-xl mx-auto mb-6">
         <div className="relative">
           <svg
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -203,14 +203,14 @@ export default function BrowsePage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search Arabic (وما ارسلنا), a verse (2:51), or a surah…"
-            className="w-full bg-card border border-edge rounded-2xl shadow-card pl-10 pr-10 py-3 text-sm sm:text-base text-ink placeholder-faint focus:outline-none focus:border-primary transition-colors"
+            className="w-full bg-card border border-edge/80 rounded-xl pl-9 pr-9 py-2.5 text-sm text-ink placeholder-faint focus:outline-none focus:border-primary transition-colors"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full text-muted hover:text-ink hover:bg-card2 flex items-center justify-center transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md text-muted hover:text-ink hover:bg-card2 flex items-center justify-center transition-colors"
             >
               ×
             </button>
@@ -218,14 +218,14 @@ export default function BrowsePage() {
         </div>
 
         {!query && (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 text-xs text-muted">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2.5 text-xs text-muted">
             <span>Try:</span>
             {EXAMPLE_QUERIES.map((ex) => (
               <button
                 key={ex.value}
                 type="button"
                 onClick={() => setQuery(ex.value)}
-                className="px-2.5 py-1 rounded-full bg-card border border-edge hover:border-primary/50 hover:text-primary transition-colors"
+                className="px-2.5 py-0.5 rounded-md bg-card border border-edge/80 hover:border-edge-strong hover:text-ink transition-colors"
               >
                 {ex.label}
               </button>

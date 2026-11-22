@@ -28,9 +28,9 @@ export default function SurahHeader({ surahName, tname, surahIndex, glyphs, font
     );
   }
   return (
-    <div className="w-full my-6 text-center">
-      <div className="font-quran text-3xl text-amber-200 mb-2">{surahName}</div>
-      <div className="text-base text-slate-300 font-sans">{tname}</div>
+    <div className="w-full my-2 py-1.5 rounded-lg border border-gold/40 bg-card2/30 text-center">
+      <div className="font-quran text-xl text-ink leading-snug">{surahName}</div>
+      <div className="text-[11px] text-muted font-sans">{tname}</div>
     </div>
   );
 }

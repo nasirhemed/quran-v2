@@ -149,26 +149,25 @@ export function useFollowMode({
 
   const button = (
     <button
+      type="button"
       onClick={toggle}
       aria-pressed={following}
       disabled={loading}
-      className={`shrink-0 flex items-center gap-1.5 px-3 h-9 rounded-full text-sm font-semibold transition-colors disabled:opacity-60 ${
-        following ? "bg-red-500 text-white" : "bg-primary text-on-primary"
+      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60 ${
+        following ? "bg-red-500 text-white" : "bg-primary text-on-primary hover:opacity-90"
       }`}
     >
-      {following ? <span className="w-2.5 h-2.5 rounded-sm bg-white" /> : <MicIcon className="w-4 h-4" />}
-      {following ? "Stop" : loading ? "Loading…" : "Follow"}
+      {following ? <span className="w-2 h-2 rounded-sm bg-white" /> : <MicIcon className="w-3.5 h-3.5" />}
+      <span>{following ? "Stop" : loading ? "Loading…" : "Follow"}</span>
     </button>
   );
 
   const showStrip = following || phase === "no-model" || (wanted && !!state?.message);
   const strip = showStrip ? (
     <>
-      {/* room under the page, so its last lines can scroll above the strip */}
-      <div aria-hidden className="h-28" />
       <div
         ref={stripRef}
-        className="fixed z-30 inset-x-0 bottom-0 bg-card border-t border-edge shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
+        className="fixed z-30 inset-x-0 bottom-0 bg-card/95 backdrop-blur-md border-t border-edge/80 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]"
         role="region"
         aria-label="Follow mode"
       >
@@ -189,14 +188,19 @@ export function useFollowMode({
                   <Link href="/transcribe" className="ml-auto text-muted hover:text-ink shrink-0">
                     Transcript
                   </Link>
-                  <button onClick={() => setCollapsed((c) => !c)} className="text-muted hover:text-ink shrink-0" aria-label={collapsed ? "Show words" : "Hide words"}>
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed((c) => !c)}
+                    className="text-muted hover:text-ink shrink-0"
+                    aria-label={collapsed ? "Show words" : "Hide words"}
+                  >
                     {collapsed ? "▴" : "▾"}
                   </button>
                 </>
               )}
             </div>
             {following && !collapsed && (
-              <p dir="rtl" lang="ar" className="font-arabic text-lg leading-relaxed text-ink-soft truncate min-h-[1.75rem]" aria-live="off">
+              <p dir="rtl" lang="ar" className="font-arabic text-lg leading-relaxed text-ink-soft truncate min-h-[1.6rem]" aria-live="off">
                 {tail}
               </p>
             )}

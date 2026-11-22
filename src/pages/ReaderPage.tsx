@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useQuranPage } from "@/hooks/useQuranPage";
 import { useSidePanel } from "@/hooks/useSidePanel";
 import { useLocalPhrases } from "@/hooks/useLocalPhrases";
 import { useHiddenWords } from "@/hooks/useHiddenWords";
-import { useTheme } from "@/hooks/useTheme";
 import { fetchSurahs } from "@/lib/data";
 import { saveLastRead } from "@/lib/lastRead";
 import { useMushafPages } from "@/hooks/useMushafLayout";
@@ -30,7 +29,6 @@ function loadShowHighlights(): boolean {
 }
 
 export default function ReaderPage() {
-  const { theme, toggle: toggleTheme } = useTheme();
   const [showHighlights, setShowHighlights] = useState(loadShowHighlights);
   const toggleHighlights = useCallback(() => {
     setShowHighlights((prev) => {
@@ -172,24 +170,27 @@ export default function ReaderPage() {
     [localPhrases, sidePanel]
   );
 
-  const hasHighlights = useMemo(
-    () => Object.values(pageHighlights).some((m) => m.size > 0),
-    [pageHighlights]
-  );
-
   if (isLoading) {
     return (
-      <div className="max-w-[44rem] mx-auto px-4 py-10">
-        <div className="h-[68vh] rounded-2xl bg-card border border-edge animate-pulse" />
+      <div className="flex-1 flex items-center justify-center bg-card px-4 py-8">
+        <div className="w-full max-w-[26rem] h-[72dvh] rounded-xl bg-card2/50 animate-pulse" />
       </div>
     );
   }
 
   const currentSurah = page?.surahGroups[0]?.surahIndex;
-  const surahNames = page?.surahGroups.map((g) => g.tname).join(" · ");
+
+  // Vertical chrome budget reserved outside the 15 mushaf lines so the full page fits in one screen:
+  // 48px AppShell header + 46px NavigationBar + 32px page-number footer + 14px breathing room = 140px.
+  const hasSelectionBar = localPhrases.editMode && !!localPhrases.selection;
+  const chromePx =
+    140 +
+    (hiding ? 44 : 0) +
+    (!localPhrases.editMode && follow.following ? 78 : 0) +
+    (hasSelectionBar ? 68 : 0);
 
   return (
-    <div className="min-h-screen">
+    <div className="flex-1 flex flex-col bg-card">
       <NavigationBar
         currentPage={currentPage}
         currentSurah={currentSurah}
@@ -217,9 +218,18 @@ export default function ReaderPage() {
         compact={follow.following}
       />
 
-      <main className={`max-w-[45rem] mx-auto px-2 sm:px-6 pt-4 sm:pt-6 pb-16 ${localPhrases.selection ? "pb-28" : ""}`}>
+      <main
+        className={`relative flex-1 flex flex-col items-center justify-between px-3 sm:px-6 pt-1.5 pb-1 ${
+          !localPhrases.editMode && follow.following
+            ? "pb-20"
+            : hasSelectionBar
+              ? "pb-16"
+              : ""
+        }`}
+        style={{ "--reader-chrome": `${chromePx}px` } as CSSProperties}
+      >
         {hiding && (
-          <div className="mb-3">
+          <div className="w-full max-w-2xl mb-1.5 shrink-0">
             <HideWordsBar
               canFollow={follow.supported}
               following={follow.following}
@@ -232,34 +242,35 @@ export default function ReaderPage() {
 
         {page ? (
           <>
-            <article className="bg-card border border-edge rounded-2xl shadow-card px-3 sm:px-8 py-4 sm:py-6">
-              {/* Page header: Surah name(s), Juz, Page number, and quick Day/Night button on phones */}
-              <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-edge/80 text-xs font-sans text-muted">
-                <span className="font-semibold text-ink-soft truncate">{surahNames}</span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-muted tabular-nums">
-                    Juz {page.juz} · Page {page.pageNumber}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={toggleTheme}
-                    aria-label={theme === "dark" ? "Switch to day theme" : "Switch to night theme"}
-                    title={theme === "dark" ? "Switch to day theme" : "Switch to night theme"}
-                    className="sm:hidden w-7 h-7 rounded-lg border border-edge bg-ground text-ink flex items-center justify-center hover:border-edge-strong transition-colors"
-                  >
-                    {theme === "dark" ? (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364 6.364l-1.414-1.414M7.05 7.05L5.636 5.636m12.728 0l-1.414 1.414M7.05 16.95l-1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
+            {/* Subtle desktop margin page-turn buttons */}
+            <button
+              type="button"
+              onClick={prevPage}
+              disabled={currentPage <= 1}
+              aria-label="Previous page"
+              title="Previous page (Right arrow)"
+              className="hidden lg:flex fixed left-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full text-faint hover:text-ink hover:bg-card2/70 disabled:opacity-0 disabled:pointer-events-none transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
 
+            <button
+              type="button"
+              onClick={nextPage}
+              disabled={currentPage >= 604}
+              aria-label="Next page"
+              title="Next page (Left arrow)"
+              className="hidden lg:flex fixed right-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full text-faint hover:text-ink hover:bg-card2/70 disabled:opacity-0 disabled:pointer-events-none transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            {/* Centered one-screen Mushaf page */}
+            <div className="flex-1 w-full flex items-center justify-center">
               <QuranPage
                 page={page}
                 pack={mushaf.data!.layout.pack}
@@ -275,47 +286,43 @@ export default function ReaderPage() {
                 hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
                 showHighlights={showHighlights}
               />
+            </div>
 
-              {hasHighlights && showHighlights && !hiding && !localPhrases.editMode && (
-                <div className="mt-5 pt-3 border-t border-edge/70 text-center text-xs text-muted font-sans">
-                  Tap any highlighted phrase to compare similar verses
-                </div>
-              )}
-            </article>
-
-            {/* Bottom page-turn controls */}
-            <div className="flex items-center justify-between gap-3 mt-4 px-1">
+            {/* Quiet centered page number footer with subtle prev/next controls */}
+            <footer className="shrink-0 h-8 flex items-center justify-center gap-4 text-faint font-sans select-none">
               <button
                 type="button"
                 onClick={prevPage}
                 disabled={currentPage <= 1}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-edge bg-card text-sm font-medium text-ink shadow-card hover:border-primary/45 hover:text-primary disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+                aria-label="Previous page"
+                title="Previous page (Right arrow)"
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                <span>Previous</span>
               </button>
 
-              <span className="text-xs font-medium text-muted font-sans tabular-nums">
-                Page {currentPage} of 604
+              <span className="text-xs font-medium text-muted tabular-nums min-w-[2.5rem] text-center">
+                {page.pageNumber}
               </span>
 
               <button
                 type="button"
                 onClick={nextPage}
                 disabled={currentPage >= 604}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-edge bg-card text-sm font-medium text-ink shadow-card hover:border-primary/45 hover:text-primary disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+                aria-label="Next page"
+                title="Next page (Left arrow)"
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
               >
-                <span>Next</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
-            </div>
+            </footer>
           </>
         ) : (
-          <div className="text-center py-20 text-muted">Page not found</div>
+          <div className="flex-1 flex items-center justify-center text-muted text-sm">Page not found</div>
         )}
       </main>
 

@@ -63,18 +63,19 @@ export default function SidePanel({
         role="dialog"
         aria-label={title}
         aria-hidden={!isOpen}
-        className={`fixed top-0 right-0 h-full z-50 bg-card border-l border-edge shadow-2xl sm:rounded-l-2xl flex flex-col transition-transform duration-300 ease-out ${
+        className={`fixed top-0 right-0 h-full z-50 bg-card border-l border-edge/80 shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
-        } w-full sm:w-[420px]`}
+        } w-full sm:w-[400px]`}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-edge shrink-0">
-          <h2 className="text-base font-semibold text-ink font-sans">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-edge/80 shrink-0">
+          <h2 className="text-sm font-semibold text-ink font-sans">
             {title}
           </h2>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close panel"
-            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-card2 text-muted hover:text-ink transition-colors text-xl leading-none"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-card2 text-muted hover:text-ink transition-colors text-lg leading-none"
           >
             &times;
           </button>
