@@ -63,22 +63,17 @@ export function useFollowMode({
     }
   }, [wanted, session, phase]);
 
-  // Mark the word just recited (.voice-current) and spotlight the next word to read (.voice-next) straight on
-  // the DOM (no page re-render per step), keeping the next word comfortably in view.
+  // Mark the word just recited (.voice-current) straight on the DOM (no page re-render per step),
+  // keeping it comfortably in view and aligned with the transcript strip below.
   const last = following ? state?.last ?? null : null;
   useEffect(() => {
     if (!last) return;
     const el = document.querySelector<HTMLElement>(`[data-w="${last}"]`);
     if (!el) return;
-    const allWords = Array.from(document.querySelectorAll<HTMLElement>(".mushaf [data-w]"));
-    const idx = allWords.indexOf(el);
-    const nextEl = idx >= 0 ? (allWords[idx + 1] ?? null) : null;
     el.classList.add("voice-current");
-    if (nextEl) nextEl.classList.add("voice-next");
-    keepInView(nextEl ?? el, stripRef.current);
+    keepInView(el, stripRef.current);
     return () => {
       el.classList.remove("voice-current");
-      if (nextEl) nextEl.classList.remove("voice-next");
     };
   }, [last, currentPage]);
 

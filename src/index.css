@@ -31,9 +31,9 @@
   --gold-text: #785515;
   --gold-rgb: 166 124 46;
   --danger-rgb: 185 28 28;
-  --next-bg: #fde047;
-  --next-ink: #090c09;
-  --next-ring: #b45309;
+  --next-bg: #e2f3eb;
+  --next-ink: #141714;
+  --next-ring: #0f6e4b;
   --shadow-card: 0 1px 2px rgba(20, 23, 20, 0.04);
   --shadow-card-hover: 0 3px 10px rgba(20, 23, 20, 0.07);
 
@@ -79,9 +79,9 @@
     --gold-text: #f0cc7e;
     --gold-rgb: 223 179 90;
     --danger-rgb: 248 113 113;
-    --next-bg: #facc15;
-    --next-ink: #0f1115;
-    --next-ring: #fef08a;
+    --next-bg: #13362c;
+    --next-ink: #f3f4f6;
+    --next-ring: #2dd4a0;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22);
     --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.32);
 
@@ -127,9 +127,9 @@
   --gold-text: #785515;
   --gold-rgb: 166 124 46;
   --danger-rgb: 185 28 28;
-  --next-bg: #fde047;
-  --next-ink: #090c09;
-  --next-ring: #b45309;
+  --next-bg: #e2f3eb;
+  --next-ink: #141714;
+  --next-ring: #0f6e4b;
   --shadow-card: 0 1px 2px rgba(20, 23, 20, 0.04);
   --shadow-card-hover: 0 3px 10px rgba(20, 23, 20, 0.07);
 
@@ -174,9 +174,9 @@
   --gold-text: #f0cc7e;
   --gold-rgb: 223 179 90;
   --danger-rgb: 248 113 113;
-  --next-bg: #facc15;
-  --next-ink: #0f1115;
-  --next-ring: #fef08a;
+  --next-bg: #13362c;
+  --next-ink: #f3f4f6;
+  --next-ring: #2dd4a0;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22);
   --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.32);
 
@@ -303,23 +303,15 @@
   line-height: 1;
 }
 
-/* Follow mode (voice): .voice-current marks the word just recited subtly, while .voice-next puts a high-contrast
-   spotlight on the next word to read so your eyes land on it immediately, day or night. Set on [data-w] spans
-   directly without changing width/padding so following never reflows or re-renders the page. */
+/* Follow mode (voice): highlights the word just recited with a clean, high-contrast emerald tint and subtle ring.
+   Set on [data-w] spans directly without changing width/padding so following never reflows or re-renders the page. */
 .voice-current {
   background-image: none !important;
   background-color: var(--primary-soft);
-  box-shadow: inset 0 -2.5px 0 var(--primary);
+  color: var(--ink);
+  box-shadow: 0 0 0 1.5px rgb(var(--primary-rgb) / 0.72);
   border-radius: 0.25rem;
   transition: background-color 120ms, box-shadow 120ms;
-}
-.voice-next {
-  background-image: none !important;
-  background-color: var(--next-bg);
-  color: var(--next-ink) !important;
-  box-shadow: 0 0 0 2px var(--next-ring);
-  border-radius: 0.25rem;
-  transition: background-color 120ms, box-shadow 120ms, color 120ms;
 }
 
 /* Hidden words (recite from memory): each word keeps its place and width but shows only a faint baseline until
@@ -330,13 +322,6 @@
   box-shadow: inset 0 -2px 0 var(--border-strong);
   border-radius: 0;
   cursor: pointer;
-}
-/* When hiding words during Follow mode, highlight the next blank slot without revealing its letters. */
-.words-hidden [data-w].voice-next:not(.word-revealed) {
-  color: transparent !important;
-  background-color: rgb(var(--gold-rgb) / 0.18);
-  box-shadow: inset 0 -3px 0 var(--next-ring);
-  border-radius: 0.2rem;
 }
 .words-hidden [data-w].word-revealed {
   animation: word-reveal 300ms ease-out;
