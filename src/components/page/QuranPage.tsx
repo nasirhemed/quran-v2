@@ -26,6 +26,8 @@ interface QuranPageProps {
   onWordSelect?: (ayahKey: string, wordIndex1Based: number) => void;
   /** recite from memory: words are masked until revealed (tapping a masked word reveals it) */
   hideWords?: { revealed: ReadonlySet<string>; onReveal: (key: string) => void } | null;
+  /** toggle Mutashabihat phrase colors off for pure high-contrast reading */
+  showHighlights?: boolean;
 }
 
 type WordItem = Extract<LineItem, { kind: "word" }>;
@@ -75,6 +77,7 @@ export default function QuranPage({
   wordSelection,
   onWordSelect,
   hideWords,
+  showHighlights = true,
 }: QuranPageProps) {
   const lines = useMemo(() => pageLayout(page), [page]);
   const fontState = useMushafFonts(pack, page.pageNumber, {
@@ -111,8 +114,9 @@ export default function QuranPage({
     const key = `${item.ayahKey}:${item.word.position}`;
     const revealed = !!hideWords?.revealed.has(key);
     const masked = !!hideWords && !revealed;
-    const hl = highlights[item.ayahKey]?.get(item.wordIndex0);
+    const hl = showHighlights || editMode ? highlights[item.ayahKey]?.get(item.wordIndex0) : undefined;
     const selected = editMode && isWordSelected(item);
+    const active = isActive(item);
     const clickable = editMode || !!hl || masked;
     // Colour only: a background with the underline painted into it, so the word keeps its exact width.
     const style: CSSProperties | undefined =
@@ -128,7 +132,7 @@ export default function QuranPage({
         data-copy={glyphs ? item.word.text : undefined}
         className={`rounded ${clickable ? "cursor-pointer" : ""} ${
           selected ? "ring-2 ring-amber-400 bg-amber-500/20" : ""
-        } ${isActive(item) ? "text-amber-200" : ""} ${revealed ? REVEALED_CLASS : ""}`}
+        } ${active && !selected ? "bg-gold/20 shadow-[inset_0_-2px_0_var(--gold)]" : ""} ${revealed ? REVEALED_CLASS : ""}`}
         style={style}
         onClick={clickable ? () => (masked ? hideWords?.onReveal(key) : handleWordClick(item)) : undefined}
       >
@@ -147,7 +151,11 @@ export default function QuranPage({
 
   const renderEnd = (item: Extract<LineItem, { kind: "end" }>) =>
     glyphs ? (
-      <span key={`end-${item.ayahKey}`} className={isActive(item) ? "text-amber-200" : ""} data-copy={ayahNumberText(item.ayah)}>
+      <span
+        key={`end-${item.ayahKey}`}
+        className={isActive(item) ? "text-gold-text" : "text-gold"}
+        data-copy={ayahNumberText(item.ayah)}
+      >
         <span aria-hidden="true">{item.glyph}</span>
         <span className="sr-only">({item.ayah}) </span>
       </span>
@@ -156,10 +164,7 @@ export default function QuranPage({
     );
 
   return (
-    <div className={`mushaf ${hideWords ? "words-hidden" : ""} max-w-[40rem] mx-auto px-3 sm:px-6 py-6 text-slate-100`} dir="rtl">
-      <div className="text-center mb-3">
-        <span className="text-xs font-sans text-slate-500">Page {page.pageNumber}</span>
-      </div>
+    <div className={`mushaf ${hideWords ? "words-hidden" : ""} max-w-[40rem] mx-auto text-ink`} dir="rtl">
 
       {glyphs ? (
         <div

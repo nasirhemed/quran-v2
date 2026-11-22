@@ -86,23 +86,29 @@ export default function VoicePage({ embedded = false }: { embedded?: boolean }) 
 
   if (!support.supported) {
     return (
-      <div className={embedded ? "" : "max-w-xl mx-auto px-4 py-8"}>
-        {!embedded && <h1 className="text-xl font-semibold text-ink mb-2">Voice</h1>}
-        <p className="text-sm text-muted">
+      <div className={embedded ? "" : "max-w-xl mx-auto px-4 py-8 pb-24"}>
+        {!embedded && (
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-sans font-bold tracking-tight text-ink mb-2">Voice</h1>
+          </div>
+        )}
+        <div className="bg-card border border-edge rounded-2xl shadow-card p-5 text-sm text-muted leading-relaxed">
           Voice features need a browser with {support.missing.join(", ")}. Recent Chrome on Android or desktop works.
           Everything else in Itqān works as usual.
-        </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={embedded ? "space-y-6" : "max-w-xl mx-auto px-4 py-8 space-y-6"}>
-      <div>
-        {!embedded && <h1 className="text-xl font-semibold text-ink mb-2">Voice</h1>}
-        <p className="text-sm text-muted">
+    <div className={embedded ? "space-y-5" : "max-w-xl mx-auto px-4 py-8 pb-24 space-y-6"}>
+      <div className={!embedded ? "text-center" : undefined}>
+        {!embedded && (
+          <h1 className="text-3xl sm:text-4xl font-sans font-bold tracking-tight text-ink mb-2">Voice models</h1>
+        )}
+        <p className="text-sm text-muted leading-relaxed">
           Recite and Itqān follows along or checks your recitation afterwards. Listening happens entirely on this device:
-          your voice is never uploaded. First, download a speech model (once; it then works offline).
+          your voice is never uploaded. Download a speech model once and it works offline.
         </p>
       </div>
 
@@ -113,21 +119,27 @@ export default function VoicePage({ embedded = false }: { embedded?: boolean }) 
           const st = row?.status;
           const busy = row?.progress != null;
           const ready = st?.state === "ready";
+          const isSelected = selected === pack.id;
           return (
-            <div key={pack.id} className="bg-card border border-edge rounded-lg p-4">
+            <div
+              key={pack.id}
+              className={`bg-card border rounded-2xl shadow-card p-4 sm:p-5 transition-colors ${
+                isSelected ? "border-primary/45" : "border-edge"
+              }`}
+            >
               <div className="flex items-start gap-3">
                 <input
                   type="radio"
                   name="pack"
                   className="mt-1 accent-[var(--primary)]"
-                  checked={selected === pack.id}
+                  checked={isSelected}
                   disabled={pack.runnable === false}
                   onChange={() => choose(pack.id)}
                   aria-label={`Use ${pack.label}`}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-ink text-sm">{pack.label}</div>
-                  <p className="text-xs text-muted mt-0.5">{pack.description}</p>
+                  <p className="text-xs text-muted mt-0.5 leading-relaxed">{pack.description}</p>
                   <p className="text-xs text-faint mt-1">
                     {mb(total)} · licence {pack.license}
                     {pack.runnable === false && " · not usable yet"}
@@ -139,22 +151,36 @@ export default function VoicePage({ embedded = false }: { embedded?: boolean }) 
                           <div className="h-full bg-primary transition-[width]" style={{ width: `${(row!.progress! * 100).toFixed(1)}%` }} />
                         </div>
                         <span className="text-xs text-muted tabular-nums">{Math.floor(row!.progress! * 100)}%</span>
-                        <button onClick={() => aborts.current.get(pack.id)?.abort()} className="text-xs font-medium text-muted hover:text-ink">
+                        <button
+                          onClick={() => aborts.current.get(pack.id)?.abort()}
+                          className="px-2.5 py-1 rounded-full text-xs font-medium text-muted hover:text-ink hover:bg-card2 transition-colors"
+                        >
                           Pause
                         </button>
                       </>
                     ) : ready ? (
                       <>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-primary-soft text-primary">Downloaded</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-soft text-primary">
+                          Downloaded
+                        </span>
                         {pack.runnable !== false && (
-                          <Link href="/transcribe" className="px-3 py-1 rounded-full text-xs font-semibold bg-primary text-on-primary">
+                          <Link
+                            href="/transcribe"
+                            className="px-3.5 py-1 rounded-full text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-opacity"
+                          >
                             Try it
                           </Link>
                         )}
-                        <button onClick={() => remove(pack).then(() => download(pack))} className="text-xs font-medium text-muted hover:text-ink">
+                        <button
+                          onClick={() => remove(pack).then(() => download(pack))}
+                          className="text-xs font-medium text-muted hover:text-ink transition-colors"
+                        >
                           Re-download
                         </button>
-                        <button onClick={() => remove(pack)} className="text-xs font-medium text-red-500 hover:underline">
+                        <button
+                          onClick={() => remove(pack)}
+                          className="text-xs font-medium text-[rgb(var(--danger-rgb))] hover:underline"
+                        >
                           Delete
                         </button>
                       </>
@@ -162,23 +188,28 @@ export default function VoicePage({ embedded = false }: { embedded?: boolean }) 
                       <>
                         <button
                           onClick={() => download(pack)}
-                          className="px-3 py-1.5 rounded-full text-xs font-semibold bg-primary text-on-primary"
+                          className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-opacity"
                         >
                           {st?.state === "partial" ? `Resume (${mb(st.bytes)} of ${mb(st.total)})` : `Download ${mb(total)}`}
                         </button>
                         {st?.state === "partial" && (
-                          <button onClick={() => remove(pack)} className="text-xs font-medium text-red-500 hover:underline">
+                          <button
+                            onClick={() => remove(pack)}
+                            className="text-xs font-medium text-[rgb(var(--danger-rgb))] hover:underline"
+                          >
                             Delete
                           </button>
                         )}
                       </>
                     )}
                   </div>
-                  {row?.error && <p className="text-xs text-red-500 mt-2">{row.error}</p>}
+                  {row?.error && <p className="text-xs text-[rgb(var(--danger-rgb))] mt-2">{row.error}</p>}
                   {license[pack.id] && (
                     <details className="mt-3">
-                      <summary className="text-xs text-muted cursor-pointer">Model licence ({pack.license})</summary>
-                      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] leading-snug text-ink-soft bg-card2 rounded p-2">
+                      <summary className="text-xs text-muted cursor-pointer hover:text-ink">
+                        Model licence ({pack.license})
+                      </summary>
+                      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] leading-snug text-ink-soft bg-ground border border-edge rounded-xl p-3">
                         {license[pack.id]}
                       </pre>
                     </details>
@@ -198,7 +229,7 @@ export default function VoicePage({ embedded = false }: { embedded?: boolean }) 
         </p>
       )}
 
-      <div className="border-t border-edge pt-4 text-xs text-muted space-y-1">
+      <div className="border-t border-edge pt-4 text-xs text-muted space-y-1 leading-relaxed">
         <p>
           <span className="font-semibold text-ink-soft">Please note:</span> the feedback comes from a speech model and can be wrong.
           It is a study aid, not a religious ruling on your recitation. When in doubt, check with a teacher.

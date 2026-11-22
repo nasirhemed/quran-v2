@@ -1,11 +1,13 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useQuranPage } from "@/hooks/useQuranPage";
 import { useSidePanel } from "@/hooks/useSidePanel";
 import { useLocalPhrases } from "@/hooks/useLocalPhrases";
 import { useHiddenWords } from "@/hooks/useHiddenWords";
+import { useTheme } from "@/hooks/useTheme";
 import { fetchSurahs } from "@/lib/data";
+import { saveLastRead } from "@/lib/lastRead";
 import { useMushafPages } from "@/hooks/useMushafLayout";
 import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
@@ -18,7 +20,30 @@ import { useFollowMode } from "@/components/recitation/FollowControl";
 import { HideWordsBar, HideWordsButton } from "@/components/recitation/HideWords";
 import type { WordHighlight, LocalPhrase } from "@/types";
 
+const HIGHLIGHTS_KEY = "reader-highlights";
+function loadShowHighlights(): boolean {
+  try {
+    return localStorage.getItem(HIGHLIGHTS_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
 export default function ReaderPage() {
+  const { theme, toggle: toggleTheme } = useTheme();
+  const [showHighlights, setShowHighlights] = useState(loadShowHighlights);
+  const toggleHighlights = useCallback(() => {
+    setShowHighlights((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(HIGHLIGHTS_KEY, next ? "on" : "off");
+      } catch {
+        // private mode
+      }
+      return next;
+    });
+  }, []);
+
   const mushaf = useMushafPages();
   const pages = mushaf.data?.pages;
   const {
@@ -47,6 +72,19 @@ export default function ReaderPage() {
     currentPage,
     localPhrases.localHighlights
   );
+
+  // Remember the reader's place for HomePage's "Continue reading" card.
+  useEffect(() => {
+    if (!page) return;
+    const first = page.surahGroups[0];
+    if (!first) return;
+    saveLastRead({
+      page: page.pageNumber,
+      surah: first.surahIndex,
+      tname: first.tname,
+      juz: page.juz,
+    });
+  }, [page]);
 
   const sidePanel = useSidePanel(localPhrases.phrases);
   const hide = useHiddenWords();
@@ -134,18 +172,28 @@ export default function ReaderPage() {
     [localPhrases, sidePanel]
   );
 
+  const hasHighlights = useMemo(
+    () => Object.values(pageHighlights).some((m) => m.size > 0),
+    [pageHighlights]
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-slate-400 text-lg font-sans">Loading...</div>
+      <div className="max-w-[44rem] mx-auto px-4 py-10">
+        <div className="h-[68vh] rounded-2xl bg-card border border-edge animate-pulse" />
       </div>
     );
   }
+
+  const currentSurah = page?.surahGroups[0]?.surahIndex;
+  const surahNames = page?.surahGroups.map((g) => g.tname).join(" · ");
 
   return (
     <div className="min-h-screen">
       <NavigationBar
         currentPage={currentPage}
+        currentSurah={currentSurah}
+        currentJuz={page?.juz}
         surahs={surahs}
         juzs={juzs}
         onNavigateToPage={navigateToPage}
@@ -156,6 +204,8 @@ export default function ReaderPage() {
         editMode={localPhrases.editMode}
         onToggleEditMode={localPhrases.toggleEditMode}
         onExportImport={() => setShowExportImport(true)}
+        showHighlights={showHighlights}
+        onToggleHighlights={toggleHighlights}
         voiceControl={
           localPhrases.editMode ? null : (
             <>
@@ -167,30 +217,9 @@ export default function ReaderPage() {
         compact={follow.following}
       />
 
-      <div className="flex">
-        {/* Left sidebar - Juz and Surah info */}
-        {page && (
-          <aside className="hidden lg:block w-48 pl-4 pt-6 text-sm text-slate-400 font-sans">
-            <div className="sticky top-28">
-              <div className="mb-4">
-                <div className="text-xs text-slate-500 mb-1">Juz</div>
-                <div className="text-slate-300">{page.juz}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500 mb-1">Surah</div>
-                {page.surahGroups.map((group, idx) => (
-                  <div key={idx} className="text-slate-300 mb-1">
-                    {group.tname}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-        )}
-
-        {/* Main content */}
-        <main className={`flex-1 pb-16 ${localPhrases.selection ? "pb-28" : ""}`}>
-          {hiding && (
+      <main className={`max-w-[45rem] mx-auto px-2 sm:px-6 pt-4 sm:pt-6 pb-16 ${localPhrases.selection ? "pb-28" : ""}`}>
+        {hiding && (
+          <div className="mb-3">
             <HideWordsBar
               canFollow={follow.supported}
               following={follow.following}
@@ -198,29 +227,97 @@ export default function ReaderPage() {
               onReset={hide.reset}
               onShowAll={hide.toggle}
             />
-          )}
-          {page ? (
-            <QuranPage
-              page={page}
-              pack={mushaf.data!.layout.pack}
-              lineWidthEm={mushaf.data!.lineWidthEm}
-              highlights={pageHighlights}
-              surahs={surahs}
-              bismillah={bismillah}
-              activeAyah={activeAyah}
-              onHighlightClick={handleHighlightClick}
-              editMode={localPhrases.editMode}
-              wordSelection={localPhrases.selection}
-              onWordSelect={localPhrases.handleWordClick}
-              hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
-            />
-          ) : (
-            <div className="text-center py-20 text-slate-400">
-              Page not found
+          </div>
+        )}
+
+        {page ? (
+          <>
+            <article className="bg-card border border-edge rounded-2xl shadow-card px-3 sm:px-8 py-4 sm:py-6">
+              {/* Page header: Surah name(s), Juz, Page number, and quick Day/Night button on phones */}
+              <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-edge/80 text-xs font-sans text-muted">
+                <span className="font-semibold text-ink-soft truncate">{surahNames}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-muted tabular-nums">
+                    Juz {page.juz} · Page {page.pageNumber}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    aria-label={theme === "dark" ? "Switch to day theme" : "Switch to night theme"}
+                    title={theme === "dark" ? "Switch to day theme" : "Switch to night theme"}
+                    className="sm:hidden w-7 h-7 rounded-lg border border-edge bg-ground text-ink flex items-center justify-center hover:border-edge-strong transition-colors"
+                  >
+                    {theme === "dark" ? (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364 6.364l-1.414-1.414M7.05 7.05L5.636 5.636m12.728 0l-1.414 1.414M7.05 16.95l-1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <QuranPage
+                page={page}
+                pack={mushaf.data!.layout.pack}
+                lineWidthEm={mushaf.data!.lineWidthEm}
+                highlights={pageHighlights}
+                surahs={surahs}
+                bismillah={bismillah}
+                activeAyah={activeAyah}
+                onHighlightClick={handleHighlightClick}
+                editMode={localPhrases.editMode}
+                wordSelection={localPhrases.selection}
+                onWordSelect={localPhrases.handleWordClick}
+                hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
+                showHighlights={showHighlights}
+              />
+
+              {hasHighlights && showHighlights && !hiding && !localPhrases.editMode && (
+                <div className="mt-5 pt-3 border-t border-edge/70 text-center text-xs text-muted font-sans">
+                  Tap any highlighted phrase to compare similar verses
+                </div>
+              )}
+            </article>
+
+            {/* Bottom page-turn controls */}
+            <div className="flex items-center justify-between gap-3 mt-4 px-1">
+              <button
+                type="button"
+                onClick={prevPage}
+                disabled={currentPage <= 1}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-edge bg-card text-sm font-medium text-ink shadow-card hover:border-primary/45 hover:text-primary disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Previous</span>
+              </button>
+
+              <span className="text-xs font-medium text-muted font-sans tabular-nums">
+                Page {currentPage} of 604
+              </span>
+
+              <button
+                type="button"
+                onClick={nextPage}
+                disabled={currentPage >= 604}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-edge bg-card text-sm font-medium text-ink shadow-card hover:border-primary/45 hover:text-primary disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+              >
+                <span>Next</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
-          )}
-        </main>
-      </div>
+          </>
+        ) : (
+          <div className="text-center py-20 text-muted">Page not found</div>
+        )}
+      </main>
 
       {!localPhrases.editMode && follow.strip}
 
@@ -257,6 +354,7 @@ export default function ReaderPage() {
         currentPhrase={sidePanel.currentPhrase}
         currentSimilar={sidePanel.currentSimilar}
         currentLocalPhrase={sidePanel.currentLocalPhrase}
+        surahs={surahsMeta}
         onClose={sidePanel.close}
         onNavigate={handleSidePanelNavigate}
         onDeleteLocalPhrase={handleDeleteLocalPhrase}

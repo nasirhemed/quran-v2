@@ -1,8 +1,11 @@
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { Link } from "wouter";
 import type { SurahMeta, JuzMeta } from "@/types";
 
 interface NavigationBarProps {
   currentPage: number;
+  currentSurah?: number;
+  currentJuz?: number;
   surahs: SurahMeta[];
   juzs: JuzMeta[];
   onNavigateToPage: (page: number) => void;
@@ -13,14 +16,21 @@ interface NavigationBarProps {
   editMode?: boolean;
   onToggleEditMode?: () => void;
   onExportImport?: () => void;
+  showHighlights?: boolean;
+  onToggleHighlights?: () => void;
   /** voice Follow button (shown in the bar, never over the text) */
   voiceControl?: ReactNode;
   /** while following: on phones, fold away the Surah/Juz row to give the page more room */
   compact?: boolean;
 }
 
+const selectCls =
+  "bg-card border border-edge hover:border-edge-strong rounded-xl px-2.5 py-1.5 text-sm text-ink font-sans focus:outline-none focus:border-primary transition-colors";
+
 export default function NavigationBar({
   currentPage,
+  currentSurah,
+  currentJuz,
   surahs,
   juzs,
   onNavigateToPage,
@@ -31,32 +41,131 @@ export default function NavigationBar({
   editMode,
   onToggleEditMode,
   onExportImport,
+  showHighlights = true,
+  onToggleHighlights,
   voiceControl,
   compact,
 }: NavigationBarProps) {
-  const [pageInput, setPageInput] = useState("");
+  const [pageInput, setPageInput] = useState(String(currentPage));
+
+  useEffect(() => {
+    setPageInput(String(currentPage));
+  }, [currentPage]);
+
+  const commitPage = useCallback(
+    (raw: string) => {
+      const num = Number(raw);
+      if (Number.isInteger(num) && num >= 1 && num <= 604 && num !== currentPage) {
+        onNavigateToPage(num);
+      } else {
+        setPageInput(String(currentPage));
+      }
+    },
+    [currentPage, onNavigateToPage]
+  );
 
   const handlePageSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      const num = Number(pageInput);
-      if (num >= 1 && num <= 604) {
-        onNavigateToPage(num);
-        setPageInput("");
-      }
+      commitPage(pageInput);
+      (document.activeElement as HTMLElement | null)?.blur?.();
     },
-    [pageInput, onNavigateToPage]
+    [pageInput, commitPage]
+  );
+
+  const highlightsBtn = !editMode && onToggleHighlights && (
+    <button
+      type="button"
+      onClick={onToggleHighlights}
+      aria-pressed={showHighlights}
+      title={showHighlights ? "Hide Mutashabihat highlights for plain reading" : "Show Mutashabihat highlights"}
+      aria-label={showHighlights ? "Hide highlights" : "Show highlights"}
+      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 h-9 rounded-full text-xs font-semibold border transition-colors font-sans ${
+        showHighlights
+          ? "border-primary/40 bg-primary-soft text-primary hover:bg-primary/15"
+          : "border-edge bg-card text-muted hover:text-ink hover:border-edge-strong"
+      }`}
+    >
+      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+        />
+      </svg>
+      <span className="hidden lg:inline">{showHighlights ? "Highlights" : "Plain"}</span>
+    </button>
+  );
+
+  const pager = (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={onPrevPage}
+        disabled={currentPage <= 1}
+        aria-label="Previous page"
+        title="Previous page (Right arrow)"
+        className="w-8 h-8 flex items-center justify-center bg-card border border-edge rounded-xl text-ink hover:bg-card2 hover:border-edge-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+
+      <form onSubmit={handlePageSubmit} className="flex items-center gap-1 bg-card border border-edge rounded-xl px-2 h-8">
+        <span className="text-xs text-muted font-sans hidden sm:inline">Page</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={604}
+          aria-label="Page number"
+          value={pageInput}
+          onChange={(e) => setPageInput(e.target.value)}
+          onBlur={() => commitPage(pageInput)}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-10 bg-transparent text-sm font-semibold text-ink text-center font-sans tabular-nums focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <span className="text-xs text-faint font-sans tabular-nums">/ 604</span>
+      </form>
+
+      <button
+        type="button"
+        onClick={onNextPage}
+        disabled={currentPage >= 604}
+        aria-label="Next page"
+        title="Next page (Left arrow)"
+        className="w-8 h-8 flex items-center justify-center bg-card border border-edge rounded-xl text-ink hover:bg-card2 hover:border-edge-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
   );
 
   return (
-    <nav data-sticky-top className="sticky top-14 z-20 bg-surface-light/95 backdrop-blur border-b border-slate-700">
+    <nav data-sticky-top className="sticky top-14 z-20 bg-ground/92 backdrop-blur-md border-b border-edge">
       {/* Desktop navigation */}
-      <div className="hidden md:flex max-w-7xl mx-auto px-4 py-3 items-center justify-between gap-4">
-        {/* Left side - Surah and Juz selectors */}
-        <div className="flex items-center gap-2">
+      <div className="hidden md:flex max-w-6xl mx-auto px-4 py-2.5 items-center justify-between gap-3">
+        {/* Left side - Back + Surah and Juz selectors */}
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            href="/"
+            title="All surahs"
+            aria-label="Back to surah list"
+            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl border border-edge bg-card text-muted hover:text-ink hover:border-edge-strong transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+
           <select
-            className="bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
-            value=""
+            aria-label="Select surah"
+            className={`${selectCls} max-w-[190px] truncate`}
+            value={currentSurah ?? ""}
             onChange={(e) => onNavigateToSurah(Number(e.target.value))}
           >
             <option value="" disabled>
@@ -70,8 +179,9 @@ export default function NavigationBar({
           </select>
 
           <select
-            className="bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
-            value=""
+            aria-label="Select juz"
+            className={selectCls}
+            value={currentJuz ?? ""}
             onChange={(e) => onNavigateToJuz(Number(e.target.value))}
           >
             <option value="" disabled>
@@ -86,78 +196,17 @@ export default function NavigationBar({
         </div>
 
         {/* Center - Page navigation */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onPrevPage}
-            disabled={currentPage <= 1}
-            className="w-8 h-8 flex items-center justify-center bg-surface border border-slate-600 rounded hover:bg-surface-lighter disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <svg
-              className="w-4 h-4 text-slate-200"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
+        {pager}
 
-          <span className="text-sm text-slate-300 font-sans min-w-[100px] text-center">
-            Page <span className="font-medium">{currentPage}</span> / 604
-          </span>
-
-          <button
-            onClick={onNextPage}
-            disabled={currentPage >= 604}
-            className="w-8 h-8 flex items-center justify-center bg-surface border border-slate-600 rounded hover:bg-surface-lighter disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <svg
-              className="w-4 h-4 text-slate-200"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-        </div>
-
-        {/* Right side - Jump to + edit controls */}
-        <div className="flex items-center gap-3">
+        {/* Right side - Highlights + Voice/Hide + Edit controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {highlightsBtn}
           {voiceControl}
-          <form onSubmit={handlePageSubmit} className="flex items-center gap-2">
-            <span className="text-sm text-slate-400 font-sans">Jump to</span>
-            <input
-              type="number"
-              min={1}
-              max={604}
-              placeholder={String(currentPage)}
-              value={pageInput}
-              onChange={(e) => setPageInput(e.target.value)}
-              className="w-16 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 text-center font-sans focus:outline-none focus:border-amber-500"
-            />
-            <button
-              type="submit"
-              className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded text-sm font-sans transition-colors"
-            >
-              Go
-            </button>
-          </form>
 
           {editMode && onExportImport && (
             <button
               onClick={onExportImport}
-              className="px-2 py-1.5 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors font-sans"
+              className="px-3 h-9 rounded-full text-xs font-medium bg-card border border-edge hover:border-edge-strong text-ink transition-colors font-sans"
             >
               Export/Import
             </button>
@@ -165,25 +214,37 @@ export default function NavigationBar({
           {onToggleEditMode && (
             <button
               onClick={onToggleEditMode}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors font-sans ${
+              title={editMode ? "Finish editing custom phrases" : "Highlight and save your own similar phrases"}
+              className={`px-3 h-9 rounded-full text-xs font-semibold transition-colors font-sans border ${
                 editMode
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-amber-500/30"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  ? "bg-gold/15 text-gold-text border-gold/50 hover:bg-gold/25"
+                  : "bg-card border-edge text-muted hover:text-ink hover:border-edge-strong"
               }`}
             >
-              {editMode ? "Exit Edit" : "Edit"}
+              {editMode ? "Done editing" : "Edit"}
             </button>
           )}
         </div>
       </div>
 
       {/* Mobile navigation */}
-      <div className="md:hidden px-4 py-3 space-y-3">
-        {/* Top row - Surah and Juz selectors (and Follow); folded away while following */}
-        <div className={`flex items-center gap-2 ${compact ? "hidden" : ""}`}>
+      <div className="md:hidden px-3 py-2 space-y-2">
+        {/* Top row - Surah and Juz selectors; folded away while following */}
+        <div className={`flex items-center gap-1.5 ${compact ? "hidden" : ""}`}>
+          <Link
+            href="/"
+            aria-label="Back to surah list"
+            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl border border-edge bg-card text-muted hover:text-ink transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+
           <select
-            className="flex-1 min-w-0 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
-            value=""
+            aria-label="Select surah"
+            className={`flex-1 min-w-0 ${selectCls} py-1 text-[13px]`}
+            value={currentSurah ?? ""}
             onChange={(e) => onNavigateToSurah(Number(e.target.value))}
           >
             <option value="" disabled>
@@ -197,8 +258,9 @@ export default function NavigationBar({
           </select>
 
           <select
-            className="flex-1 min-w-0 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 font-sans focus:outline-none focus:border-amber-500"
-            value=""
+            aria-label="Select juz"
+            className={`w-[5.25rem] shrink-0 ${selectCls} py-1 text-[13px]`}
+            value={currentJuz ?? ""}
             onChange={(e) => onNavigateToJuz(Number(e.target.value))}
           >
             <option value="" disabled>
@@ -210,77 +272,15 @@ export default function NavigationBar({
               </option>
             ))}
           </select>
-
-          {voiceControl}
         </div>
 
-        {/* Bottom row - Page navigation and jump */}
-        <div className="flex items-center justify-between gap-3">
-          {/* Page navigation */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onPrevPage}
-              disabled={currentPage <= 1}
-              className="w-9 h-9 flex items-center justify-center bg-surface border border-slate-600 rounded hover:bg-surface-lighter disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg
-                className="w-4 h-4 text-slate-200"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-
-            <span className="text-sm text-slate-300 font-sans whitespace-nowrap">
-              <span className="font-medium">{currentPage}</span> / 604
-            </span>
-
-            <button
-              onClick={onNextPage}
-              disabled={currentPage >= 604}
-              className="w-9 h-9 flex items-center justify-center bg-surface border border-slate-600 rounded hover:bg-surface-lighter disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg
-                className="w-4 h-4 text-slate-200"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
+        {/* Bottom row - Pager and highlights/voice/hide tools */}
+        <div className="flex items-center justify-between gap-2">
+          {pager}
+          <div className="flex items-center gap-1.5">
+            {highlightsBtn}
+            {voiceControl}
           </div>
-
-          {/* Jump to */}
-          <form onSubmit={handlePageSubmit} className="flex items-center gap-2">
-            <input
-              type="number"
-              min={1}
-              max={604}
-              placeholder={String(currentPage)}
-              value={pageInput}
-              onChange={(e) => setPageInput(e.target.value)}
-              className="w-14 bg-surface border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 text-center font-sans focus:outline-none focus:border-amber-500"
-            />
-            <button
-              type="submit"
-              className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded text-sm font-sans transition-colors"
-            >
-              Go
-            </button>
-          </form>
         </div>
       </div>
     </nav>

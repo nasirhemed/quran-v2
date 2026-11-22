@@ -12,6 +12,7 @@ import {
   MATCH_COLOR,
   OccurrenceRow,
   VerseText,
+  phraseBorderColor,
   phraseColor,
   phraseHref,
   phraseMarks,
@@ -43,17 +44,24 @@ function PhraseBlock({
   const shown = showAll ? others : others.slice(0, PREVIEW);
 
   return (
-    <div className="rounded-xl border border-edge bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className="w-3 h-3 rounded-full shrink-0" style={{ background: phraseColor(n) }} />
-        <span className="text-xs text-faint">
+    <div className="rounded-2xl border border-edge bg-card shadow-card p-4 sm:p-5">
+      <div className="flex flex-wrap items-center gap-2 mb-3.5">
+        <span
+          className="w-3 h-3 rounded-full shrink-0"
+          style={{ background: phraseBorderColor(n) }}
+          aria-hidden
+        />
+        <span className="text-xs font-medium text-muted">
           {phrase.occurrences.length} verses · {phrase.surahCount} {phrase.surahCount === 1 ? "surah" : "surahs"}
         </span>
-        <BrowseLink href={phraseHref(phrase.id)} className="text-xs text-muted hover:text-primary">
+        <BrowseLink
+          href={phraseHref(phrase.id)}
+          className="text-xs font-semibold text-primary hover:underline"
+        >
           All occurrences ›
         </BrowseLink>
         <span dir="rtl" lang="ar" className="ml-auto font-quran text-xl text-ink">
-          <span className="rounded-sm px-1" style={{ background: phraseColor(n) }}>
+          <span className="rounded-md px-1.5 py-0.5" style={{ background: phraseColor(n) }}>
             {phrase.text}
           </span>
         </span>
@@ -74,7 +82,7 @@ function PhraseBlock({
       {others.length > PREVIEW && (
         <button
           onClick={() => setShowAll((v) => !v)}
-          className="mt-2 text-sm text-muted hover:text-primary"
+          className="mt-3 text-sm font-medium text-primary hover:underline"
         >
           {showAll ? "Show fewer" : `Show all ${others.length} other verses`}
         </button>
@@ -99,7 +107,7 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
   const prev = [...index.matched].reverse().find((v) => compareKeys(v, verse) < 0);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       <Breadcrumbs
         items={[
           { label: "Browse", href: "/browse" },
@@ -108,14 +116,14 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
         ]}
       />
 
-      <div className="rounded-xl border border-edge bg-surface p-5 mb-8">
-        <div className="flex flex-wrap items-center gap-3 mb-3 text-sm">
+      <div className="rounded-2xl border border-edge bg-card shadow-card p-5 sm:p-6 mb-8">
+        <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
           <span className="font-semibold text-ink">
-            {tname} {key}
+            {tname} <span className="text-primary">{key}</span>
           </span>
           <Link
             href={readerHref(key)}
-            className="ml-auto px-3 py-1 rounded-full border border-edge text-muted hover:text-primary hover:border-primary transition-colors"
+            className="ml-auto px-3.5 py-1.5 rounded-full border border-primary/30 bg-primary-soft text-primary font-semibold text-xs hover:bg-primary hover:text-on-primary transition-colors"
           >
             Open in reader
           </Link>
@@ -123,18 +131,18 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
         <VerseText
           words={verse.hafs}
           marks={phraseMarks(verse)}
-          className="font-quran text-2xl leading-[2.2] text-ink"
+          className="font-quran text-2xl sm:text-[1.75rem] leading-[2.25] text-ink"
         />
-        <div className="flex items-center justify-between mt-4 text-sm">
+        <div className="flex items-center justify-between mt-5 pt-3.5 border-t border-edge/70 text-sm">
           {prev ? (
-            <BrowseLink href={verseHref(prev.key)} className="text-muted hover:text-primary">
+            <BrowseLink href={verseHref(prev.key)} className="text-muted hover:text-primary font-medium transition-colors">
               ‹ Previous ({prev.key})
             </BrowseLink>
           ) : (
             <span />
           )}
           {next && (
-            <BrowseLink href={verseHref(next.key)} className="text-muted hover:text-primary">
+            <BrowseLink href={verseHref(next.key)} className="text-muted hover:text-primary font-medium transition-colors">
               Next ({next.key}) ›
             </BrowseLink>
           )}
@@ -142,9 +150,9 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
       </div>
 
       {verse.phrases.length === 0 && verse.similar.length === 0 && (
-        <div className="text-center py-10 text-muted text-sm">
+        <div className="bg-card border border-edge rounded-2xl shadow-card text-center py-10 px-4 text-muted text-sm">
           No similar phrases or verses are recorded for this verse.{" "}
-          <Link href={readerHref(key)} className="text-primary hover:underline">
+          <Link href={readerHref(key)} className="text-primary font-semibold hover:underline">
             Read it in the mushaf
           </Link>
         </div>
@@ -153,10 +161,10 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
       {verse.phrases.length > 0 && (
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-ink mb-1">Similar phrases</h2>
-          <p className="text-xs text-faint mb-3">
+          <p className="text-xs text-muted mb-3.5">
             Phrases of this verse that recur elsewhere, with the other verses they appear in.
           </p>
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             {verse.phrases.map((vp, n) => (
               <PhraseBlock key={vp.id} vp={vp} n={n} verse={verse} index={index} surahs={surahs} />
             ))}
@@ -167,8 +175,8 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
       {verse.similar.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-ink mb-1">Similar verses</h2>
-          <p className="text-xs text-faint mb-3">Verses worded much like this one, closest first.</p>
-          <div className="space-y-2">
+          <p className="text-xs text-muted mb-3.5">Verses worded much like this one, closest first.</p>
+          <div className="bg-card border border-edge rounded-2xl shadow-card p-3 sm:p-4 space-y-2.5">
             {verse.similar.map((s) => {
               const other = index.verses.get(s.key)!;
               return (
@@ -178,7 +186,7 @@ export default function BrowseVersePage({ surah, ayah }: { surah: number; ayah: 
                   label={`${s.key} · ${surahTname(surahs, other.surah)}`}
                   marks={[{ ranges: s.ranges, color: MATCH_COLOR }]}
                   badge={
-                    <span className="text-faint">
+                    <span className="px-2 py-0.5 rounded-full bg-card2 text-ink-soft font-medium">
                       {s.score}% match · {s.words} {s.words === 1 ? "word" : "words"}
                     </span>
                   }

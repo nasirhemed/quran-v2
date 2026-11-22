@@ -71,18 +71,21 @@ function Field({ label, hint, children }: { label: string; hint?: ReactNode; chi
   );
 }
 
-const selectClass = "min-w-0 bg-card2 border border-edge rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary";
+const selectClass =
+  "min-w-0 bg-ground border border-edge rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all";
 
 function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="inline-flex flex-wrap rounded-lg border border-edge bg-card2 p-0.5" role="radiogroup" aria-label={label}>
+    <div className="inline-flex flex-wrap rounded-xl border border-edge bg-card2 p-1 gap-0.5" role="radiogroup" aria-label={label}>
       {options.map((o) => (
         <button
           key={o.value}
           role="radio"
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`px-3 py-1.5 rounded-md text-sm transition-colors ${value === o.value ? "bg-primary text-on-primary font-semibold" : "text-muted hover:text-ink"}`}
+          className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+            value === o.value ? "bg-primary text-on-primary font-semibold shadow-sm" : "text-muted hover:text-ink"
+          }`}
         >
           {o.label}
         </button>
@@ -92,8 +95,10 @@ function Segmented<T extends string | number>({ label, options, value, onChange 
 }
 
 function VersePicker({ label, value, onChange, names, ayas }: { label: string; value: Verse; onChange: (v: Verse) => void; names: string[]; ayas: number[] }) {
+  const maxAyah = ayas[value.s - 1] ?? 1;
   return (
-    <div className="flex gap-2">
+    <div className="flex items-center gap-2">
+      <span className="w-10 text-xs font-medium text-muted shrink-0">{label}</span>
       <select className={`${selectClass} flex-1`} value={value.s} onChange={(e) => onChange({ s: Number(e.target.value), a: 1 })} aria-label={`${label} surah`}>
         {names.map((n, i) => (
           <option key={i} value={i + 1}>
@@ -101,38 +106,49 @@ function VersePicker({ label, value, onChange, names, ayas }: { label: string; v
           </option>
         ))}
       </select>
-      <input
-        type="number"
-        min={1}
-        max={ayas[value.s - 1] ?? 1}
-        value={value.a}
-        onChange={(e) => onChange({ ...value, a: Number(e.target.value) })}
-        className={`${selectClass} w-20`}
-        aria-label={`${label} verse`}
-      />
+      <div className="flex items-center bg-ground border border-edge rounded-xl px-2.5 py-1.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 transition-all shrink-0">
+        <span className="text-[11px] text-faint mr-1.5">Ayah</span>
+        <input
+          type="number"
+          min={1}
+          max={maxAyah}
+          value={value.a}
+          onChange={(e) => onChange({ ...value, a: Number(e.target.value) })}
+          className="w-11 bg-transparent text-sm text-ink text-center tabular-nums focus:outline-none"
+          aria-label={`${label} verse`}
+        />
+        <span className="text-[11px] text-faint tabular-nums">/ {maxAyah}</span>
+      </div>
     </div>
   );
 }
 
 function ModeCard({ on, onClick, title, hint }: { on: boolean; onClick: () => void; title: string; hint: string }) {
   return (
-    <button role="radio" aria-checked={on} onClick={onClick} className={`text-left rounded-xl border-[1.5px] p-3 transition-colors ${on ? "border-primary bg-primary-soft" : "border-edge hover:border-edge-strong"}`}>
-      <span className="block text-[15px] font-semibold text-ink">{title}</span>
+    <button
+      role="radio"
+      aria-checked={on}
+      onClick={onClick}
+      className={`text-left rounded-xl border-[1.5px] p-3.5 transition-all ${
+        on ? "border-primary bg-primary-soft shadow-sm" : "border-edge bg-ground/60 hover:border-edge-strong hover:bg-card2/50"
+      }`}
+    >
+      <span className={`block text-[15px] font-semibold ${on ? "text-primary" : "text-ink"}`}>{title}</span>
       <span className="block text-xs text-muted mt-0.5">{hint}</span>
     </button>
   );
 }
 
 function Counter({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
-  const btn = "w-10 h-9 text-xl text-primary disabled:text-faint";
+  const btn = "w-9 h-9 text-lg text-primary hover:bg-card2 rounded-lg transition-colors disabled:text-faint disabled:hover:bg-transparent";
   return (
     <div className="flex items-center justify-between py-2.5">
       <span className="text-[15px] text-ink">{label}</span>
-      <div className="flex items-center rounded-lg border border-edge bg-card2" role="group" aria-label={label}>
+      <div className="flex items-center rounded-xl border border-edge bg-ground p-0.5" role="group" aria-label={label}>
         <button className={btn} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Fewer: ${label}`}>
           −
         </button>
-        <span className="min-w-9 text-center font-semibold tabular-nums" aria-live="polite">
+        <span className="min-w-10 text-center text-sm font-semibold tabular-nums" aria-live="polite">
           {value}×
         </span>
         <button className={btn} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label={`More: ${label}`}>
@@ -145,11 +161,9 @@ function Counter({ label, value, min, max, onChange }: { label: string; value: n
 
 function Check({ checked, onChange, title }: { checked: boolean; onChange: (v: boolean) => void; title: string }) {
   return (
-    <label className="flex items-start gap-2 text-sm text-ink cursor-pointer">
-      <input type="checkbox" className="mt-1" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span>
-        {title}
-      </span>
+    <label className="flex items-start gap-2.5 text-sm text-ink cursor-pointer">
+      <input type="checkbox" className="mt-1 accent-[var(--primary)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>{title}</span>
     </label>
   );
 }
@@ -205,7 +219,7 @@ export default function MemorizePage() {
   // you always listen first (listen ×1, then you, then reciter → you: the same order as before the redesign)
   const plan = justListen ? { listen: settings.listenTimes, reps: 0, inRow: 1 } : { listen: 1, reps: settings.reps, inRow: settings.inRow };
   const summary = [
-    `speed ${settings.speed}×`,
+    `Speed ${settings.speed}×`,
     ...(justListen ? [] : useModel ? [settings.hintAfterMs ? `hints after ${settings.hintAfterMs / 1000} s` : "no hints"] : [`ends after ${settings.endSilenceMs / 1000} s quiet`]),
     ...(!justListen && settings.hideOnMyTurn ? ["hidden"] : []),
   ].join(" · ");
@@ -243,17 +257,29 @@ export default function MemorizePage() {
     }
   };
 
+  const fromSurahMax = ayas[settings.from.s - 1] ?? 1;
+  const isWholeSurah =
+    settings.from.a === 1 && settings.to.s === settings.from.s && settings.to.a === fromSurahMax;
+
   return (
     <>
-      <div className="max-w-xl mx-auto px-4 py-5 space-y-4">
+      <div className="max-w-xl mx-auto px-4 py-8 pb-24 space-y-4">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl sm:text-4xl font-sans font-bold tracking-tight text-ink mb-2">Memorize</h1>
+          <p className="text-muted text-sm max-w-md mx-auto">
+            Listen to a reciter, recite back verse by verse, and build steady recall at your own pace.
+          </p>
+        </div>
 
         {(state.phase === "done" || (state.phase === "idle" && state.turns > 0)) && (
-          <div className="bg-card border border-edge rounded-xl p-5 text-center space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted">{state.phase === "done" ? "Session complete" : "Session stopped"}</div>
-            <div className="text-ink">
+          <div className="bg-card border border-edge rounded-2xl shadow-card p-5 text-center space-y-2">
+            <div className="inline-flex items-center px-3 py-0.5 rounded-full bg-primary-soft text-primary text-xs font-semibold uppercase tracking-wider">
+              {state.phase === "done" ? "Session complete" : "Session stopped"}
+            </div>
+            <div className="text-ink font-medium">
               {state.turns} turn{state.turns === 1 ? "" : "s"}
-            {state.modelTurns > 0 && ` · ${state.completed} of ${state.modelTurns} recited to the end`}
-            {state.hints > 0 && ` · ${state.hints} hint${state.hints === 1 ? "" : "s"}`}
+              {state.modelTurns > 0 && ` · ${state.completed} of ${state.modelTurns} recited to the end`}
+              {state.hints > 0 && ` · ${state.hints} hint${state.hints === 1 ? "" : "s"}`}
             </div>
             <button onClick={() => void copyLog()} className="text-xs text-muted underline hover:text-ink">
               {copied ? "Copied" : "Copy the session log"}
@@ -261,7 +287,7 @@ export default function MemorizePage() {
           </div>
         )}
         {state.phase === "error" && (
-          <div className="bg-card border border-edge rounded-xl p-5 text-sm text-red-400 space-y-2">
+          <div className="bg-card border border-[rgb(var(--danger-rgb)/0.4)] rounded-2xl shadow-card p-5 text-sm text-[rgb(var(--danger-rgb))] space-y-2">
             <p>{state.message}</p>
             <button onClick={() => void copyLog()} className="text-xs text-muted underline hover:text-ink">
               {copied ? "Copied" : "Copy the session log"}
@@ -269,20 +295,45 @@ export default function MemorizePage() {
           </div>
         )}
 
-        <div className="bg-card border border-edge rounded-xl p-4 space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">Verses</div>
-          <VersePicker label="From" value={settings.from} onChange={(from) => set({ from, to: from.s > settings.to.s ? { s: from.s, a: ayas[from.s - 1] ?? 1 } : settings.to })} names={names} ayas={ayas} />
-          <div className="text-center text-xs text-faint">to</div>
+        <div className="bg-card border border-edge rounded-2xl shadow-card p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted">Verses</div>
+            {ayas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => set({ from: { s: settings.from.s, a: 1 }, to: { s: settings.from.s, a: fromSurahMax } })}
+                disabled={isWholeSurah}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  isWholeSurah
+                    ? "border-primary/30 bg-primary-soft text-primary"
+                    : "border-edge bg-ground text-muted hover:text-primary hover:border-primary/40"
+                }`}
+              >
+                {isWholeSurah ? "Whole surah selected" : "Whole surah"}
+              </button>
+            )}
+          </div>
+          <VersePicker
+            label="From"
+            value={settings.from}
+            onChange={(from) =>
+              set({ from, to: from.s > settings.to.s ? { s: from.s, a: ayas[from.s - 1] ?? 1 } : settings.to })
+            }
+            names={names}
+            ayas={ayas}
+          />
           <VersePicker label="To" value={settings.to} onChange={(to) => set({ to })} names={names} ayas={ayas} />
-          {!verses.length && ayas.length > 0 && <p className="text-xs text-muted">Pick a range that ends after it starts.</p>}
+          {!verses.length && ayas.length > 0 && (
+            <p className="text-xs text-[rgb(var(--danger-rgb))]">Pick a range that ends after it starts.</p>
+          )}
         </div>
 
-        <div className="bg-card border border-edge rounded-xl p-4">
+        <div className="bg-card border border-edge rounded-2xl shadow-card p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="Mode">
             <ModeCard on={!justListen} onClick={() => set({ mode: "recite" })} title="Listen & recite" hint="Hear it, say it back" />
             <ModeCard on={justListen} onClick={() => set({ mode: "listen" })} title="Just listen" hint="Hear it, then move on" />
           </div>
-          <div className="mt-2 divide-y divide-edge">
+          <div className="mt-3 divide-y divide-edge">
             {justListen ? (
               <Counter label="Listen to each verse" value={settings.listenTimes} min={1} max={20} onChange={(listenTimes) => set({ listenTimes })} />
             ) : (
@@ -294,7 +345,7 @@ export default function MemorizePage() {
           </div>
           <div className="flex items-center justify-between gap-3 py-2.5 border-t border-edge">
             <span className="text-[15px] text-ink">Reciter</span>
-            <select className={`${selectClass} max-w-[60%]`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })} aria-label="Reciter">
+            <select className={`${selectClass} max-w-[65%]`} value={settings.reciterId} onChange={(e) => set({ reciterId: e.target.value })} aria-label="Reciter">
               {RECITERS.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -302,30 +353,37 @@ export default function MemorizePage() {
               ))}
             </select>
           </div>
-          {reciter.hosted && !missing.length && <p className="text-xs text-muted -mt-1">Only {reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far.</p>}
+          {reciter.hosted && !missing.length && (
+            <p className="text-xs text-muted -mt-1 pb-1">Only {reciter.hosted.surahs.map((s) => names[s - 1] ?? s).join(", ")} so far.</p>
+          )}
           {!justListen && availability && !useModel && (
-            <p className="text-sm text-ink bg-card2 border border-edge rounded-lg px-3 py-2 mt-1 mb-2">
-              {availability.state === "no-model" ? (
-                <>
-                  The speech model isn't on this device, so your words won't show as you recite.{" "}
-                  <Link href="/voice" className="underline text-primary">
-                    Download it
-                  </Link>
-                </>
-              ) : availability.state === "unsupported" ? (
-                "This browser can't run the speech model, so your words won't show as you recite."
-              ) : (
-                <>
-                  The speech model is off, so your words won't show as you recite.{" "}
-                  <button className="underline text-primary" onClick={() => set({ useModel: true })}>
-                    Turn it on
-                  </button>
-                </>
-              )}
-            </p>
+            <div className="flex items-start gap-2.5 text-xs text-ink-soft bg-ground border border-edge rounded-xl px-3.5 py-2.5 mt-2">
+              <svg className="w-4 h-4 text-gold shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="leading-relaxed">
+                {availability.state === "no-model" ? (
+                  <>
+                    No speech model downloaded yet — your turn will advance after a quiet pause instead of following word by word.{" "}
+                    <Link href="/voice" className="font-semibold text-primary hover:underline">
+                      Download model →
+                    </Link>
+                  </>
+                ) : availability.state === "unsupported" ? (
+                  "This browser can't run the on-device speech model, so your turn advances after a quiet pause."
+                ) : (
+                  <>
+                    Speech model is turned off, so words won't appear as you recite.{" "}
+                    <button className="font-semibold text-primary hover:underline" onClick={() => set({ useModel: true })}>
+                      Turn it on
+                    </button>
+                  </>
+                )}
+              </p>
+            </div>
           )}
           {!justListen && settings.inRow > 1 && (
-            <p className="text-xs text-muted mt-1">
+            <p className="text-xs text-muted mt-2">
               Listen, then recite {settings.inRow}× · {recitations(settings)} recitations of each verse
             </p>
           )}
@@ -338,12 +396,12 @@ export default function MemorizePage() {
         )}
 
         <details className="group">
-          <summary className="flex items-center gap-2 px-1 py-1 text-sm text-muted cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <summary className="flex items-center gap-2 bg-card border border-edge rounded-2xl shadow-card px-4 py-3 text-sm text-muted hover:border-primary/40 cursor-pointer transition-colors list-none [&::-webkit-details-marker]:hidden">
             <span className="flex-1 min-w-0 truncate">{summary}</span>
-            <span className="text-ink group-open:hidden">Edit ›</span>
-            <span className="text-ink hidden group-open:inline">Done</span>
+            <span className="text-xs font-semibold text-primary group-open:hidden">Adjust ›</span>
+            <span className="text-xs font-semibold text-primary hidden group-open:inline">Done</span>
           </summary>
-          <div className="bg-card border border-edge rounded-xl p-4 mt-2 space-y-4">
+          <div className="bg-card border border-edge rounded-2xl shadow-card p-4 sm:p-5 mt-2 space-y-4">
             <Field label="Speed">
               <Segmented label="Speed" value={settings.speed} onChange={(speed) => set({ speed })} options={SPEEDS.map((v) => ({ value: v, label: `${v}×` }))} />
             </Field>
@@ -358,7 +416,7 @@ export default function MemorizePage() {
                   {availability?.state === "no-model" && (
                     <p className="text-xs text-muted mb-3">
                       Get the speech model in{" "}
-                      <Link href="/voice" className="underline hover:text-ink">
+                      <Link href="/voice" className="text-primary font-medium hover:underline">
                         voice settings
                       </Link>{" "}
                       to move on when you finish and get hints. Until then your turn ends when you stop.
@@ -393,7 +451,7 @@ export default function MemorizePage() {
         <button
           disabled={!verses.length || missing.length > 0 || active}
           onClick={start}
-          className="w-full bg-primary text-on-primary rounded-xl px-4 py-3.5 text-base font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="w-full bg-primary text-on-primary rounded-2xl px-4 py-3.5 text-base font-semibold shadow-card hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {verses.length ? `Start · ${verses.length} verse${verses.length > 1 ? "s" : ""}` : "Start"}
         </button>

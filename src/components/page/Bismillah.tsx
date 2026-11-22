@@ -20,11 +20,10 @@ export default function Bismillah({ glyphs, fontFamily }: BismillahProps) {
     );
   }
   return (
-    <div
-      className="w-full text-center font-arabic text-2xl text-slate-300 my-4 py-3 px-6 rounded-lg border border-slate-700 leading-loose"
-      dir="rtl"
-    >
-      {BISMILLAH}
+    <div className="w-full my-4 flex items-center justify-center gap-4" dir="rtl">
+      <span className="h-px flex-1 max-w-[4.5rem] bg-gold/60" aria-hidden />
+      <span className="font-quran text-2xl sm:text-[1.75rem] text-ink leading-loose">{BISMILLAH}</span>
+      <span className="h-px flex-1 max-w-[4.5rem] bg-gold/60" aria-hidden />
     </div>
   );
 }
