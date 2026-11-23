@@ -10,6 +10,7 @@ import { saveLastRead } from "@/lib/lastRead";
 import { useMushafPages } from "@/hooks/useMushafLayout";
 import { usePageSpread } from "@/hooks/usePageSpread";
 import { useSpreadFit } from "@/hooks/useSpreadFit";
+import { useSwipePages } from "@/hooks/useSwipePages";
 import { spreadOf } from "@/lib/mushaf/spread";
 import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
@@ -152,6 +153,10 @@ export default function ReaderPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dialogPhrase, setDialogPhrase] = useState<LocalPhrase | null>(null);
   const [showExportImport, setShowExportImport] = useState(false);
+
+  // Swipe right for the next page (spread), left for the previous, as the arrow keys; not under a dialog.
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
+  useSwipePages(mainEl, { onNext: nextPage, onPrev: prevPage, enabled: !showAddDialog && !showExportImport });
 
   const handleHighlightClick = useCallback(
     (highlight: WordHighlight) => {
@@ -301,6 +306,7 @@ export default function ReaderPage() {
       />
 
       <main
+        ref={setMainEl}
         className={`reader-main relative flex-1 flex flex-col items-center justify-between px-1.5 sm:px-6 pt-0.5 pb-0.5 ${
           showingFollowStrip
             ? "pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
