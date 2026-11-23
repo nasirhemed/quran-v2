@@ -233,28 +233,39 @@
   box-shadow: var(--shadow-card-hover);
 }
 
+/* Reader top-bar chrome budget: on phones (<640px) AppShell's tab bar hides on /read so the mushaf fills the screen. */
+.reader-main {
+  --shell-chrome: 42px;
+}
+@media (min-width: 640px) {
+  .reader-main {
+    --shell-chrome: 94px;
+  }
+}
+
 /* A mushaf page drawn from QCF glyphs (components/page/QuranPage.tsx).
-   The column width scales proportionally to fit all 15 lines (15 × 1.78em = 26.7em) inside one viewport
+   The column width scales proportionally to fit all 15 lines (15 × 1.72em = 25.8em) inside one viewport
    height (100dvh minus reader chrome), while never overflowing the viewport width or shrinking below a
-   comfortable minimum glyph size (--mushaf-min-font: 17.5px; shorter screens like landscape phones keep
+   comfortable minimum glyph size (--mushaf-min-font: 20px; shorter screens like landscape phones keep
    legible text and scroll naturally). Pages 1–2 (8 lines) use the same 15-line scale so their typography
    matches the rest of the mushaf. */
 .mushaf {
   container-type: inline-size;
+  --reader-chrome: calc(var(--shell-chrome, 94px) + var(--reader-extra-chrome, 32px));
   width: min(
     100%,
     44rem,
     max(
-      calc((100vh - var(--reader-chrome, 140px)) * var(--line-em, 16.3) / 26.7),
-      calc(var(--line-em, 16.3) * var(--mushaf-min-font, 18px))
+      calc((100vh - var(--reader-chrome)) * var(--line-em, 16.3) / 25.8),
+      calc(var(--line-em, 16.3) * var(--mushaf-min-font, 20px))
     )
   );
   width: min(
     100%,
     44rem,
     max(
-      calc((100dvh - var(--reader-chrome, 140px)) * var(--line-em, 16.3) / 26.7),
-      calc(var(--line-em, 16.3) * var(--mushaf-min-font, 18px))
+      calc((100dvh - var(--reader-chrome)) * var(--line-em, 16.3) / 25.8),
+      calc(var(--line-em, 16.3) * var(--mushaf-min-font, 20px))
     )
   );
 }
@@ -262,7 +273,7 @@
    stop shrinking and keep a generous, legible reading width that scrolls naturally. */
 @media (max-height: 580px) {
   .mushaf {
-    width: min(100%, 26rem);
+    width: min(100%, 28rem);
   }
 }
 .mushaf-glyphs {
@@ -272,8 +283,8 @@
   display: flex;
   align-items: baseline;
   white-space: nowrap;
-  height: 1.78em;
-  line-height: 1.78em;
+  height: 1.72em;
+  line-height: 1.72em;
 }
 /* Fallback Unicode rendering (when page fonts aren't available): scale cleanly with the fitted column too. */
 .mushaf-unicode {

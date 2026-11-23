@@ -36,7 +36,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={`min-h-[100dvh] flex flex-col text-ink ${isReader ? "bg-card" : "bg-ground"}`}>
-      <header data-sticky-top className="sticky top-0 z-40 h-12 bg-card/95 backdrop-blur-md border-b border-edge/70">
+      <header
+        data-sticky-top
+        className={`${isReader ? "hidden sm:block" : ""} sticky top-0 z-40 h-12 bg-card/95 backdrop-blur-md border-b border-edge/70`}
+      >
         <div className="max-w-6xl mx-auto h-full px-3 sm:px-5 flex items-center gap-2 sm:gap-4">
           <Link href="/" className="flex items-center gap-1.5 shrink-0 group rounded-lg px-0.5 py-0.5">
             <span className="font-arabic text-[21px] text-gold leading-none group-hover:opacity-80 transition-opacity">
