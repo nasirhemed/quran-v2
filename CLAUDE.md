@@ -58,6 +58,9 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   `/read`), `hooks/useQuranPage`, `lib/highlights.ts` (colors are
   `var(--hl-N-bg/bd)` references), localStorage phrase editing in
   `hooks/useLocalPhrases` + `components/edit/`.
+  Swiping turns pages (`hooks/useSwipePages`, `lib/mushaf/swipe.ts`): right → next, left → previous, as the
+  arrow keys (a spread in two-page mode); passive touch events, and only a quick, clearly sideways one-finger
+  stroke counts, so scrolling, pinch zoom, a long press selecting text and the edge back gesture are left alone.
 - **Mushaf rendering** (`components/page/QuranPage.tsx`): pages are drawn like quran.com, from the King Fahd
   Complex's QCF V2 fonts (the 1421H Madinah print): one font per page, each word one glyph (`QuranWord.glyph`),
   on its printed line. Pages follow that print too (36 pages differ from the older 1405H print, e.g. 120-123,
