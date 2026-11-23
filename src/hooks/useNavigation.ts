@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { fetchSurahs, fetchJuzMetadata } from "@/lib/data";
 import { pageIndex } from "@/lib/mushaf/layouts";
+import { getNextSpreadPage, getPrevSpreadPage } from "@/lib/mushaf/spread";
 import type { SurahMeta, JuzMeta, QuranPage } from "@/types";
 
 /** The reader's place, from its URL. `pages` are the chosen print's (useMushafPages): start pages depend on it. */
-export function useNavigation(pages: QuranPage[] | undefined) {
+export function useNavigation(pages: QuranPage[] | undefined, isDualPage: boolean = false) {
   const search = useSearch();
   const [, setLocation] = useLocation();
 
@@ -99,12 +100,20 @@ export function useNavigation(pages: QuranPage[] | undefined) {
   );
 
   const nextPage = useCallback(() => {
-    navigateToPage(resolvedPage + 1);
-  }, [resolvedPage, navigateToPage]);
+    if (isDualPage) {
+      navigateToPage(getNextSpreadPage(resolvedPage));
+    } else {
+      navigateToPage(resolvedPage + 1);
+    }
+  }, [resolvedPage, isDualPage, navigateToPage]);
 
   const prevPage = useCallback(() => {
-    navigateToPage(resolvedPage - 1);
-  }, [resolvedPage, navigateToPage]);
+    if (isDualPage) {
+      navigateToPage(getPrevSpreadPage(resolvedPage));
+    } else {
+      navigateToPage(resolvedPage - 1);
+    }
+  }, [resolvedPage, isDualPage, navigateToPage]);
 
   const navigateToHome = useCallback(() => {
     setLocation("/");
