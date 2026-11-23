@@ -108,7 +108,9 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   "pageSpread"): when the screen is wide enough (`SPREAD_QUERY`: a tablet sideways, an unfolded foldable, a desktop) the
   reader shows two facing pages as printed, the odd page on the right (1|2 … 603|604), each in half the width; next/previous
   and the arrow keys step a spread. The URL's page stays the reader's place (Follow turning to the facing page keeps the
-  spread); both pages get highlights, Hide and Follow; fonts load two pages either side.
+  spread); both pages get highlights, Hide and Follow; fonts load two pages either side. The spread's height is measured
+  (`hooks/useSpreadFit.ts`: screen foot less the footer or the Follow strip), not budgeted from 100dvh, so it is never cut
+  off; on screens up to 900px tall the app's tab bar hides while a spread shows (`html[data-reader-spread]`, tabs in ⋯).
 - **Practice** (`src/lib/practice.ts`, plain TS, tested; `pages/PracticePage.tsx`): modelled on how competitions
   test hifz — the judge reads a verse's opening words (5–7, or as many as tell it from look-alikes), the contestant
   recites on (5–7 lines to a page), judges like to start inside look-alikes, and drifting into one is the classic

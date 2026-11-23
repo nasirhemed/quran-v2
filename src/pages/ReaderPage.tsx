@@ -9,6 +9,7 @@ import { fetchSurahs } from "@/lib/data";
 import { saveLastRead } from "@/lib/lastRead";
 import { useMushafPages } from "@/hooks/useMushafLayout";
 import { usePageSpread } from "@/hooks/usePageSpread";
+import { useSpreadFit } from "@/hooks/useSpreadFit";
 import { spreadOf } from "@/lib/mushaf/spread";
 import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
@@ -62,6 +63,14 @@ export default function ReaderPage() {
   } = useNavigation(pages, twoPages);
   const pageCount = pages?.length || 604;
   const spread = twoPages ? spreadOf(currentPage, pageCount) : null;
+  const isSpread = !!spread;
+  const spreadFit = useSpreadFit(isSpread);
+  // A spread on a short screen goes full screen like the phone reader: the app's tab bar steps aside (index.css)
+  // and its tabs move into the ⋯ menu.
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-reader-spread", isSpread);
+    return () => document.documentElement.removeAttribute("data-reader-spread");
+  }, [isSpread]);
   // In a spread, the page facing the current one (the URL's page stays the reader's place).
   const facingPage = spread ? (currentPage === spread.right ? spread.left : spread.right) : null;
   const atFirst = (spread ? spread.right : currentPage) <= 1;
@@ -344,7 +353,16 @@ export default function ReaderPage() {
 
             {spread ? (
               /* Two facing pages, each in half the width, meeting at a faint gutter in the middle */
-              <div className="flex-1 w-full flex items-center justify-center gap-3 lg:gap-5" data-spread>
+              <div
+                ref={spreadFit.ref}
+                className="mushaf-spread flex-1 w-full flex items-center justify-center gap-2 lg:gap-5"
+                style={
+                  spreadFit.height
+                    ? ({ "--spread-h": `${spreadFit.height}px`, flex: "none", height: spreadFit.height } as CSSProperties)
+                    : undefined
+                }
+                data-spread
+              >
                 <div className="flex-1 min-w-0 flex">
                   {leftPage?.page && renderPage(leftPage.page, leftPage.highlights, "right")}
                 </div>

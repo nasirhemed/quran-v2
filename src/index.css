@@ -269,6 +269,31 @@
     )
   );
 }
+/* Two facing pages (ReaderPage): sized to the height measured for them (useSpreadFit, --spread-h), each in half
+   the width. */
+.mushaf-spread .mushaf {
+  width: min(
+    100%,
+    44rem,
+    max(calc(var(--spread-h, 600px) * var(--line-em, 16.3) / 25.8), calc(var(--line-em, 16.3) * 15px))
+  );
+}
+/* A spread on a screen too short to spare the app's tab bar: the reader goes full screen as on phones (the tabs
+   are in the reader's ⋯ menu). ReaderPage sets data-reader-spread while it shows two pages. */
+@media (max-height: 900px) {
+  html[data-reader-spread] .app-header {
+    display: none;
+  }
+  html[data-reader-spread] .reader-nav {
+    top: 0;
+  }
+  html[data-reader-spread] .reader-tab-links {
+    display: block;
+  }
+  html[data-reader-spread] .reader-home-link {
+    display: flex;
+  }
+}
 /* Screens too short to fit all 15 lines at a comfortable size (e.g. phone landscape, compact small phones):
    stop shrinking and keep a generous, legible reading width that scrolls naturally. */
 @media (max-height: 580px) {
