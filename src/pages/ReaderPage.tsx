@@ -64,6 +64,9 @@ export default function ReaderPage() {
   const spread = twoPages ? spreadOf(currentPage, pageCount) : null;
   // In a spread, the page facing the current one (the URL's page stays the reader's place).
   const facingPage = spread ? (currentPage === spread.right ? spread.left : spread.right) : null;
+  const atFirst = (spread ? spread.right : currentPage) <= 1;
+  const atLast = (spread ? spread.left ?? spread.right : currentPage) >= pageCount;
+  const pageLabel = spread ? (spread.left ? `${spread.right}–${spread.left}` : `${spread.right}`) : `${currentPage}`;
 
   const { data: surahsMeta } = useQuery({
     queryKey: ["surahs"],
@@ -96,12 +99,44 @@ export default function ReaderPage() {
   const sidePanel = useSidePanel(localPhrases.phrases);
   const hide = useHiddenWords();
   const hiding = hide.hidden && !localPhrases.editMode;
+  const compactPageControl = page ? (
+    <div className="inline-flex items-center gap-0.5 text-faint font-sans select-none">
+      <button
+        type="button"
+        onClick={prevPage}
+        disabled={atFirst}
+        aria-label="Previous page"
+        title="Previous page (Right arrow)"
+        className="w-6 h-6 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <span className="text-[11px] font-medium text-muted tabular-nums min-w-[1.75rem] text-center">
+        {pageLabel}
+      </span>
+      <button
+        type="button"
+        onClick={nextPage}
+        disabled={atLast}
+        aria-label="Next page"
+        title="Next page (Left arrow)"
+        className="w-6 h-6 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+  ) : null;
   const follow = useFollowMode({
     pages,
     surahs: surahsMeta,
     currentPage,
     onNavigateToPage: navigateToPage,
     onHeard: hiding ? hide.reveal : undefined,
+    pageControl: compactPageControl,
   });
   const onRevealWord = useCallback((key: string) => hide.reveal([key]), [hide.reveal]);
 
@@ -188,8 +223,6 @@ export default function ReaderPage() {
   }
 
   const currentSurah = page?.surahGroups[0]?.surahIndex;
-  const atFirst = (spread ? spread.right : currentPage) <= 1;
-  const atLast = (spread ? spread.left ?? spread.right : currentPage) >= pageCount;
 
   const renderPage = (p: NonNullable<typeof page>, highlights: typeof pageHighlights, align: "center" | "left" | "right") => (
     <QuranPage
@@ -220,14 +253,14 @@ export default function ReaderPage() {
   const rightPage = shown?.[0] ?? null;
   const leftPage = shown?.[1] ?? null;
 
-  // Vertical chrome budget reserved outside the 15 mushaf lines so the full page fits in one screen:
-  // 48px AppShell header + 46px NavigationBar + 32px page-number footer + 14px breathing room = 140px.
+  // Dynamic chrome below/inside main (top bar height comes from .reader-main's responsive --shell-chrome in index.css:
+  // 42px on mobile where AppShell tabs hide, 94px on sm+): 32px footer+gap (or 40px when Follow strip replaces it).
+  const showingFollowStrip = !localPhrases.editMode && follow.stripVisible;
   const hasSelectionBar = localPhrases.editMode && !!localPhrases.selection;
-  const chromePx =
-    140 +
-    (hiding ? 44 : 0) +
-    (!localPhrases.editMode && follow.following ? 78 : 0) +
-    (hasSelectionBar ? 68 : 0);
+  const extraChromePx =
+    (showingFollowStrip ? 40 : 32) +
+    (hiding ? 36 : 0) +
+    (hasSelectionBar ? 64 : 0);
 
   return (
     <div className="flex-1 flex flex-col bg-card">
@@ -259,17 +292,17 @@ export default function ReaderPage() {
       />
 
       <main
-        className={`relative flex-1 flex flex-col items-center justify-between px-3 sm:px-6 pt-1.5 pb-1 ${
-          !localPhrases.editMode && follow.following
-            ? "pb-20"
+        className={`reader-main relative flex-1 flex flex-col items-center justify-between px-1.5 sm:px-6 pt-0.5 pb-0.5 ${
+          showingFollowStrip
+            ? "pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
             : hasSelectionBar
               ? "pb-16"
               : ""
         }`}
-        style={{ "--reader-chrome": `${chromePx}px` } as CSSProperties}
+        style={{ "--reader-extra-chrome": `${extraChromePx}px` } as CSSProperties}
       >
         {hiding && (
-          <div className="w-full max-w-2xl mb-1.5 shrink-0">
+          <div className="w-full max-w-2xl mb-1 shrink-0">
             <HideWordsBar
               canFollow={follow.supported}
               following={follow.following}
@@ -325,38 +358,40 @@ export default function ReaderPage() {
               <div className="flex-1 w-full flex items-center justify-center">{renderPage(page, pageHighlights, "center")}</div>
             )}
 
-            {/* Quiet centered page number footer with subtle prev/next controls */}
-            <footer className="shrink-0 h-8 flex items-center justify-center gap-4 text-faint font-sans select-none">
-              <button
-                type="button"
-                onClick={prevPage}
-                disabled={atFirst}
-                aria-label="Previous page"
-                title="Previous page (Right arrow)"
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
+            {/* Quiet centered page number footer (folded into the Follow strip while following) */}
+            {!showingFollowStrip && (
+              <footer className="shrink-0 h-7 flex items-center justify-center gap-3 text-faint font-sans select-none">
+                <button
+                  type="button"
+                  onClick={prevPage}
+                  disabled={atFirst}
+                  aria-label="Previous page"
+                  title="Previous page (Right arrow)"
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
 
-              <span className="text-xs font-medium text-muted tabular-nums min-w-[2.5rem] text-center">
-                {spread ? (spread.left ? `${spread.right}–${spread.left}` : spread.right) : page.pageNumber}
-              </span>
+                <span className="text-xs font-medium text-muted tabular-nums min-w-[2.25rem] text-center">
+                  {pageLabel}
+                </span>
 
-              <button
-                type="button"
-                onClick={nextPage}
-                disabled={atLast}
-                aria-label="Next page"
-                title="Next page (Left arrow)"
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </footer>
+                <button
+                  type="button"
+                  onClick={nextPage}
+                  disabled={atLast}
+                  aria-label="Next page"
+                  title="Next page (Left arrow)"
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </footer>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted text-sm">Page not found</div>
