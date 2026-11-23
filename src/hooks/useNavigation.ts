@@ -3,10 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { fetchSurahs, fetchJuzMetadata } from "@/lib/data";
 import { pageIndex } from "@/lib/mushaf/layouts";
+import { nextSpreadPage, prevSpreadPage } from "@/lib/mushaf/spread";
 import type { SurahMeta, JuzMeta, QuranPage } from "@/types";
 
-/** The reader's place, from its URL. `pages` are the chosen print's (useMushafPages): start pages depend on it. */
-export function useNavigation(pages: QuranPage[] | undefined) {
+/**
+ * The reader's place, from its URL. `pages` are the chosen print's (useMushafPages): start pages depend on it.
+ * With `spread` (two facing pages shown), next and previous step a whole spread.
+ */
+export function useNavigation(pages: QuranPage[] | undefined, spread = false) {
   const search = useSearch();
   const [, setLocation] = useLocation();
 
@@ -98,13 +102,16 @@ export function useNavigation(pages: QuranPage[] | undefined) {
     [setLocation]
   );
 
+  const pageCount = pages?.length || 604;
   const nextPage = useCallback(() => {
-    navigateToPage(resolvedPage + 1);
-  }, [resolvedPage, navigateToPage]);
+    const to = spread ? nextSpreadPage(resolvedPage, pageCount) : resolvedPage + 1;
+    if (to !== null && to <= pageCount) navigateToPage(to);
+  }, [resolvedPage, navigateToPage, spread, pageCount]);
 
   const prevPage = useCallback(() => {
-    navigateToPage(resolvedPage - 1);
-  }, [resolvedPage, navigateToPage]);
+    const to = spread ? prevSpreadPage(resolvedPage, pageCount) : resolvedPage - 1;
+    if (to !== null && to >= 1) navigateToPage(to);
+  }, [resolvedPage, navigateToPage, spread, pageCount]);
 
   const navigateToHome = useCallback(() => {
     setLocation("/");

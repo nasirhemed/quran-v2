@@ -30,8 +30,15 @@ function fontsFor(pack: MushafPack, page: number, opts: { headers: boolean; bism
   return list;
 }
 
-/** Loads what a page of `pack`'s print needs to be drawn from glyphs, then quietly loads the pages either side. */
-export function useMushafFonts(pack: MushafPack, page: number, opts: { headers: boolean; bismillah: boolean }): MushafFontState {
+/**
+ * Loads what a page of `pack`'s print needs to be drawn from glyphs, then quietly loads the pages either side
+ * (`around` of them each way: 2 in a two-page spread).
+ */
+export function useMushafFonts(
+  pack: MushafPack,
+  page: number,
+  opts: { headers: boolean; bismillah: boolean; around?: number }
+): MushafFontState {
   const fonts = mushafFonts(pack);
   const list = fontsFor(pack, page, opts);
   const key = list.map((n) => n.family).join(",");
@@ -44,8 +51,11 @@ export function useMushafFonts(pack: MushafPack, page: number, opts: { headers: 
   useEffect(() => {
     let live = true;
     const neighbours = () => {
-      for (const p of [page + 1, page - 1]) {
-        if (p >= 1 && p <= PAGE_COUNT) void fonts.load(pageFontFile(p), pageFontFamily(p, pack));
+      const around = opts.around ?? 1;
+      for (let d = 1; d <= around; d++) {
+        for (const p of [page + d, page - d]) {
+          if (p >= 1 && p <= PAGE_COUNT) void fonts.load(pageFontFile(p), pageFontFamily(p, pack));
+        }
       }
     };
     if (allReady()) {

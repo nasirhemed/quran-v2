@@ -6,6 +6,7 @@ import { getVoiceSupport } from "@/recitation/support";
 import { useQuery } from "@tanstack/react-query";
 import { setMushafLayout, useMushafLayout, useMushafPages } from "@/hooks/useMushafLayout";
 import { MUSHAF_LAYOUTS, type MushafLayoutDef } from "@/lib/mushaf/layouts";
+import { setPageSpread, usePageSpreadSetting, type PageSpreadSetting } from "@/hooks/usePageSpread";
 
 // The voice model manager pulls in the model store; load it only when Settings opens.
 const VoiceModels = lazy(() => import("@/pages/VoicePage"));
@@ -86,6 +87,42 @@ function MushafLayoutPicker() {
   );
 }
 
+const SPREAD_OPTIONS: { id: PageSpreadSetting; label: string }[] = [
+  { id: "auto", label: "Two on wide screens" },
+  { id: "one", label: "Always one" },
+];
+
+/** One page, or two facing pages when the screen is wide enough (usePageSpread). */
+function PageSpreadPicker() {
+  const setting = usePageSpreadSetting();
+  return (
+    <div className="bg-card border border-edge/80 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-ink">Pages</div>
+        <div className="text-xs text-muted mt-0.5">
+          Two facing pages on a tablet held sideways, an unfolded foldable or a desktop.
+        </div>
+      </div>
+      <div className="inline-flex rounded-xl border border-edge bg-card2 p-1 gap-0.5" role="radiogroup" aria-label="Pages">
+        {SPREAD_OPTIONS.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={setting === o.id}
+            onClick={() => setPageSpread(o.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              setting === o.id ? "bg-card text-ink shadow-sm" : "text-muted hover:text-ink"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { theme, toggle } = useTheme();
   const voiceSupported = getVoiceSupport().supported;
@@ -154,6 +191,7 @@ export default function SettingsPage() {
 
       <Section title="Mushaf layout">
         <MushafLayoutPicker />
+        <PageSpreadPicker />
       </Section>
 
       <Section title="Mushaf pages">

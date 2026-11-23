@@ -125,7 +125,7 @@ export default function NavigationBar({
   const progressPct = Math.min(100, Math.max(0.5, (currentPage / 604) * 100));
 
   return (
-    <nav data-sticky-top className="sticky top-0 sm:top-12 z-30 bg-card/95 backdrop-blur-md">
+    <nav data-sticky-top className="reader-nav sticky top-0 sm:top-12 z-30 bg-card/95 backdrop-blur-md">
       <div className="max-w-6xl mx-auto h-10 sm:h-11 px-2 sm:px-5 flex items-center justify-between gap-1.5 sm:gap-2">
         {/* Left: Compact mobile back-to-home button + Surah / Juz / Page quick-jump trigger */}
         <div className="relative flex-1 min-w-0 flex items-center gap-0.5" ref={jumpRef}>
@@ -133,7 +133,7 @@ export default function NavigationBar({
             href="/"
             aria-label="Back to home"
             title="Home"
-            className="sm:hidden w-7 h-7 -ml-0.5 rounded-lg text-muted hover:text-ink hover:bg-card2/70 flex items-center justify-center shrink-0 transition-colors"
+            className="reader-home-link sm:hidden w-7 h-7 -ml-0.5 rounded-lg text-muted hover:text-ink hover:bg-card2/70 flex items-center justify-center shrink-0 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -421,7 +421,7 @@ export default function NavigationBar({
                   Mushaf settings
                 </Link>
                 {/* Quick tab switcher on mobile where AppShell header is hidden inside the reader */}
-                <div className="sm:hidden">
+                <div className="reader-tab-links sm:hidden">
                   <div className="my-1 border-t border-edge/70" />
                   <Link
                     href="/browse"

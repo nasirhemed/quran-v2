@@ -28,6 +28,10 @@ interface QuranPageProps {
   hideWords?: { revealed: ReadonlySet<string>; onReveal: (key: string) => void } | null;
   /** toggle Mutashabihat phrase colors off for pure high-contrast reading */
   showHighlights?: boolean;
+  /** where the page sits in its column: centred (one page), or against the spread's middle gutter (two pages) */
+  align?: "center" | "left" | "right";
+  /** how many pages either side to load fonts for ahead of time (2 in a spread: the next spread is two pages) */
+  preloadAround?: number;
 }
 
 type WordItem = Extract<LineItem, { kind: "word" }>;
@@ -78,11 +82,14 @@ export default function QuranPage({
   onWordSelect,
   hideWords,
   showHighlights = true,
+  align = "center",
+  preloadAround = 1,
 }: QuranPageProps) {
   const lines = useMemo(() => pageLayout(page), [page]);
   const fontState = useMushafFonts(pack, page.pageNumber, {
     headers: lines.some((l) => l.kind === "surah"),
     bismillah: lines.some((l) => l.kind === "bismillah"),
+    around: preloadAround,
   });
   const glyphs = fontState === "ready" || fontState === "loading";
 
@@ -167,7 +174,7 @@ export default function QuranPage({
 
   return (
     <div
-      className={`mushaf ${hideWords ? "words-hidden" : ""} mx-auto text-ink`}
+      className={`mushaf ${hideWords ? "words-hidden" : ""} ${align === "center" ? "mx-auto" : align === "left" ? "mr-auto" : "ml-auto"} text-ink`}
       dir="rtl"
       style={{ "--line-em": effectiveLineEm } as CSSProperties}
     >
