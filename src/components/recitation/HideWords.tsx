@@ -30,7 +30,7 @@ export function HideWordsButton({ hidden, onToggle }: { hidden: boolean; onToggl
       aria-pressed={hidden}
       aria-label={hidden ? "Words hidden" : "Hide words"}
       title={hidden ? "Show the words" : "Hide the words to recite from memory"}
-      className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
+      className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
         hidden ? "bg-primary-soft text-primary" : "text-muted hover:text-ink hover:bg-card2/70"
       }`}
     >
@@ -59,11 +59,11 @@ export function HideWordsBar({
       ? "Words hidden — tap Follow to recite, or tap any blank for a hint."
       : "Words hidden — tap any blank to reveal it.";
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg bg-card2/70 border border-edge/70 px-3 py-1.5 text-xs font-sans">
+    <div className="flex items-center justify-between gap-2.5 rounded-lg bg-card2/70 border border-edge/70 px-2.5 py-1 text-[11.5px] sm:text-xs font-sans">
       <p className="min-w-0 truncate text-muted" data-testid="hide-words-hint">
         {hint}
       </p>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2.5 shrink-0">
         <button
           type="button"
           onClick={onReset}

@@ -130,10 +130,21 @@ export default function NavigationBar({
   const progressPct = Math.min(100, Math.max(0.5, (currentPage / 604) * 100));
 
   return (
-    <nav data-sticky-top className="sticky top-12 z-30 bg-card/95 backdrop-blur-md">
-      <div className="max-w-6xl mx-auto h-11 px-3 sm:px-5 flex items-center justify-between gap-2">
-        {/* Left: Clean Surah / Juz / Page quick-jump trigger */}
-        <div className="relative flex-1 min-w-0 flex items-center" ref={jumpRef}>
+    <nav data-sticky-top className="sticky top-0 sm:top-12 z-30 bg-card/95 backdrop-blur-md">
+      <div className="max-w-6xl mx-auto h-10 sm:h-11 px-2 sm:px-5 flex items-center justify-between gap-1.5 sm:gap-2">
+        {/* Left: Compact mobile back-to-home button + Surah / Juz / Page quick-jump trigger */}
+        <div className="relative flex-1 min-w-0 flex items-center gap-0.5" ref={jumpRef}>
+          <Link
+            href="/"
+            aria-label="Back to home"
+            title="Home"
+            className="sm:hidden w-7 h-7 -ml-0.5 rounded-lg text-muted hover:text-ink hover:bg-card2/70 flex items-center justify-center shrink-0 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+
           <button
             type="button"
             onClick={() => {
@@ -143,9 +154,9 @@ export default function NavigationBar({
             }}
             aria-expanded={jumpOpen}
             aria-haspopup="dialog"
-            className="inline-flex items-center gap-1.5 min-w-0 max-w-full px-1.5 py-1 -ml-1.5 rounded-lg hover:bg-card2/70 transition-colors text-left"
+            className="inline-flex items-center gap-1 sm:gap-1.5 min-w-0 max-w-full px-1.5 py-1 sm:-ml-1.5 rounded-lg hover:bg-card2/70 transition-colors text-left"
           >
-            <span className="text-[13.5px] sm:text-sm font-semibold text-ink truncate">
+            <span className="text-[13px] sm:text-sm font-semibold text-ink truncate">
               {activeSurah ? `${activeSurah.index}. ${activeSurah.tname}` : `Page ${currentPage}`}
             </span>
             <svg
@@ -291,7 +302,7 @@ export default function NavigationBar({
         </div>
 
         {/* Right: Clean compact reader tools */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
           {!editMode && onToggleHighlights && (
             <button
               type="button"
@@ -299,7 +310,7 @@ export default function NavigationBar({
               aria-pressed={showHighlights}
               title={showHighlights ? "Hide Mutashabihat highlights" : "Show Mutashabihat highlights"}
               aria-label={showHighlights ? "Hide highlights" : "Show highlights"}
-              className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
+              className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
                 showHighlights
                   ? "bg-primary-soft text-primary"
                   : "text-muted hover:text-ink hover:bg-card2/70"
@@ -324,7 +335,7 @@ export default function NavigationBar({
               aria-pressed={isDualPage}
               title={isDualPage ? "Switch to single page" : "Switch to two-page spread"}
               aria-label={isDualPage ? "Single page" : "Two-page spread"}
-              className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
+              className={`shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg text-xs font-medium transition-colors font-sans ${
                 isDualPage
                   ? "bg-primary-soft text-primary"
                   : "text-muted hover:text-ink hover:bg-card2/70"
@@ -348,7 +359,7 @@ export default function NavigationBar({
             <button
               type="button"
               onClick={onExportImport}
-              className="px-2.5 h-8 rounded-lg text-xs font-medium text-ink bg-card2 hover:bg-card2/80 transition-colors font-sans"
+              className="px-2.5 h-7 sm:h-8 rounded-lg text-xs font-medium text-ink bg-card2 hover:bg-card2/80 transition-colors font-sans"
             >
               Export
             </button>
@@ -358,13 +369,13 @@ export default function NavigationBar({
             <button
               type="button"
               onClick={onToggleEditMode}
-              className="px-2.5 h-8 rounded-lg text-xs font-semibold bg-gold/20 text-gold-text hover:bg-gold/30 transition-colors font-sans"
+              className="px-2.5 h-7 sm:h-8 rounded-lg text-xs font-semibold bg-gold/20 text-gold-text hover:bg-gold/30 transition-colors font-sans"
             >
               Done
             </button>
           )}
 
-          {/* Overflow menu for secondary reader actions (Edit custom phrases, Theme on mobile, Settings) */}
+          {/* Overflow menu for secondary reader actions (Edit custom phrases, Theme on mobile, Settings, mobile tabs) */}
           <div className="relative" ref={moreRef}>
             <button
               type="button"
@@ -376,7 +387,7 @@ export default function NavigationBar({
               aria-haspopup="menu"
               aria-label="More reader options"
               title="More options"
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors ${
                 moreOpen ? "bg-card2 text-ink" : "text-muted hover:text-ink hover:bg-card2/70"
               }`}
             >
@@ -453,6 +464,34 @@ export default function NavigationBar({
                 >
                   Mushaf settings
                 </Link>
+                {/* Quick tab switcher on mobile where AppShell header is hidden inside the reader */}
+                <div className="sm:hidden">
+                  <div className="my-1 border-t border-edge/70" />
+                  <Link
+                    href="/browse"
+                    role="menuitem"
+                    onClick={() => setMoreOpen(false)}
+                    className="block px-3 py-2 text-muted hover:text-ink hover:bg-card2/70 transition-colors"
+                  >
+                    Browse
+                  </Link>
+                  <Link
+                    href="/practice"
+                    role="menuitem"
+                    onClick={() => setMoreOpen(false)}
+                    className="block px-3 py-2 text-muted hover:text-ink hover:bg-card2/70 transition-colors"
+                  >
+                    Practice
+                  </Link>
+                  <Link
+                    href="/memorize"
+                    role="menuitem"
+                    onClick={() => setMoreOpen(false)}
+                    className="block px-3 py-2 text-muted hover:text-ink hover:bg-card2/70 transition-colors"
+                  >
+                    Memorize
+                  </Link>
+                </div>
               </div>
             )}
           </div>
