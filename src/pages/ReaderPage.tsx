@@ -8,6 +8,8 @@ import { useHiddenWords } from "@/hooks/useHiddenWords";
 import { fetchSurahs } from "@/lib/data";
 import { saveLastRead } from "@/lib/lastRead";
 import { useMushafPages } from "@/hooks/useMushafLayout";
+import { usePageSpread } from "@/hooks/usePageSpread";
+import { spreadOf } from "@/lib/mushaf/spread";
 import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
 import QuranPage from "@/components/page/QuranPage";
@@ -44,6 +46,8 @@ export default function ReaderPage() {
 
   const mushaf = useMushafPages();
   const pages = mushaf.data?.pages;
+  // Two facing pages when the screen is wide enough (tablet sideways, unfolded foldable, desktop).
+  const twoPages = usePageSpread();
   const {
     currentPage,
     activeAyah,
@@ -55,7 +59,11 @@ export default function ReaderPage() {
     navigateToAyah,
     nextPage,
     prevPage,
-  } = useNavigation(pages);
+  } = useNavigation(pages, twoPages);
+  const pageCount = pages?.length || 604;
+  const spread = twoPages ? spreadOf(currentPage, pageCount) : null;
+  // In a spread, the page facing the current one (the URL's page stays the reader's place).
+  const facingPage = spread ? (currentPage === spread.right ? spread.left : spread.right) : null;
 
   const { data: surahsMeta } = useQuery({
     queryKey: ["surahs"],
@@ -70,6 +78,7 @@ export default function ReaderPage() {
     currentPage,
     localPhrases.localHighlights
   );
+  const facing = useQuranPage(pages, facingPage ?? 0, localPhrases.localHighlights);
 
   // Remember the reader's place for HomePage's "Continue reading" card.
   useEffect(() => {
@@ -179,6 +188,37 @@ export default function ReaderPage() {
   }
 
   const currentSurah = page?.surahGroups[0]?.surahIndex;
+  const atFirst = (spread ? spread.right : currentPage) <= 1;
+  const atLast = (spread ? spread.left ?? spread.right : currentPage) >= pageCount;
+
+  const renderPage = (p: NonNullable<typeof page>, highlights: typeof pageHighlights, align: "center" | "left" | "right") => (
+    <QuranPage
+      key={p.pageNumber}
+      page={p}
+      pack={mushaf.data!.layout.pack}
+      lineWidthEm={mushaf.data!.lineWidthEm}
+      highlights={highlights}
+      surahs={surahs}
+      bismillah={bismillah}
+      activeAyah={activeAyah}
+      onHighlightClick={handleHighlightClick}
+      editMode={localPhrases.editMode}
+      wordSelection={localPhrases.selection}
+      onWordSelect={localPhrases.handleWordClick}
+      hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
+      showHighlights={showHighlights}
+      align={align}
+      preloadAround={spread ? 2 : 1}
+    />
+  );
+  // Right-to-left like a printed mushaf: the lower (odd) page on the right.
+  const shown = spread
+    ? [spread.right, spread.left].map((n) =>
+        n === currentPage ? { page, highlights: pageHighlights } : n === facingPage ? { page: facing.page, highlights: facing.pageHighlights } : null
+      )
+    : null;
+  const rightPage = shown?.[0] ?? null;
+  const leftPage = shown?.[1] ?? null;
 
   // Vertical chrome budget reserved outside the 15 mushaf lines so the full page fits in one screen:
   // 48px AppShell header + 46px NavigationBar + 32px page-number footer + 14px breathing room = 140px.
@@ -246,7 +286,7 @@ export default function ReaderPage() {
             <button
               type="button"
               onClick={prevPage}
-              disabled={currentPage <= 1}
+              disabled={atFirst}
               aria-label="Previous page"
               title="Previous page (Right arrow)"
               className="hidden lg:flex fixed left-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full text-faint hover:text-ink hover:bg-card2/70 disabled:opacity-0 disabled:pointer-events-none transition-all"
@@ -259,7 +299,7 @@ export default function ReaderPage() {
             <button
               type="button"
               onClick={nextPage}
-              disabled={currentPage >= 604}
+              disabled={atLast}
               aria-label="Next page"
               title="Next page (Left arrow)"
               className="hidden lg:flex fixed right-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full text-faint hover:text-ink hover:bg-card2/70 disabled:opacity-0 disabled:pointer-events-none transition-all"
@@ -269,31 +309,28 @@ export default function ReaderPage() {
               </svg>
             </button>
 
-            {/* Centered one-screen Mushaf page */}
-            <div className="flex-1 w-full flex items-center justify-center">
-              <QuranPage
-                page={page}
-                pack={mushaf.data!.layout.pack}
-                lineWidthEm={mushaf.data!.lineWidthEm}
-                highlights={pageHighlights}
-                surahs={surahs}
-                bismillah={bismillah}
-                activeAyah={activeAyah}
-                onHighlightClick={handleHighlightClick}
-                editMode={localPhrases.editMode}
-                wordSelection={localPhrases.selection}
-                onWordSelect={localPhrases.handleWordClick}
-                hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
-                showHighlights={showHighlights}
-              />
-            </div>
+            {spread ? (
+              /* Two facing pages, each in half the width, meeting at a faint gutter in the middle */
+              <div className="flex-1 w-full flex items-center justify-center gap-3 lg:gap-5" data-spread>
+                <div className="flex-1 min-w-0 flex">
+                  {leftPage?.page && renderPage(leftPage.page, leftPage.highlights, "right")}
+                </div>
+                <div aria-hidden className="w-px self-stretch my-4 bg-edge/70 shrink-0" />
+                <div className="flex-1 min-w-0 flex">
+                  {rightPage?.page && renderPage(rightPage.page, rightPage.highlights, "left")}
+                </div>
+              </div>
+            ) : (
+              /* Centered one-screen Mushaf page */
+              <div className="flex-1 w-full flex items-center justify-center">{renderPage(page, pageHighlights, "center")}</div>
+            )}
 
             {/* Quiet centered page number footer with subtle prev/next controls */}
             <footer className="shrink-0 h-8 flex items-center justify-center gap-4 text-faint font-sans select-none">
               <button
                 type="button"
                 onClick={prevPage}
-                disabled={currentPage <= 1}
+                disabled={atFirst}
                 aria-label="Previous page"
                 title="Previous page (Right arrow)"
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
@@ -304,13 +341,13 @@ export default function ReaderPage() {
               </button>
 
               <span className="text-xs font-medium text-muted tabular-nums min-w-[2.5rem] text-center">
-                {page.pageNumber}
+                {spread ? (spread.left ? `${spread.right}–${spread.left}` : spread.right) : page.pageNumber}
               </span>
 
               <button
                 type="button"
                 onClick={nextPage}
-                disabled={currentPage >= 604}
+                disabled={atLast}
                 aria-label="Next page"
                 title="Next page (Left arrow)"
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
