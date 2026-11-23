@@ -17,6 +17,8 @@ import AddOccurrenceDialog from "@/components/edit/AddOccurrenceDialog";
 import ExportImportPanel from "@/components/edit/ExportImportPanel";
 import { useFollowMode } from "@/components/recitation/FollowControl";
 import { HideWordsBar, HideWordsButton } from "@/components/recitation/HideWords";
+import { useDualPageMode } from "@/hooks/useDualPageMode";
+import { getSpreadForPage, isPageInSpread } from "@/lib/mushaf/spread";
 import type { WordHighlight, LocalPhrase } from "@/types";
 
 const HIGHLIGHTS_KEY = "reader-highlights";
@@ -42,6 +44,8 @@ export default function ReaderPage() {
     });
   }, []);
 
+  const { isDualPage, toggleSpreadMode } = useDualPageMode();
+
   const mushaf = useMushafPages();
   const pages = mushaf.data?.pages;
   const {
@@ -55,7 +59,7 @@ export default function ReaderPage() {
     navigateToAyah,
     nextPage,
     prevPage,
-  } = useNavigation(pages);
+  } = useNavigation(pages, isDualPage);
 
   const { data: surahsMeta } = useQuery({
     queryKey: ["surahs"],
@@ -65,11 +69,23 @@ export default function ReaderPage() {
   const localPhrases = useLocalPhrases(pages);
   const bismillah = useMemo(() => (pages ? bismillahGlyphs(pages) : []), [pages]);
 
-  const { page, pageHighlights, isLoading } = useQuranPage(
+  const spread = useMemo(() => getSpreadForPage(currentPage), [currentPage]);
+
+  const rightQuranPage = useQuranPage(
     pages,
-    currentPage,
+    isDualPage ? spread.rightPageNumber : currentPage,
     localPhrases.localHighlights
   );
+
+  const leftQuranPage = useQuranPage(
+    pages,
+    isDualPage ? spread.leftPageNumber : currentPage,
+    localPhrases.localHighlights
+  );
+
+  const page = rightQuranPage.page;
+  const pageHighlights = rightQuranPage.pageHighlights;
+  const isLoading = rightQuranPage.isLoading || (isDualPage && leftQuranPage.isLoading);
 
   // Remember the reader's place for HomePage's "Continue reading" card.
   useEffect(() => {
@@ -87,11 +103,22 @@ export default function ReaderPage() {
   const sidePanel = useSidePanel(localPhrases.phrases);
   const hide = useHiddenWords();
   const hiding = hide.hidden && !localPhrases.editMode;
+
+  const handleFollowNavigate = useCallback(
+    (targetPage: number) => {
+      if (isDualPage && isPageInSpread(targetPage, currentPage)) {
+        return;
+      }
+      navigateToPage(targetPage);
+    },
+    [isDualPage, currentPage, navigateToPage]
+  );
+
   const follow = useFollowMode({
     pages,
     surahs: surahsMeta,
     currentPage,
-    onNavigateToPage: navigateToPage,
+    onNavigateToPage: handleFollowNavigate,
     onHeard: hiding ? hide.reveal : undefined,
   });
   const onRevealWord = useCallback((key: string) => hide.reveal([key]), [hide.reveal]);
@@ -173,12 +200,21 @@ export default function ReaderPage() {
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-card px-4 py-8">
-        <div className="w-full max-w-[26rem] h-[72dvh] rounded-xl bg-card2/50 animate-pulse" />
+        {isDualPage ? (
+          <div className="flex items-center justify-center gap-6 w-full max-w-4xl" dir="rtl">
+            <div className="w-full max-w-[24rem] h-[72dvh] rounded-xl bg-card2/50 animate-pulse" />
+            <div className="w-full max-w-[24rem] h-[72dvh] rounded-xl bg-card2/50 animate-pulse" />
+          </div>
+        ) : (
+          <div className="w-full max-w-[26rem] h-[72dvh] rounded-xl bg-card2/50 animate-pulse" />
+        )}
       </div>
     );
   }
 
-  const currentSurah = page?.surahGroups[0]?.surahIndex;
+  const currentSurah = activeAyah?.surah ?? page?.surahGroups[0]?.surahIndex;
+  const canPrev = isDualPage ? spread.rightPageNumber > 1 : currentPage > 1;
+  const canNext = isDualPage ? spread.leftPageNumber < 604 : currentPage < 604;
 
   // Vertical chrome budget reserved outside the 15 mushaf lines so the full page fits in one screen:
   // 48px AppShell header + 46px NavigationBar + 32px page-number footer + 14px breathing room = 140px.
@@ -207,6 +243,8 @@ export default function ReaderPage() {
         onExportImport={() => setShowExportImport(true)}
         showHighlights={showHighlights}
         onToggleHighlights={toggleHighlights}
+        isDualPage={isDualPage}
+        onToggleDualPage={toggleSpreadMode}
         voiceControl={
           localPhrases.editMode ? null : (
             <>
@@ -246,7 +284,7 @@ export default function ReaderPage() {
             <button
               type="button"
               onClick={prevPage}
-              disabled={currentPage <= 1}
+              disabled={!canPrev}
               aria-label="Previous page"
               title="Previous page (Right arrow)"
               className="hidden lg:flex fixed left-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full text-faint hover:text-ink hover:bg-card2/70 disabled:opacity-0 disabled:pointer-events-none transition-all"
@@ -259,7 +297,7 @@ export default function ReaderPage() {
             <button
               type="button"
               onClick={nextPage}
-              disabled={currentPage >= 604}
+              disabled={!canNext}
               aria-label="Next page"
               title="Next page (Left arrow)"
               className="hidden lg:flex fixed right-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full text-faint hover:text-ink hover:bg-card2/70 disabled:opacity-0 disabled:pointer-events-none transition-all"
@@ -269,31 +307,73 @@ export default function ReaderPage() {
               </svg>
             </button>
 
-            {/* Centered one-screen Mushaf page */}
-            <div className="flex-1 w-full flex items-center justify-center">
-              <QuranPage
-                page={page}
-                pack={mushaf.data!.layout.pack}
-                lineWidthEm={mushaf.data!.lineWidthEm}
-                highlights={pageHighlights}
-                surahs={surahs}
-                bismillah={bismillah}
-                activeAyah={activeAyah}
-                onHighlightClick={handleHighlightClick}
-                editMode={localPhrases.editMode}
-                wordSelection={localPhrases.selection}
-                onWordSelect={localPhrases.handleWordClick}
-                hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
-                showHighlights={showHighlights}
-              />
-            </div>
+            {/* Centered one-screen Mushaf page or two-page spread */}
+            {isDualPage && leftQuranPage.page ? (
+              <div className="flex-1 w-full flex items-center justify-center">
+                <div className="mushaf-spread" dir="rtl">
+                  <div className="mushaf-spread-page">
+                    <QuranPage
+                      page={rightQuranPage.page!}
+                      pack={mushaf.data!.layout.pack}
+                      lineWidthEm={mushaf.data!.lineWidthEm}
+                      highlights={rightQuranPage.pageHighlights}
+                      surahs={surahs}
+                      bismillah={bismillah}
+                      activeAyah={activeAyah}
+                      onHighlightClick={handleHighlightClick}
+                      editMode={localPhrases.editMode}
+                      wordSelection={localPhrases.selection}
+                      onWordSelect={localPhrases.handleWordClick}
+                      hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
+                      showHighlights={showHighlights}
+                    />
+                  </div>
+                  <div className="mushaf-spread-spine" aria-hidden="true" />
+                  <div className="mushaf-spread-page">
+                    <QuranPage
+                      page={leftQuranPage.page}
+                      pack={mushaf.data!.layout.pack}
+                      lineWidthEm={mushaf.data!.lineWidthEm}
+                      highlights={leftQuranPage.pageHighlights}
+                      surahs={surahs}
+                      bismillah={bismillah}
+                      activeAyah={activeAyah}
+                      onHighlightClick={handleHighlightClick}
+                      editMode={localPhrases.editMode}
+                      wordSelection={localPhrases.selection}
+                      onWordSelect={localPhrases.handleWordClick}
+                      hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
+                      showHighlights={showHighlights}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 w-full flex items-center justify-center">
+                <QuranPage
+                  page={page}
+                  pack={mushaf.data!.layout.pack}
+                  lineWidthEm={mushaf.data!.lineWidthEm}
+                  highlights={pageHighlights}
+                  surahs={surahs}
+                  bismillah={bismillah}
+                  activeAyah={activeAyah}
+                  onHighlightClick={handleHighlightClick}
+                  editMode={localPhrases.editMode}
+                  wordSelection={localPhrases.selection}
+                  onWordSelect={localPhrases.handleWordClick}
+                  hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
+                  showHighlights={showHighlights}
+                />
+              </div>
+            )}
 
             {/* Quiet centered page number footer with subtle prev/next controls */}
             <footer className="shrink-0 h-8 flex items-center justify-center gap-4 text-faint font-sans select-none">
               <button
                 type="button"
                 onClick={prevPage}
-                disabled={currentPage <= 1}
+                disabled={!canPrev}
                 aria-label="Previous page"
                 title="Previous page (Right arrow)"
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
@@ -304,13 +384,15 @@ export default function ReaderPage() {
               </button>
 
               <span className="text-xs font-medium text-muted tabular-nums min-w-[2.5rem] text-center">
-                {page.pageNumber}
+                {isDualPage && leftQuranPage.page
+                  ? `${spread.rightPageNumber} – ${spread.leftPageNumber}`
+                  : page.pageNumber}
               </span>
 
               <button
                 type="button"
                 onClick={nextPage}
-                disabled={currentPage >= 604}
+                disabled={!canNext}
                 aria-label="Next page"
                 title="Next page (Left arrow)"
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:text-ink hover:bg-card2/70 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"

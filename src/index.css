@@ -265,6 +265,50 @@
     width: min(100%, 26rem);
   }
 }
+
+/* Dual-page spread layout for wide screens, foldables, and tablets */
+.mushaf-spread {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  gap: clamp(0.75rem, 2.5vw, 2rem);
+}
+
+.mushaf-spread-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.mushaf-spread-page .mushaf {
+  width: min(
+    calc((100vw - var(--spread-chrome-w, 5rem)) / 2),
+    34rem,
+    max(
+      calc((100dvh - var(--reader-chrome, 140px)) * var(--line-em, 16.3) / 26.7),
+      calc(var(--line-em, 16.3) * var(--mushaf-min-font, 15px))
+    )
+  );
+}
+
+.mushaf-spread-spine {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--border-strong) 15%,
+    var(--border-strong) 85%,
+    transparent
+  );
+  opacity: 0.5;
+  flex-shrink: 0;
+}
 .mushaf-glyphs {
   font-size: calc(100cqw / var(--line-em, 16.3));
 }
