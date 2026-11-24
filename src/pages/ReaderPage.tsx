@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MutableRefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useQuranPage } from "@/hooks/useQuranPage";
@@ -10,8 +10,9 @@ import { saveLastRead } from "@/lib/lastRead";
 import { useMushafPages } from "@/hooks/useMushafLayout";
 import { usePageSpread } from "@/hooks/usePageSpread";
 import { useSpreadFit } from "@/hooks/useSpreadFit";
-import { useSwipePages } from "@/hooks/useSwipePages";
-import { spreadOf } from "@/lib/mushaf/spread";
+import { useSwipePager } from "@/hooks/useSwipePager";
+import { nextSpreadPage, prevSpreadPage, spreadOf, type Spread } from "@/lib/mushaf/spread";
+import { SWIPE_GAP_PX } from "@/lib/mushaf/swipe";
 import { bismillahGlyphs } from "@/lib/mushaf/layout";
 import NavigationBar from "@/components/layout/NavigationBar";
 import QuranPage from "@/components/page/QuranPage";
@@ -93,6 +94,17 @@ export default function ReaderPage() {
   );
   const facing = useQuranPage(pages, facingPage ?? 0, localPhrases.localHighlights);
 
+  // The pages either side, drawn beside this one while a swipe pulls them across: the next page (spread) on the
+  // left, the previous on the right, as in a printed mushaf.
+  const nextAt = spread ? nextSpreadPage(currentPage, pageCount) : currentPage < pageCount ? currentPage + 1 : null;
+  const prevAt = spread ? prevSpreadPage(currentPage, pageCount) : currentPage > 1 ? currentPage - 1 : null;
+  const nextSpread = spread && nextAt ? spreadOf(nextAt, pageCount) : null;
+  const prevSpread = spread && prevAt ? spreadOf(prevAt, pageCount) : null;
+  const nextA = useQuranPage(pages, nextSpread?.right ?? nextAt ?? 0, localPhrases.localHighlights);
+  const nextB = useQuranPage(pages, nextSpread?.left ?? 0, localPhrases.localHighlights);
+  const prevA = useQuranPage(pages, prevSpread?.right ?? prevAt ?? 0, localPhrases.localHighlights);
+  const prevB = useQuranPage(pages, prevSpread?.left ?? 0, localPhrases.localHighlights);
+
   // Remember the reader's place for HomePage's "Continue reading" card.
   useEffect(() => {
     if (!page) return;
@@ -154,9 +166,22 @@ export default function ReaderPage() {
   const [dialogPhrase, setDialogPhrase] = useState<LocalPhrase | null>(null);
   const [showExportImport, setShowExportImport] = useState(false);
 
-  // Swipe right for the next page (spread), left for the previous, as the arrow keys; not under a dialog.
-  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
-  useSwipePages(mainEl, { onNext: nextPage, onPrev: prevPage, enabled: !showAddDialog && !showExportImport });
+  // Pull the page right for the next page (spread), left for the previous, as the arrow keys; not under a dialog.
+  const pager = useSwipePager({
+    page: currentPage,
+    canNext: !atLast,
+    canPrev: !atFirst,
+    onNext: nextPage,
+    onPrev: prevPage,
+    enabled: !showAddDialog && !showExportImport,
+  });
+  const bindViewport = useCallback(
+    (node: HTMLDivElement | null) => {
+      (spreadFit.ref as MutableRefObject<HTMLDivElement | null>).current = node;
+      pager.bind(node);
+    },
+    [spreadFit.ref, pager.bind]
+  );
 
   const handleHighlightClick = useCallback(
     (highlight: WordHighlight) => {
@@ -255,7 +280,7 @@ export default function ReaderPage() {
       hideWords={hiding ? { revealed: hide.revealed, onReveal: onRevealWord } : null}
       showHighlights={showHighlights}
       align={align}
-      preloadAround={spread ? 2 : 1}
+      preloadAround={spread ? 3 : 1}
     />
   );
   // Right-to-left like a printed mushaf: the lower (odd) page on the right.
@@ -266,6 +291,20 @@ export default function ReaderPage() {
     : null;
   const rightPage = shown?.[0] ?? null;
   const leftPage = shown?.[1] ?? null;
+  type Shown = { page: typeof page; highlights: typeof pageHighlights } | null;
+  /** one page, or two facing pages each in half the width meeting at a faint gutter in the middle */
+  const renderView = (sp: Spread | null, single: NonNullable<Shown>, right: Shown, left: Shown) =>
+    sp ? (
+      <div className="mushaf-spread h-full w-full flex items-center justify-center gap-2 lg:gap-5" data-spread>
+        <div className="flex-1 min-w-0 flex">{left?.page && renderPage(left.page, left.highlights, "right")}</div>
+        <div aria-hidden className="w-px self-stretch my-4 bg-edge/70 shrink-0" />
+        <div className="flex-1 min-w-0 flex">{right?.page && renderPage(right.page, right.highlights, "left")}</div>
+      </div>
+    ) : (
+      <div className="flex-1 w-full flex items-center justify-center">
+        {single.page && renderPage(single.page, single.highlights, "center")}
+      </div>
+    );
 
   // Dynamic chrome below/inside main (top bar height comes from .reader-main's responsive --shell-chrome in index.css:
   // 42px on mobile where AppShell tabs hide, 94px on sm+): 32px footer+gap (or 40px when Follow strip replaces it).
@@ -306,7 +345,6 @@ export default function ReaderPage() {
       />
 
       <main
-        ref={setMainEl}
         className={`reader-main relative flex-1 flex flex-col items-center justify-between px-1.5 sm:px-6 pt-0.5 pb-0.5 ${
           showingFollowStrip
             ? "pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
@@ -357,30 +395,50 @@ export default function ReaderPage() {
               </svg>
             </button>
 
-            {spread ? (
-              /* Two facing pages, each in half the width, meeting at a faint gutter in the middle */
-              <div
-                ref={spreadFit.ref}
-                className="mushaf-spread flex-1 w-full flex items-center justify-center gap-2 lg:gap-5"
-                style={
-                  spreadFit.height
-                    ? ({ "--spread-h": `${spreadFit.height}px`, flex: "none", height: spreadFit.height } as CSSProperties)
-                    : undefined
-                }
-                data-spread
-              >
-                <div className="flex-1 min-w-0 flex">
-                  {leftPage?.page && renderPage(leftPage.page, leftPage.highlights, "right")}
-                </div>
-                <div aria-hidden className="w-px self-stretch my-4 bg-edge/70 shrink-0" />
-                <div className="flex-1 min-w-0 flex">
-                  {rightPage?.page && renderPage(rightPage.page, rightPage.highlights, "left")}
-                </div>
+            {/* The page (or spread) and, while a swipe pulls them across, its neighbours on a sliding track */}
+            <div
+              ref={bindViewport}
+              className="relative flex-1 self-stretch -mx-1.5 sm:-mx-6 flex flex-col overflow-hidden"
+              style={
+                spread && spreadFit.height
+                  ? ({ "--spread-h": `${spreadFit.height}px`, flex: "none", height: spreadFit.height } as CSSProperties)
+                  : undefined
+              }
+            >
+              <div ref={pager.trackRef} className="relative flex-1 flex flex-col px-1.5 sm:px-6">
+                {renderView(spread, { page, highlights: pageHighlights }, rightPage, leftPage)}
+                {pager.active && nextA.page && (
+                  <div
+                    aria-hidden
+                    {...{ inert: "" }}
+                    className="absolute inset-y-0 w-full flex flex-col px-1.5 sm:px-6"
+                    style={{ right: `calc(100% + ${SWIPE_GAP_PX}px)` }}
+                  >
+                    {renderView(
+                      nextSpread,
+                      { page: nextA.page, highlights: nextA.pageHighlights },
+                      { page: nextA.page, highlights: nextA.pageHighlights },
+                      nextB.page ? { page: nextB.page, highlights: nextB.pageHighlights } : null
+                    )}
+                  </div>
+                )}
+                {pager.active && prevA.page && (
+                  <div
+                    aria-hidden
+                    {...{ inert: "" }}
+                    className="absolute inset-y-0 w-full flex flex-col px-1.5 sm:px-6"
+                    style={{ left: `calc(100% + ${SWIPE_GAP_PX}px)` }}
+                  >
+                    {renderView(
+                      prevSpread,
+                      { page: prevA.page, highlights: prevA.pageHighlights },
+                      { page: prevA.page, highlights: prevA.pageHighlights },
+                      prevB.page ? { page: prevB.page, highlights: prevB.pageHighlights } : null
+                    )}
+                  </div>
+                )}
               </div>
-            ) : (
-              /* Centered one-screen Mushaf page */
-              <div className="flex-1 w-full flex items-center justify-center">{renderPage(page, pageHighlights, "center")}</div>
-            )}
+            </div>
 
             {/* Quiet centered page number footer (folded into the Follow strip while following) */}
             {!showingFollowStrip && (
