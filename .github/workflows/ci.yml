@@ -17,7 +17,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          # a fixed major is in the runner's tool cache; "lts/*" downloads a version manifest, which can fail
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run check
