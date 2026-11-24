@@ -300,8 +300,10 @@ export default function ReaderPage() {
         compact={follow.following}
       />
 
+      {/* justify-start + the footer's mt-auto: the spread stays at the top of the column whatever its height, as
+          useSpreadFit measures its height from its top (justify-between pushed it down by its own height). */}
       <main
-        className={`reader-main relative flex-1 flex flex-col items-center justify-between px-1.5 sm:px-6 pt-0.5 pb-0.5 ${
+        className={`reader-main relative flex-1 flex flex-col items-center justify-start px-1.5 sm:px-6 pt-0.5 pb-0.5 ${
           showingFollowStrip
             ? "pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
             : hasSelectionBar
@@ -378,7 +380,7 @@ export default function ReaderPage() {
 
             {/* Quiet centered page number footer (folded into the Follow strip while following) */}
             {!showingFollowStrip && (
-              <footer className="shrink-0 h-7 flex items-center justify-center gap-3 text-faint font-sans select-none">
+              <footer className="shrink-0 mt-auto h-7 flex items-center justify-center gap-3 text-faint font-sans select-none">
                 <button
                   type="button"
                   onClick={prevPage}

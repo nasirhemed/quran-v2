@@ -13,6 +13,12 @@ export function useSpreadFit(enabled: boolean): { ref: RefObject<HTMLDivElement>
   const ref = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
   const measureRef = useRef<() => void>(() => {});
+  const lastRef = useRef<number | null>(null);
+  // set when the render is our own height change: that render isn't measured again. Sizing the spread changes
+  // nothing above or below it, unless its top depends on its height (it did: ReaderPage's column pushed it down
+  // by its own height, so every measure differed from the last, an endless render loop that crashed the reader
+  // with Hide + Follow on). Skipping that one measure makes such a loop impossible.
+  const ownRender = useRef(false);
 
   measureRef.current = () => {
     const el = ref.current;
@@ -24,14 +30,18 @@ export function useSpreadFit(enabled: boolean): { ref: RefObject<HTMLDivElement>
     let below = strip ? strip.offsetHeight : 0;
     if (!strip) for (let n = el.nextElementSibling; n; n = n.nextElementSibling) below += (n as HTMLElement).offsetHeight;
     const h = Math.floor(viewport - top - below - 6);
-    setHeight((prev) => (prev === h ? prev : h));
+    if (h === lastRef.current) return;
+    lastRef.current = h;
+    ownRender.current = true;
+    setHeight(h);
   };
 
   const roRef = useRef<ResizeObserver | null>(null);
   // every render: a bar above or below may have come or gone (and the strip, opening or collapsing without the
   // reader re-rendering, is watched for size)
   useLayoutEffect(() => {
-    measureRef.current();
+    if (ownRender.current) ownRender.current = false;
+    else measureRef.current();
     const ro = roRef.current;
     if (!ro) return;
     ro.disconnect();
