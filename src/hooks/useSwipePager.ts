@@ -9,8 +9,6 @@ import {
   type SwipeTurn,
 } from "@/lib/mushaf/swipe";
 
-export type PagerPhase = "idle" | "drag" | "settle";
-
 interface Options {
   /** whether there is a next / previous page (spread) to turn to */
   canNext: boolean;
@@ -28,8 +26,8 @@ const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
  * Pulls the reader's pages across under a finger (`lib/mushaf/swipe.ts` decides what a stroke is and where it
  * settles). `bind` goes on the viewport (it gets `touch-action: pan-y pinch-zoom`, so the browser keeps vertical
  * scrolling and pinch zoom, and sideways strokes come here), `trackRef` on the element that slides, which holds
- * the current page with the next page to its left and the previous to its right while `phase` is not idle.
- * The track is moved straight on the DOM (no re-render per move). On release it slides on to the neighbour and
+ * the current page with the next page to its left and the previous to its right (always there, so a swipe
+ * starts without rendering anything). The track is moved straight on the DOM: a swipe never re-renders React. On release it slides on to the neighbour and
  * then turns the page, or slides back; the turn re-renders the track with the new page in the middle and it is
  * put back at 0 in a layout effect, so nothing jumps.
  *
@@ -40,7 +38,6 @@ const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
 export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true, page }: Options) {
   const [el, bind] = useState<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<PagerPhase>("idle");
   const latest = useRef({ canNext, canPrev, onNext, onPrev });
   latest.current = { canNext, canPrev, onNext, onPrev };
   const timer = useRef<number | undefined>(undefined);
@@ -49,6 +46,7 @@ export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true
     const track = trackRef.current;
     if (!track) return;
     track.style.transition = ms ? `transform ${ms}ms ${EASE}` : "none";
+    track.style.willChange = x ? "transform" : "";
     track.style.transform = x ? `translate3d(${x}px,0,0)` : "";
   }, []);
 
@@ -56,7 +54,6 @@ export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true
   useLayoutEffect(() => {
     window.clearTimeout(timer.current);
     place(0);
-    setPhase("idle");
   }, [page, place]);
 
   useEffect(() => {
@@ -91,14 +88,12 @@ export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true
       const first = recent[0] ?? samples[samples.length - 1];
       const velocity = first && t > first.t ? ((e ? e.clientX : first.x) - first.x) / (t - first.t) : 0;
       const turn: SwipeTurn | null = cancelled ? null : settleSwipe({ dx, velocity, width: el.clientWidth }, can());
-      setPhase("settle");
       if (turn) {
         slideTo(turn === "next" ? width() : -width(), () => {
           // the turn re-renders the track with the new page in the middle; the layout effect puts it back at 0
           // if the page does not change after all, slide back (a turn clears this in the layout effect)
           timer.current = window.setTimeout(() => {
             place(0);
-            setPhase("idle");
           }, 600);
           if (turn === "next") latest.current.onNext();
           else latest.current.onPrev();
@@ -106,7 +101,6 @@ export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true
       } else {
         slideTo(0, () => {
           place(0);
-          setPhase("idle");
         });
       }
       samples = [];
@@ -139,7 +133,6 @@ export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true
         }
         dragging = true;
         window.clearTimeout(timer.current);
-        setPhase("drag");
         try {
           el.setPointerCapture(e.pointerId);
         } catch {
@@ -180,9 +173,8 @@ export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true
       el.removeEventListener("click", onClick, true);
       window.clearTimeout(timer.current);
       place(0);
-      setPhase("idle");
     };
   }, [el, enabled, place]);
 
-  return { bind, trackRef, phase, active: phase !== "idle" };
+  return { bind, trackRef };
 }

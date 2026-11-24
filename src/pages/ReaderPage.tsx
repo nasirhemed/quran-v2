@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MutableRefObject } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState, type CSSProperties, type MutableRefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useQuranPage } from "@/hooks/useQuranPage";
@@ -22,7 +22,9 @@ import AddOccurrenceDialog from "@/components/edit/AddOccurrenceDialog";
 import ExportImportPanel from "@/components/edit/ExportImportPanel";
 import { useFollowMode } from "@/components/recitation/FollowControl";
 import { HideWordsBar, HideWordsButton } from "@/components/recitation/HideWords";
-import type { WordHighlight, LocalPhrase } from "@/types";
+import type { WordHighlight, LocalPhrase, PageHighlightMap, QuranPage as QuranPageData } from "@/types";
+import { fetchAyahHighlights } from "@/lib/data";
+import { computePageHighlights, mergeHighlights } from "@/lib/highlights";
 
 const HIGHLIGHTS_KEY = "reader-highlights";
 function loadShowHighlights(): boolean {
@@ -32,6 +34,8 @@ function loadShowHighlights(): boolean {
     return true;
   }
 }
+
+type Shown = { page: QuranPageData; highlights: PageHighlightMap } | null;
 
 export default function ReaderPage() {
   const [showHighlights, setShowHighlights] = useState(loadShowHighlights);
@@ -73,8 +77,6 @@ export default function ReaderPage() {
     document.documentElement.toggleAttribute("data-reader-spread", isSpread);
     return () => document.documentElement.removeAttribute("data-reader-spread");
   }, [isSpread]);
-  // In a spread, the page facing the current one (the URL's page stays the reader's place).
-  const facingPage = spread ? (currentPage === spread.right ? spread.left : spread.right) : null;
   const atFirst = (spread ? spread.right : currentPage) <= 1;
   const atLast = (spread ? spread.left ?? spread.right : currentPage) >= pageCount;
   const pageLabel = spread ? (spread.left ? `${spread.right}–${spread.left}` : `${spread.right}`) : `${currentPage}`;
@@ -92,18 +94,43 @@ export default function ReaderPage() {
     currentPage,
     localPhrases.localHighlights
   );
-  const facing = useQuranPage(pages, facingPage ?? 0, localPhrases.localHighlights);
 
-  // The pages either side, drawn beside this one while a swipe pulls them across: the next page (spread) on the
-  // left, the previous on the right, as in a printed mushaf.
-  const nextAt = spread ? nextSpreadPage(currentPage, pageCount) : currentPage < pageCount ? currentPage + 1 : null;
-  const prevAt = spread ? prevSpreadPage(currentPage, pageCount) : currentPage > 1 ? currentPage - 1 : null;
-  const nextSpread = spread && nextAt ? spreadOf(nextAt, pageCount) : null;
-  const prevSpread = spread && prevAt ? spreadOf(prevAt, pageCount) : null;
-  const nextA = useQuranPage(pages, nextSpread?.right ?? nextAt ?? 0, localPhrases.localHighlights);
-  const nextB = useQuranPage(pages, nextSpread?.left ?? 0, localPhrases.localHighlights);
-  const prevA = useQuranPage(pages, prevSpread?.right ?? prevAt ?? 0, localPhrases.localHighlights);
-  const prevB = useQuranPage(pages, prevSpread?.left ?? 0, localPhrases.localHighlights);
+  // The views (a page, or a spread by its right-hand page) on the swipe track: this one in the middle, the next on
+  // its left and the previous on its right, as in a printed mushaf. They stay mounted, so a swipe starts without
+  // rendering anything and a turn moves the neighbour's own DOM into the middle. The new neighbours after a turn are
+  // worked out from a deferred page, so mounting them never holds up the turn itself.
+  const deferredPage = useDeferredValue(currentPage);
+  const anchorOf = (n: number) => (spread ? spreadOf(n, pageCount).right : n);
+  const stepFrom = (n: number, dir: 1 | -1): number | null => {
+    if (spread) return dir > 0 ? nextSpreadPage(n, pageCount) : prevSpreadPage(n, pageCount);
+    const to = n + dir;
+    return to >= 1 && to <= pageCount ? to : null;
+  };
+  const currentAnchor = anchorOf(currentPage);
+  const deferredAnchor = anchorOf(deferredPage);
+  const anchors = [
+    ...new Set(
+      [currentAnchor, deferredAnchor, stepFrom(deferredAnchor, 1), stepFrom(deferredAnchor, -1)].filter(
+        (n): n is number => n !== null
+      )
+    ),
+  ].sort((a, b) => a - b);
+  const { data: ayahHighlights } = useQuery({ queryKey: ["ayah-highlights"], queryFn: fetchAyahHighlights });
+  const mergedHighlights = useMemo(
+    () => (ayahHighlights ? mergeHighlights(ayahHighlights, localPhrases.localHighlights) : undefined),
+    [ayahHighlights, localPhrases.localHighlights]
+  );
+  const viewCache = useMemo(() => new Map<number, Shown>(), [pages, mergedHighlights]);
+  const pageData = (n: number | null): Shown => {
+    if (!n || !pages) return null;
+    let hit = viewCache.get(n);
+    if (hit === undefined) {
+      const p = pages.find((x) => x.pageNumber === n);
+      hit = p ? { page: p, highlights: mergedHighlights ? computePageHighlights(p, mergedHighlights) : {} } : null;
+      viewCache.set(n, hit);
+    }
+    return hit;
+  };
 
   // Remember the reader's place for HomePage's "Continue reading" card.
   useEffect(() => {
@@ -284,16 +311,8 @@ export default function ReaderPage() {
     />
   );
   // Right-to-left like a printed mushaf: the lower (odd) page on the right.
-  const shown = spread
-    ? [spread.right, spread.left].map((n) =>
-        n === currentPage ? { page, highlights: pageHighlights } : n === facingPage ? { page: facing.page, highlights: facing.pageHighlights } : null
-      )
-    : null;
-  const rightPage = shown?.[0] ?? null;
-  const leftPage = shown?.[1] ?? null;
-  type Shown = { page: typeof page; highlights: typeof pageHighlights } | null;
   /** one page, or two facing pages each in half the width meeting at a faint gutter in the middle */
-  const renderView = (sp: Spread | null, single: NonNullable<Shown>, right: Shown, left: Shown) =>
+  const renderView = (sp: Spread | null, single: Shown, right: Shown, left: Shown) =>
     sp ? (
       <div className="mushaf-spread h-full w-full flex items-center justify-center gap-2 lg:gap-5" data-spread>
         <div className="flex-1 min-w-0 flex">{left?.page && renderPage(left.page, left.highlights, "right")}</div>
@@ -302,7 +321,7 @@ export default function ReaderPage() {
       </div>
     ) : (
       <div className="flex-1 w-full flex items-center justify-center">
-        {single.page && renderPage(single.page, single.highlights, "center")}
+        {single && renderPage(single.page, single.highlights, "center")}
       </div>
     );
 
@@ -405,38 +424,24 @@ export default function ReaderPage() {
                   : undefined
               }
             >
-              <div ref={pager.trackRef} className="relative flex-1 flex flex-col px-1.5 sm:px-6">
-                {renderView(spread, { page, highlights: pageHighlights }, rightPage, leftPage)}
-                {pager.active && nextA.page && (
-                  <div
-                    aria-hidden
-                    {...{ inert: "" }}
-                    className="absolute inset-y-0 w-full flex flex-col px-1.5 sm:px-6"
-                    style={{ right: `calc(100% + ${SWIPE_GAP_PX}px)` }}
-                  >
-                    {renderView(
-                      nextSpread,
-                      { page: nextA.page, highlights: nextA.pageHighlights },
-                      { page: nextA.page, highlights: nextA.pageHighlights },
-                      nextB.page ? { page: nextB.page, highlights: nextB.pageHighlights } : null
-                    )}
-                  </div>
-                )}
-                {pager.active && prevA.page && (
-                  <div
-                    aria-hidden
-                    {...{ inert: "" }}
-                    className="absolute inset-y-0 w-full flex flex-col px-1.5 sm:px-6"
-                    style={{ left: `calc(100% + ${SWIPE_GAP_PX}px)` }}
-                  >
-                    {renderView(
-                      prevSpread,
-                      { page: prevA.page, highlights: prevA.pageHighlights },
-                      { page: prevA.page, highlights: prevA.pageHighlights },
-                      prevB.page ? { page: prevB.page, highlights: prevB.pageHighlights } : null
-                    )}
-                  </div>
-                )}
+              <div ref={pager.trackRef} className="relative flex-1 flex flex-col">
+                {anchors.map((a, i) => {
+                  // + = later pages, to the left
+                  const slot = i - anchors.indexOf(currentAnchor);
+                  const sp = spread ? spreadOf(a, pageCount) : null;
+                  const shift = `calc(${Math.abs(slot) * 100}% + ${Math.abs(slot) * SWIPE_GAP_PX}px)`;
+                  return (
+                    <div
+                      key={a}
+                      aria-hidden={slot !== 0 || undefined}
+                      {...(slot !== 0 ? { inert: "" } : {})}
+                      className={`${slot === 0 ? "relative flex-1" : "absolute inset-y-0 w-full"} flex flex-col px-1.5 sm:px-6`}
+                      style={slot > 0 ? { right: shift } : slot < 0 ? { left: shift } : undefined}
+                    >
+                      {renderView(sp, pageData(a), pageData(sp?.right ?? null), pageData(sp?.left ?? null))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
