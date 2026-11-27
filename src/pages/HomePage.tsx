@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchJuzMetadata, fetchSurahs } from "@/lib/data";
 import { loadLastRead } from "@/lib/lastRead";
+import { loadBookmarks } from "@/lib/ayahActions";
 import type { JuzMeta, SurahMeta } from "@/types";
 import OfflineMushaf from "@/components/mushaf/OfflineMushaf";
 import SurahName from "@/components/SurahName";
@@ -84,6 +85,7 @@ export default function HomePage({ onNavigateToSurah }: HomePageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [tab, setTab] = useState<BrowseTab>("surahs");
   const [lastRead] = useState(() => loadLastRead());
+  const [bookmarks] = useState(loadBookmarks);
   const [offlineDismissed, setOfflineDismissed] = useState(() => {
     try {
       return localStorage.getItem(OFFLINE_DISMISSED_KEY) === "1";
@@ -188,6 +190,24 @@ export default function HomePage({ onNavigateToSurah }: HomePageProps) {
               Resume
             </span>
           </Link>
+        )}
+
+        {/* Bookmarked verses (long-press a verse in the reader to add or remove one) */}
+        {bookmarks.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap" aria-label="Bookmarks">
+            <svg className="w-3.5 h-3.5 text-gold shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path d="M6 4h12v17l-6-4-6 4V4z" />
+            </svg>
+            {bookmarks.map((b) => (
+              <Link
+                key={`${b.surah}:${b.ayah}`}
+                href={`/read?surah=${b.surah}&ayah=${b.ayah}`}
+                className="shrink-0 rounded-lg border border-edge/80 bg-card px-2.5 py-1 text-xs text-ink hover:border-primary/50 transition-colors whitespace-nowrap"
+              >
+                {b.tname} <span className="text-muted tabular-nums">{b.surah}:{b.ayah}</span>
+              </Link>
+            ))}
+          </div>
         )}
 
         {/* Search + Surahs/Juz toggle */}

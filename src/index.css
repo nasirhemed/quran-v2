@@ -301,6 +301,21 @@
     width: min(100%, 28rem);
   }
 }
+/* Under a finger a page never selects text: a long press opens the verse's menu instead (hooks/useAyahLongPress,
+   components/page/AyahMenu), so holding still never fights a swipe. A mouse still selects (and copies) text. */
+@media (pointer: coarse) {
+  .mushaf {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+/* The verse whose menu is open (set on its [data-w] spans directly, like .voice-current). */
+.ayah-pressed {
+  background-image: none !important;
+  background-color: rgb(var(--gold-rgb) / 0.22);
+  border-radius: 0.25rem;
+}
 .mushaf-glyphs {
   font-size: calc(100cqw / var(--line-em, 16.3));
 }
