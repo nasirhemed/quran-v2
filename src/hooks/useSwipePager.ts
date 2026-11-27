@@ -32,7 +32,7 @@ const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
  * put back at 0 in a layout effect, so nothing jumps.
  *
  * Left alone: touches from the screen's side edge (the system's back gesture), a second finger (pinch), a long
- * press (text selection) or a touch that leaves text selected, a page zoomed in (a sideways stroke pans it),
+ * press (it opens the verse's menu: hooks/useAyahLongPress) or a touch that leaves text selected, a page zoomed in (a sideways stroke pans it),
  * mouse and pen (a mouse drag selects text; the arrows and keys turn pages there).
  */
 export function useSwipePager({ canNext, canPrev, onNext, onPrev, enabled = true, page }: Options) {

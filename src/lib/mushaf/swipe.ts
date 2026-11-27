@@ -13,7 +13,7 @@ export type SwipeTurn = "next" | "prev";
 export const SWIPE_SLOP_PX = 8;
 /** a drag must be this many times more sideways than up or down (otherwise it is a scroll) */
 export const SWIPE_RATIO = 1.2;
-/** a finger held this long before moving is a long press (selecting text), not a swipe */
+/** a finger held this long before moving is a long press (the verse's menu: hooks/useAyahLongPress), not a swipe */
 export const SWIPE_HOLD_MS = 500;
 /** touches that start this close to the screen's side edge belong to the system's back/forward gesture */
 export const SWIPE_EDGE_PX = 20;

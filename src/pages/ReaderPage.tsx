@@ -11,6 +11,9 @@ import { useMushafPages } from "@/hooks/useMushafLayout";
 import { usePageSpread } from "@/hooks/usePageSpread";
 import { useSpreadFit } from "@/hooks/useSpreadFit";
 import { useSwipePager } from "@/hooks/useSwipePager";
+import { useAyahLongPress } from "@/hooks/useAyahLongPress";
+import { isBookmarked, loadBookmarks, toggleBookmark, type AyahRef } from "@/lib/ayahActions";
+import AyahMenu from "@/components/page/AyahMenu";
 import { nextSpreadPage, prevSpreadPage, spreadOf, type Spread } from "@/lib/mushaf/spread";
 import { SWIPE_GAP_PX } from "@/lib/mushaf/swipe";
 import { bismillahGlyphs } from "@/lib/mushaf/layout";
@@ -23,7 +26,7 @@ import ExportImportPanel from "@/components/edit/ExportImportPanel";
 import { useFollowMode } from "@/components/recitation/FollowControl";
 import { HideWordsBar, HideWordsButton } from "@/components/recitation/HideWords";
 import type { WordHighlight, LocalPhrase, PageHighlightMap, QuranPage as QuranPageData } from "@/types";
-import { fetchAyahHighlights } from "@/lib/data";
+import { fetchAyahHighlights, fetchSimilarAyahDetails } from "@/lib/data";
 import { computePageHighlights, mergeHighlights } from "@/lib/highlights";
 
 const HIGHLIGHTS_KEY = "reader-highlights";
@@ -193,6 +196,31 @@ export default function ReaderPage() {
   const [dialogPhrase, setDialogPhrase] = useState<LocalPhrase | null>(null);
   const [showExportImport, setShowExportImport] = useState(false);
 
+  // A still long press on a verse (or a right click) opens its menu: copy, share, bookmark, similar verses.
+  const [menuAyah, setMenuAyah] = useState<AyahRef | null>(null);
+  const [bookmarks, setBookmarks] = useState(loadBookmarks);
+  const closeMenu = useCallback(() => setMenuAyah(null), []);
+  const longPress = useAyahLongPress({
+    onPress: setMenuAyah,
+    enabled: !localPhrases.editMode && !showAddDialog && !showExportImport && !sidePanel.isOpen,
+  });
+  const { data: similarDetails } = useQuery({ queryKey: ["similar-ayah-details"], queryFn: fetchSimilarAyahDetails });
+  // Mark the verse while its menu is open, on its word spans directly (QuranPage does not re-render for it).
+  useEffect(() => {
+    if (!menuAyah) return;
+    const els = document.querySelectorAll<HTMLElement>(`[data-w^="${menuAyah.surah}:${menuAyah.ayah}:"]`);
+    els.forEach((e) => e.classList.add("ayah-pressed"));
+    return () => els.forEach((e) => e.classList.remove("ayah-pressed"));
+  }, [menuAyah]);
+  const menuVerse = useMemo(() => {
+    if (!menuAyah || !pages) return null;
+    for (const p of pages)
+      for (const g of p.surahGroups)
+        if (g.surahIndex === menuAyah.surah)
+          for (const a of g.ayahs) if (a.ayah === menuAyah.ayah) return { ayah: a, page: p.pageNumber, tname: g.tname };
+    return null;
+  }, [menuAyah, pages]);
+
   // Pull the page right for the next page (spread), left for the previous, as the arrow keys; not under a dialog.
   const pager = useSwipePager({
     page: currentPage,
@@ -206,8 +234,9 @@ export default function ReaderPage() {
     (node: HTMLDivElement | null) => {
       (spreadFit.ref as MutableRefObject<HTMLDivElement | null>).current = node;
       pager.bind(node);
+      longPress.bind(node);
     },
-    [spreadFit.ref, pager.bind]
+    [spreadFit.ref, pager.bind, longPress.bind]
   );
 
   const handleHighlightClick = useCallback(
@@ -513,6 +542,28 @@ export default function ReaderPage() {
           onExport={localPhrases.exportPhrases}
           onImport={localPhrases.importPhrases}
           onClose={() => setShowExportImport(false)}
+        />
+      )}
+
+      {menuVerse && (
+        <AyahMenu
+          ayah={menuVerse.ayah}
+          tname={menuVerse.tname}
+          bookmarked={isBookmarked(bookmarks, menuVerse.ayah)}
+          onToggleBookmark={() =>
+            setBookmarks((list) =>
+              toggleBookmark(list, { surah: menuVerse.ayah.surah, ayah: menuVerse.ayah.ayah, page: menuVerse.page, tname: menuVerse.tname })
+            )
+          }
+          onSimilar={
+            similarDetails?.[`${menuVerse.ayah.surah}:${menuVerse.ayah.ayah}`]
+              ? () => {
+                  sidePanel.openSimilar(`${menuVerse.ayah.surah}:${menuVerse.ayah.ayah}`);
+                  closeMenu();
+                }
+              : undefined
+          }
+          onClose={closeMenu}
         />
       )}
 

@@ -63,8 +63,12 @@ CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on every PR 
   released a quarter of the way or flicked it slides on and turns, else slides back. The track moves on the DOM
   (a swipe never re-renders React); the neighbours stay mounted (`inert`, keyed by page, so a turn moves the
   neighbour's own DOM into the middle; the new neighbours come from `useDeferredValue`), and the turn's re-render
-  puts the track back at 0 in a layout effect. Touch only, `touch-action: pan-y pinch-zoom`; scrolling, pinch, a long press selecting
-  text, a zoomed-in page and the edge back gesture are left alone.
+  puts the track back at 0 in a layout effect. Touch only, `touch-action: pan-y pinch-zoom`; scrolling, pinch, a long press,
+  a zoomed-in page and the edge back gesture are left alone.
+  Under a finger pages never select text (`.mushaf` is `user-select: none` for `pointer: coarse`): a still long press
+  (`SWIPE_HOLD_MS`, moving under `SWIPE_SLOP_PX`; `hooks/useAyahLongPress`) or a right click opens the verse's menu
+  (`components/page/AyahMenu.tsx`: copy, share/copy link, bookmark, similar verses, Browse; `lib/ayahActions.ts`).
+  Bookmarks are in localStorage "bookmarks" and listed on the Read home page. A mouse still selects and copies text.
 - **Mushaf rendering** (`components/page/QuranPage.tsx`): pages are drawn like quran.com, from the King Fahd
   Complex's QCF V2 fonts (the 1421H Madinah print): one font per page, each word one glyph (`QuranWord.glyph`),
   on its printed line. Pages follow that print too (36 pages differ from the older 1405H print, e.g. 120-123,

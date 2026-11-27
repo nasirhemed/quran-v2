@@ -161,13 +161,16 @@ export default function QuranPage({
       <span
         key={`end-${item.ayahKey}`}
         className={isActive(item) ? "text-gold-text" : "text-gold"}
+        data-a={item.ayahKey}
         data-copy={ayahNumberText(item.ayah)}
       >
         <span aria-hidden="true">{item.glyph}</span>
         <span className="sr-only">({item.ayah}) </span>
       </span>
     ) : (
-      <VerseMarker key={`end-${item.ayahKey}`} ayahNumber={item.ayah} />
+      <span key={`end-${item.ayahKey}`} data-a={item.ayahKey}>
+        <VerseMarker ayahNumber={item.ayah} />
+      </span>
     );
 
   const effectiveLineEm = page.lineWidthEm ?? lineWidthEm;
